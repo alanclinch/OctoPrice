@@ -12,6 +12,10 @@
     "exactOptionalPropertyTypes": false,
     "verbatimModuleSyntax": true,
     "isolatedModules": true,
+    // The server runs directly from TypeScript source on Node, which only
+    // strips types. Parameter properties, enums and namespaces are not
+    // erasable and would fail at runtime while still type-checking.
+    "erasableSyntaxOnly": true,
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
