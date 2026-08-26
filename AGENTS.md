@@ -42,6 +42,7 @@ apps/server/         Fastify API, Octopus client, scheduler, persistence
 apps/web/            Vite + React PWA, mobile-first
 
 docs/                architecture, octopus-api, notifications, deployment
+deploy/cloudflare/   Example named-tunnel configuration; never credentials
 ```
 
 ## Build and test commands
@@ -58,6 +59,18 @@ npm run dev:web      # PWA dev server
 ```
 
 `npm run verify` must pass before you commit.
+
+## Deployment
+
+- Production is a persistent Node 24 process with a persistent SQLite volume.
+- Cloudflare supplies HTTPS through a named Tunnel to the origin. Follow
+  `docs/deployment.md` and start from
+  `deploy/cloudflare/config.yml.example`.
+- Do not add Wrangler or claim ordinary Workers support without deliberately
+  redesigning the listener, scheduler and storage layer. Cloudflare Containers
+  have ephemeral local disk and require the paid Workers plan.
+- Deploy only committed `main` revisions after CI passes. Keep tunnel
+  credentials, VAPID keys and host access credentials outside Git.
 
 ## Coding standards
 
@@ -94,6 +107,7 @@ covered by tests that must keep passing.
 - Never log push subscriptions, Octopus API keys or account numbers.
 - Public Octopus price endpoints require no authentication; do not add
   credentialed calls without a real need.
+- Never commit Cloudflare Tunnel credential JSON or a real tunnel config.
 
 ## Source-of-truth documents
 
@@ -115,6 +129,9 @@ covered by tests that must keep passing.
 4. Update `AI_HANDOFF.md`: work completed, files changed, tests run,
    outstanding issues, suggested next action.
 5. Commit and push your branch.
+
+Keep `AI_HANDOFF.md` concise and current. Replace stale state instead of
+appending a transcript; Git is the authoritative change history.
 
 If you stopped mid-task, record that plainly under "Currently In Progress"
 along with which files are incomplete.

@@ -1,0 +1,11 @@
+# Copy this file to /etc/cloudflared/config.yml on the persistent origin host.
+# The tunnel UUID and credentials JSON are created by `cloudflared tunnel create`.
+# Never commit the real config or credentials file.
+
+tunnel: <TUNNEL_UUID>
+credentials-file: /etc/cloudflared/<TUNNEL_UUID>.json
+
+ingress:
+  - hostname: octoprice.example.com
+    service: http://127.0.0.1:3000
+  - service: http_status:404

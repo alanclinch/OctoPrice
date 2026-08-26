@@ -9,8 +9,8 @@ notification telling you the cheapest slot, the most expensive slot, and
 whether anything matched the alerts you set up. It installs to an Android home
 screen as an app, and works in any browser.
 
-> Status: in development, pre-MVP. See `AI_HANDOFF.md` for exactly where
-> things stand.
+> Status: MVP feature-complete, not yet released. See `AI_HANDOFF.md` for the
+> current verification and deployment state.
 
 ## What it does
 
@@ -58,8 +58,14 @@ for a personal single-user install.
 
 | Variable                | What it does                                          |
 | ----------------------- | ----------------------------------------------------- |
+| `NODE_ENV`              | Runtime mode: development, test or production         |
 | `DATABASE_URL`          | `file:./data/octoprice.sqlite` for local use          |
 | `PORT` / `HOST`         | Where the server listens                              |
+| `LOG_LEVEL`             | Structured log threshold                              |
+| `OCTOPUS_BASE_URL`      | Public Octopus API base URL                           |
+| `OCTOPUS_PRODUCT_CODE`  | Optional fixed Agile product; blank discovers it      |
+| `OCTOPUS_API_KEY`       | Reserved for future account tariff detection          |
+| `OCTOPUS_ACCOUNT_NUMBER`| Reserved for future account tariff detection          |
 | `DEFAULT_REGION`        | Your DNO region letter, used until you pick one in UI |
 | `VAPID_PUBLIC_KEY`      | Public half of the push key pair                      |
 | `VAPID_PRIVATE_KEY`     | Private half — treat as a password, never commit      |
@@ -67,6 +73,8 @@ for a personal single-user install.
 | `POLL_START`            | When to start looking for tomorrow's prices (16:05)   |
 | `POLL_INTERVAL_MINUTES` | Retry gap while waiting (5)                           |
 | `POLL_CUTOFF`           | When to give up for the day (22:15)                   |
+| `ENABLE_SCHEDULER`      | Whether the background price poller runs               |
+| `WEB_DIST_PATH`         | Location of the built PWA served by Fastify            |
 
 Your region letter is the last character of your Octopus tariff code — for
 example `E-1R-AGILE-24-10-01-C` is region `C`, London. You can also just pick
@@ -107,10 +115,10 @@ Run `npm run verify` before committing.
 
 ## Deployment
 
-See `docs/deployment.md`. The short version: it is one Node process and one
-SQLite file, so anything that can run Node continuously will do. The server
-must stay running for price polling to work — this is deliberately not a
-serverless design.
+See `docs/deployment.md`. The short version: it is one continuously running
+Node process and one persistent SQLite file. The documented Cloudflare model
+uses a named Cloudflare Tunnel for public HTTPS in front of that persistent
+origin. Ordinary Workers are not a drop-in target for this architecture.
 
 ## Documentation
 

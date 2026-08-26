@@ -9,12 +9,13 @@ If this file and the code disagree, **the code is right** — fix this file.
 ## Current State
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
-- **Current branch:** `main`
-- **Last known good commit:** see `git log -1` (the merge of
-  `claude/pwa-dashboard`)
+- **Current branch:** `codex/infrastructure-deployment`
+- **Last known good application commit:** `8b9d9dd` on `main`; the current
+  branch's infrastructure/documentation state is also verified
 - **Build status:** passing — `npm run verify`
 - **Test status:** passing — 204 tests across 8 files
-- **Deployed:** nowhere yet
+- **Deployed:** nowhere yet; Cloudflare requires a persistent origin host and
+  an authenticated account/domain
 - **Git remote:** none configured. Everything is local only, so CI has never
   actually run.
 
@@ -58,22 +59,26 @@ GitHub remote or a real device:
 
 ## Currently In Progress
 
-Nothing is half-finished. No agent holds an open branch.
+Codex is preparing GitHub and Cloudflare infrastructure on
+`codex/infrastructure-deployment`. The documentation, environment template,
+secret exclusions and named Cloudflare Tunnel example are complete and
+`npm run verify` passes. GitHub creation/push and live Cloudflare provisioning
+remain blocked on account sign-in; a production Tunnel also needs the chosen
+persistent origin host and Cloudflare-managed hostname.
 
-Merged and deleted-able branches: `claude/server-and-api`,
-`claude/pwa-dashboard` (both merged into `main`).
+Application source files have not been changed.
 
 ## Next Recommended Work
 
-1. **Create the GitHub repository and push.** This needs the owner, or the
-   `gh` CLI installed (it is not on this machine). Until then CI has never
-   run, which is the biggest untested part of the setup.
-2. **Generate VAPID keys and verify push on a real device.** `npm run
+1. **Finish GitHub setup.** Sign in, create the repository, add `origin`, push
+   this branch, open/merge it into `main`, and confirm the CI workflow passes.
+2. **Provision the production origin and Cloudflare Tunnel.** Choose the
+   always-on Node host, persistent SQLite path and hostname, then follow
+   `docs/deployment.md`.
+3. **Generate VAPID keys and verify push on a real device.** `npm run
    generate:vapid`, paste into `.env`, restart, then install the PWA on an
    Android phone and use the test-notification button. This is the one part
    of the MVP that has never been exercised for real.
-3. **Deploy a test instance over HTTPS** (see `docs/deployment.md`). Push
-   requires a secure context, so a LAN IP will not do.
 4. **Watch several real Octopus publication cycles** (DESIGN.md section 42,
    step 21) before calling the MVP released. Confirm the daily notification
    arrives once, at a sensible time, and does not repeat.
@@ -101,6 +106,19 @@ Merged and deleted-able branches: `claude/server-and-api`,
   `vite-plugin-pwa`; it comes from the plugin, not from our config.
 
 ## Important Decisions
+
+### 2026-08-26 — Cloudflare Tunnel, not Workers, for the unchanged app
+
+**Decision:** run the existing Fastify/SQLite service on a persistent Node
+origin and publish it through a named Cloudflare Tunnel.
+**Reason:** the service owns a long-running scheduler and a persistent local
+SQLite file. Ordinary Workers are not a drop-in runtime; Cloudflare Containers
+require the paid Workers plan and have ephemeral local disk. A Worker/D1 or
+Container persistence conversion would be an application architecture change,
+which the infrastructure task explicitly forbids.
+**Revisit when:** the project deliberately adopts a Cloudflare-native store or
+another durable database, or the deployment budget and persistence design for
+Containers are approved.
 
 ### 2026-08-26 — TypeScript pinned to 5.9
 
@@ -170,6 +188,21 @@ bundle is 87 kB gzipped, which matters for a phone-first PWA.
 been larger and harder to bend to the negative-price presentation.
 
 ## Recent Agent Handoffs
+
+### 2026-08-26 — Codex
+
+**Work completed:** audited the repository and deployment constraints; created
+the Cloudflare Tunnel configuration template; documented the compatible
+Cloudflare topology, GitHub-as-source workflow, secrets and deployment steps;
+aligned `AGENTS.md`, `CLAUDE.md`, `README.md`, `.env.example` and `.gitignore`.
+
+**Tests run:** `npm run verify` (204 tests plus format, lint, typecheck and
+build) passed. A production-style server smoke test returned 200 from the app
+shell and `ok` from `/api/health` with an in-memory test database.
+
+**Outstanding:** authenticate GitHub and Cloudflare, create/push the GitHub
+repository, select the persistent origin and hostname, then provision and test
+the named Tunnel. No application files were modified.
 
 ### 2026-08-26 — Claude
 
