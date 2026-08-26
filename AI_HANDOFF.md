@@ -10,7 +10,7 @@ If this file and the code disagree, **the code is right** — fix this file.
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
 - **Current branch:** `main`
-- **Last known good main commit:** `adf79a4`
+- **Source control:** clean `main`, synced to `origin/main`
 - **Build status:** passing — `npm run verify`
 - **Test status:** passing — 204 tests across 8 files
 - **Deployed:** `https://octoprice.alanclinch.workers.dev` on Cloudflare
