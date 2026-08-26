@@ -38,7 +38,7 @@ screen as an app, and works in any browser.
 ## Installation
 
 ```bash
-git clone <your-repository-url> OctoPrice
+git clone https://github.com/alanclinch/OctoPrice.git
 cd OctoPrice
 npm install
 cp .env.example .env

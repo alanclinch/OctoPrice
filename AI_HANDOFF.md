@@ -16,8 +16,9 @@ If this file and the code disagree, **the code is right** — fix this file.
 - **Test status:** passing — 204 tests across 8 files
 - **Deployed:** nowhere yet; Cloudflare requires a persistent origin host and
   an authenticated account/domain
-- **Git remote:** none configured. Everything is local only, so CI has never
-  actually run.
+- **Git remote:** public GitHub repository at
+  `https://github.com/alanclinch/OctoPrice`; `main` and the infrastructure
+  branch are pushed
 
 ## Current Architecture
 
@@ -59,20 +60,23 @@ GitHub remote or a real device:
 
 ## Currently In Progress
 
-Codex is preparing GitHub and Cloudflare infrastructure on
-`codex/infrastructure-deployment`. The documentation, environment template,
-secret exclusions and named Cloudflare Tunnel example are complete and
-`npm run verify` passes. GitHub creation/push and live Cloudflare provisioning
-remain blocked on account sign-in; a production Tunnel also needs the chosen
-persistent origin host and Cloudflare-managed hostname.
+Codex is completing GitHub and Cloudflare infrastructure on
+`codex/infrastructure-deployment`. GitHub is connected and both branches are
+pushed. The documentation, environment template, secret exclusions and named
+Cloudflare Tunnel example are complete and `npm run verify` passes.
+
+Live Cloudflare provisioning is blocked because the account has no managed
+domain and no production origin has been selected. The known
+`holiday-king-nucbox` hostname is not currently resolvable from this machine.
 
 Application source files have not been changed.
 
 ## Next Recommended Work
 
-1. **Finish GitHub setup.** Sign in, create the repository, add `origin`, push
-   this branch, open/merge it into `main`, and confirm the CI workflow passes.
-2. **Provision the production origin and Cloudflare Tunnel.** Choose the
+1. **Finish GitHub setup.** Merge `codex/infrastructure-deployment` into
+   `main` and confirm the CI workflow passes.
+2. **Provision the production origin and Cloudflare Tunnel.** Add or register
+   a domain in Cloudflare, choose the
    always-on Node host, persistent SQLite path and hostname, then follow
    `docs/deployment.md`.
 3. **Generate VAPID keys and verify push on a real device.** `npm run
@@ -200,9 +204,9 @@ aligned `AGENTS.md`, `CLAUDE.md`, `README.md`, `.env.example` and `.gitignore`.
 build) passed. A production-style server smoke test returned 200 from the app
 shell and `ok` from `/api/health` with an in-memory test database.
 
-**Outstanding:** authenticate GitHub and Cloudflare, create/push the GitHub
-repository, select the persistent origin and hostname, then provision and test
-the named Tunnel. No application files were modified.
+**Outstanding:** merge the infrastructure branch and confirm CI; then add a
+Cloudflare-managed domain, select the persistent origin and hostname, and
+provision/test the named Tunnel. No application files were modified.
 
 ### 2026-08-26 — Claude
 

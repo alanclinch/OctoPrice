@@ -4,6 +4,14 @@
   "private": true,
   "description": "Octopus Agile price monitoring and notification PWA",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alanclinch/OctoPrice.git"
+  },
+  "bugs": {
+    "url": "https://github.com/alanclinch/OctoPrice/issues"
+  },
+  "homepage": "https://github.com/alanclinch/OctoPrice#readme",
   "type": "module",
   "engines": {
     "node": ">=22.5.0"
