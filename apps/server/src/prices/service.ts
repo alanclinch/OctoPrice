@@ -72,8 +72,8 @@ export class PriceService {
   }
 
   /** The product and tariff currently in use, from settings. */
-  tariff(): TariffSelection {
-    const settings = this.store.getSettings(this.userId);
+  async tariff(): Promise<TariffSelection> {
+    const settings = await this.store.getSettings(this.userId);
     const region = isRegionCode(settings.region) ? settings.region : 'C';
     const productCode =
       this.forcedProductCode ?? settings.productCode ?? FALLBACK_AGILE_PRODUCT_CODE;
@@ -92,8 +92,8 @@ export class PriceService {
 
     try {
       const discovered = await this.client.findCurrentAgileProduct(this.now());
-      if (discovered && discovered !== this.store.getSettings(this.userId).productCode) {
-        this.store.updateSettings(this.userId, { productCode: discovered });
+      if (discovered && discovered !== (await this.store.getSettings(this.userId)).productCode) {
+        await this.store.updateSettings(this.userId, { productCode: discovered });
         this.logger.info('Updated Agile product from discovery', {
           event: LOG_EVENTS.productDiscovered,
           productCode: discovered,
@@ -106,22 +106,22 @@ export class PriceService {
         ...describeError(error),
       });
     }
-    return this.tariff().productCode;
+    return (await this.tariff()).productCode;
   }
 
   /** Prices already stored for a London day. */
-  storedDay(date: PricingDate): PricePeriod[] {
-    const { tariffCode } = this.tariff();
+  async storedDay(date: PricingDate): Promise<PricePeriod[]> {
+    const { tariffCode } = await this.tariff();
     return this.store.getPrices(tariffCode, startOfLondonDay(date), endOfLondonDay(date));
   }
 
   /** Whether a complete day has been recorded as retrieved. */
-  isRetrieved(date: PricingDate): boolean {
-    return this.store.getState(`${STATE_KEYS.retrievedDatePrefix}${date}`) !== null;
+  async isRetrieved(date: PricingDate): Promise<boolean> {
+    return (await this.store.getState(`${STATE_KEYS.retrievedDatePrefix}${date}`)) !== null;
   }
 
-  private markRetrieved(date: PricingDate): void {
-    this.store.setState(`${STATE_KEYS.retrievedDatePrefix}${date}`, this.now().toISOString());
+  private async markRetrieved(date: PricingDate): Promise<void> {
+    await this.store.setState(`${STATE_KEYS.retrievedDatePrefix}${date}`, this.now().toISOString());
   }
 
   /**
@@ -132,7 +132,7 @@ export class PriceService {
    * 25-hour day asks for exactly the periods it should have.
    */
   async refresh(date: PricingDate): Promise<RefreshResult> {
-    const { productCode, tariffCode, region } = this.tariff();
+    const { productCode, tariffCode, region } = await this.tariff();
     const from = startOfLondonDay(date);
     const to = endOfLondonDay(date);
 
@@ -142,7 +142,7 @@ export class PriceService {
       tariffCode,
       expectedPeriods: expectedPeriodCount(date),
     });
-    this.store.setState(STATE_KEYS.lastCheckStartedAt, this.now().toISOString());
+    await this.store.setState(STATE_KEYS.lastCheckStartedAt, this.now().toISOString());
 
     const fetched = await this.client.getUnitRates({
       productCode,
@@ -159,7 +159,7 @@ export class PriceService {
         region,
         retrievedAt,
       }));
-      this.store.upsertPrices(rows);
+      await this.store.upsertPrices(rows);
       this.logger.debug('Stored price periods', {
         event: LOG_EVENTS.priceDataStored,
         date,
@@ -169,13 +169,13 @@ export class PriceService {
 
     // Read back from the store so completeness reflects everything held for
     // the day, not just what this request happened to return.
-    const periods = this.storedDay(date);
+    const periods = await this.storedDay(date);
     const complete = isDayComplete(periods, date);
     const missingCount = missingPeriodStarts(periods, date).length;
 
     if (complete) {
-      this.markRetrieved(date);
-      this.store.setState(STATE_KEYS.lastSuccessfulRetrievalAt, this.now().toISOString());
+      await this.markRetrieved(date);
+      await this.store.setState(STATE_KEYS.lastSuccessfulRetrievalAt, this.now().toISOString());
       this.logger.info('Complete pricing day retrieved', {
         event: LOG_EVENTS.priceDataComplete,
         date,

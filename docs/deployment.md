@@ -1,205 +1,152 @@
-# Deployment
+# Cloudflare deployment
 
-OctoPrice is one long-running Node process and one persistent SQLite file. It
-is deliberately not a serverless application: the process owns the price
-polling schedule, and its database holds rules, subscriptions and notification
-deduplication state.
-
-## Cloudflare decision
-
-The compatible Cloudflare deployment for the application as it exists is:
+Production runs entirely on Cloudflare:
 
 ```text
-Browser -> Cloudflare edge / HTTPS -> named Cloudflare Tunnel
-                                      -> persistent Node origin
-                                         -> SQLite volume
+Browser -> Worker Static Assets (React PWA)
+        -> Worker /api/* -> D1
+                         -> Octopus public API
+Cron Trigger -----------> polling and notifications
 ```
 
-Use `cloudflared`, not Wrangler, for this deployment. There is intentionally no
-`wrangler.toml` or Worker entry point in this repository.
+No separate server, managed domain or Cloudflare Tunnel is required. The
+default deployment uses a free `*.workers.dev` address. The expected traffic
+for a personal installation fits comfortably within the Workers and D1 free
+allowances, although Cloudflare's current limits remain authoritative.
 
-Ordinary Workers are not a drop-in target: they do not run this Fastify
-listener and in-process scheduler as a continuously resident Node process, and
-the application's local SQLite file is not a durable Worker filesystem.
-Cloudflare Containers can run a Node image, but they require the Workers Paid
-plan and their local disk is ephemeral. Making Containers production-safe
-would require replacing or synchronising the current storage layer, which is
-an application architecture change and is outside the present deployment-only
-scope.
-
-Cloudflare Tunnel supplies public HTTPS and keeps the origin port private while
-leaving the application unchanged. The tunnel itself is available on
-Cloudflare's free plan; the persistent origin host is separate infrastructure
-and must stay running.
+The Node/Fastify/SQLite runtime is retained for local development. Production
+uses the Web Fetch API rather than Fastify, `D1Store` rather than
+`SqliteStore`, and Cron Triggers rather than an in-process timer.
 
 ## Requirements
 
-- Node.js 22.5 or newer (24 recommended)
-- A persistent Linux host, NAS or home server
-- A persistent directory for SQLite and backups
-- A Cloudflare account and a domain managed in that account
-- `cloudflared` installed from Cloudflare's official package or binary
+- Node.js 24
+- A Cloudflare account
+- Wrangler authenticated with that account
 
-## Build and run the origin
-
-Clone the GitHub repository on the origin, then build the exact committed
-state:
+Install dependencies and authenticate once:
 
 ```bash
-git fetch --all --prune
-git checkout main
-git pull --ff-only
 npm ci
-npm run verify
+npx wrangler login
+npx wrangler whoami
 ```
 
-Copy `.env.example` to `.env` and supply the deployment values:
+## First deployment
+
+Create the D1 database:
+
+```bash
+npx wrangler d1 create octoprice
+```
+
+Copy the returned database ID into `wrangler.jsonc`, replacing the all-zero
+placeholder. Database IDs are resource identifiers, not credentials, and are
+safe to commit.
+
+Apply the schema, verify, and deploy:
+
+```bash
+npm run d1:migrate:remote
+npm run verify
+npm run deploy:cloudflare
+```
+
+Wrangler prints the public `workers.dev` URL. The configuration sends
+`/api/*` through the Worker and all other requests through Static Assets, with
+single-page-app fallback enabled.
+
+## Push notification secrets
+
+Generate a VAPID key pair locally:
+
+```bash
+npm run generate:vapid
+```
+
+Store the values as encrypted Worker secrets. Do not put them in
+`wrangler.jsonc` or Git:
+
+```bash
+npx wrangler secret put VAPID_PUBLIC_KEY
+npx wrangler secret put VAPID_PRIVATE_KEY
+npx wrangler secret put VAPID_SUBJECT
+```
+
+`VAPID_SUBJECT` must be a contact URI such as `mailto:you@example.com`.
+Deploy again after adding or changing secrets.
+
+## Configuration
+
+Non-secret production values live under `vars` in `wrangler.jsonc`:
+
+- `DEFAULT_REGION`
+- `OCTOPUS_BASE_URL`
+- optional `OCTOPUS_PRODUCT_CODE`
+- `POLL_START`, `POLL_INTERVAL_MINUTES`, and `POLL_CUTOFF`
+- `LOG_LEVEL`
+
+The Cron Trigger runs every five minutes from 15:00 through 22:59 UTC. The
+application converts to Europe/London and performs a no-op outside the local
+polling window. This deliberately covers both GMT and BST without editing the
+cron seasonally.
+
+## Local Cloudflare runtime
+
+Build the PWA, create the local D1 schema, then run Wrangler:
+
+```bash
+npm run build --workspace @octoprice/web
+npm run d1:migrate:local
+npm run dev:cloudflare
+```
+
+The local site is normally at <http://localhost:8787>. Trigger the scheduled
+handler manually with:
 
 ```text
-NODE_ENV=production
-DATABASE_URL=file:/var/lib/octoprice/octoprice.sqlite
-PORT=3000
-HOST=127.0.0.1
-DEFAULT_REGION=C
-VAPID_PUBLIC_KEY=...
-VAPID_PRIVATE_KEY=...
-VAPID_SUBJECT=mailto:you@example.com
+GET http://localhost:8787/cdn-cgi/local/scheduled
 ```
 
-Binding the origin to `127.0.0.1` means it is reachable by `cloudflared` on
-the same host but is not exposed directly to the network.
-
-Build and start it:
-
-```bash
-npm run build
-npm start --workspace @octoprice/server
-```
-
-## Run OctoPrice as a service
-
-A minimal systemd unit:
-
-```ini
-[Unit]
-Description=OctoPrice
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-WorkingDirectory=/opt/octoprice
-EnvironmentFile=/opt/octoprice/.env
-ExecStart=/usr/bin/node apps/server/dist/index.js
-Restart=always
-RestartSec=10
-User=octoprice
-
-[Install]
-WantedBy=multi-user.target
-```
-
-Restarts are safe. On startup the app refreshes today and tomorrow, while
-persisted deduplication keys prevent already-sent notifications being repeated.
-
-## Create the named Cloudflare Tunnel
-
-Authenticate `cloudflared` on the origin and create a named tunnel:
-
-```bash
-cloudflared tunnel login
-cloudflared tunnel create octoprice
-cloudflared tunnel route dns octoprice octoprice.example.com
-```
-
-Copy `deploy/cloudflare/config.yml.example` to
-`/etc/cloudflared/config.yml`, replace the tunnel UUID and hostname, then
-install and start the service:
-
-```bash
-sudo cloudflared service install
-sudo systemctl enable --now cloudflared
-```
-
-The generated tunnel credentials JSON and the real `config.yml` are secrets or
-host-specific configuration. They must remain on the origin and are ignored by
-Git when placed under `deploy/cloudflare/` for local preparation.
-
-## GitHub as source of truth
-
-Production should deploy only commits merged to `main`. Until an origin host
-and its authentication method are chosen, deployment is deliberately a manual
-pull/build/restart procedure rather than a workflow containing guessed SSH
-details or long-lived credentials.
-
-Once the origin exists, automate those same commands using either:
-
-- a tightly scoped, self-hosted GitHub Actions runner on the origin; or
-- a GitHub Actions deployment job using an SSH key stored in GitHub Actions
-  secrets.
-
-Do not place tunnel credentials, VAPID keys or SSH private keys in the
-repository. Require the existing CI `verify` job to pass before deployment.
+Local Wrangler state is stored under `.wrangler/` and is ignored by Git.
 
 ## Verification
 
-Verify the origin directly first:
+After deployment, check:
 
 ```text
-GET http://127.0.0.1:3000/api/health
-GET http://127.0.0.1:3000/api/status
+GET https://<worker>.workers.dev/
+GET https://<worker>.workers.dev/api/health
+GET https://<worker>.workers.dev/api/status
 ```
 
-Then verify the same paths through the public HTTPS hostname and install the
-PWA on a real Android device. The status response should show the scheduler
-enabled and the intended region; push should show configured only after VAPID
-keys are supplied.
+The status response should report `schedulerEnabled: true`, the intended
+region, and `pushConfigured: true` after VAPID secrets are supplied. Install
+the PWA on a real Android device and use the test-notification control.
 
-## Time zone
-
-The server performs its own `Europe/London` conversion through `Intl`, so the
-host time zone does not matter. It does need complete ICU data, which official
-Node builds include.
-
-## Logs
-
-The application writes structured JSON to stdout. Under systemd:
+Cloudflare logs are available with:
 
 ```bash
-journalctl -u octoprice -f
+npx wrangler tail
 ```
 
 Useful event names include `PRICE_CHECK_STARTED`, `PRICE_DATA_NOT_READY`,
 `PRICE_DATA_COMPLETE`, `RULE_MATCH`, `NOTIFICATION_SENT`,
 `NOTIFICATION_FAILED`, `OCTOPUS_API_ERROR` and `SCHEDULER_GAVE_UP`.
 
-Credentials and push subscriptions are redacted before logging.
+## Updating
 
-## Backups
-
-Only the SQLite database must be backed up. Because it uses WAL mode, use
-SQLite's online backup command while the service is running:
+Deploy only a committed `main` revision after CI passes:
 
 ```bash
-sqlite3 /var/lib/octoprice/octoprice.sqlite ".backup '/backups/octoprice.sqlite'"
-```
-
-## Upgrading
-
-After CI has passed and a commit has reached `main`:
-
-```bash
+git checkout main
 git pull --ff-only
 npm ci
-npm run build
-sudo systemctl restart octoprice
+npm run d1:migrate:remote
+npm run verify
+npm run deploy:cloudflare
 ```
 
-Schema migrations run automatically at startup.
-
-## PostgreSQL
-
-PostgreSQL is not implemented. `DATABASE_URL` recognises a `postgres://` URL
-and fails clearly rather than silently falling back to SQLite. Implementing a
-Cloudflare-native store such as D1 would similarly be application work, not a
-deployment configuration change.
+D1 migrations are forward-only. Apply a new migration before code that needs
+the new schema. Existing prices, settings, subscriptions and notification
+deduplication records remain in D1 across Worker deployments.

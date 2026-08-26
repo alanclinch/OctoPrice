@@ -42,6 +42,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Bundle the Cloudflare Worker
+        run: npx wrangler deploy --dry-run
+
       - name: Check the icon set is reproducible
         # The icons are generated from a script; regenerating them must not
         # produce a diff, so committed binaries always match their source.

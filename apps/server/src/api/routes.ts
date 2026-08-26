@@ -63,8 +63,8 @@ const windowQuerySchema = dateQuerySchema.extend({
 const idParamSchema = z.object({ id: z.string().min(1) });
 
 /** Shapes one pricing day the way every price endpoint returns it. */
-function describeDay(priceService: PriceService, date: PricingDate) {
-  const periods = priceService.storedDay(date);
+async function describeDay(priceService: PriceService, date: PricingDate) {
+  const periods = await priceService.storedDay(date);
   return {
     date,
     periods,
@@ -87,18 +87,19 @@ export function createApiRoutes(deps: ApiDependencies): FastifyPluginAsync {
     app.get('/status', async () => {
       const today = londonDateOf(now());
       const tomorrow = addDays(today, 1);
-      const todayPeriods = priceService.storedDay(today);
-      const tomorrowPeriods = priceService.storedDay(tomorrow);
+      const todayPeriods = await priceService.storedDay(today);
+      const tomorrowPeriods = await priceService.storedDay(tomorrow);
+      const tariff = await priceService.tariff();
       const { version, commit } = buildInfo();
 
       return {
         version,
         commit,
-        tariffCode: priceService.tariff().tariffCode,
-        productCode: priceService.tariff().productCode,
-        region: priceService.tariff().region,
-        lastCheckStartedAt: store.getState('last_check_started_at'),
-        lastSuccessfulRetrievalAt: store.getState('last_successful_retrieval_at'),
+        tariffCode: tariff.tariffCode,
+        productCode: tariff.productCode,
+        region: tariff.region,
+        lastCheckStartedAt: await store.getState('last_check_started_at'),
+        lastSuccessfulRetrievalAt: await store.getState('last_successful_retrieval_at'),
         today: {
           date: today,
           periodCount: todayPeriods.length,
@@ -109,8 +110,8 @@ export function createApiRoutes(deps: ApiDependencies): FastifyPluginAsync {
           periodCount: tomorrowPeriods.length,
           complete: isDayComplete(tomorrowPeriods, tomorrow),
         },
-        storedPeriodCount: store.countPrices(),
-        lastNotificationAt: store.lastNotificationAt(userId),
+        storedPeriodCount: await store.countPrices(),
+        lastNotificationAt: await store.lastNotificationAt(userId),
         pushConfigured: config.vapid !== null,
         schedulerEnabled: config.enableScheduler,
       };
@@ -123,18 +124,18 @@ export function createApiRoutes(deps: ApiDependencies): FastifyPluginAsync {
       const at = now();
       const today = londonDateOf(at);
       const tomorrow = addDays(today, 1);
-      const todayPeriods = priceService.storedDay(today);
-      const tomorrowPeriods = priceService.storedDay(tomorrow);
+      const todayPeriods = await priceService.storedDay(today);
+      const tomorrowPeriods = await priceService.storedDay(tomorrow);
       const known = [...todayPeriods, ...tomorrowPeriods];
 
       return {
         now: at.toISOString(),
         current: findPeriodAt(known, at),
         next: findNextPeriod(known, at),
-        today: describeDay(priceService, today),
-        tomorrow: describeDay(priceService, tomorrow),
-        settings: store.getSettings(userId),
-        tariff: priceService.tariff(),
+        today: await describeDay(priceService, today),
+        tomorrow: await describeDay(priceService, tomorrow),
+        settings: await store.getSettings(userId),
+        tariff: await priceService.tariff(),
       };
     });
 
@@ -144,7 +145,7 @@ export function createApiRoutes(deps: ApiDependencies): FastifyPluginAsync {
         return reply.status(400).send({ error: parsed.error.issues[0]?.message });
       }
       const date = parsed.data.date ?? londonDateOf(now());
-      return describeDay(priceService, date);
+      return await describeDay(priceService, date);
     });
 
     /** Cheapest continuous windows for a day (DESIGN.md section 10). */
@@ -155,7 +156,7 @@ export function createApiRoutes(deps: ApiDependencies): FastifyPluginAsync {
       }
       const { durationMinutes, limit } = parsed.data;
       const date = parsed.data.date ?? londonDateOf(now());
-      const periods = priceService.storedDay(date);
+      const periods = await priceService.storedDay(date);
 
       return {
         date,
@@ -194,26 +195,26 @@ export function createApiRoutes(deps: ApiDependencies): FastifyPluginAsync {
 
     app.get('/regions', async () => ({ regions: REGIONS }));
 
-    app.get('/settings', async () => store.getSettings(userId));
+    app.get('/settings', async () => await store.getSettings(userId));
 
     app.patch('/settings', async (request, reply) => {
       const parsed = userSettingsInputSchema.safeParse(request.body);
       if (!parsed.success) {
         return reply.status(400).send({ error: parsed.error.issues[0]?.message });
       }
-      return store.updateSettings(userId, parsed.data);
+      return await store.updateSettings(userId, parsed.data);
     });
 
     // --- Alert rules -------------------------------------------------------
 
-    app.get('/rules', async () => ({ rules: store.listRules(userId) }));
+    app.get('/rules', async () => ({ rules: await store.listRules(userId) }));
 
     app.post('/rules', async (request, reply) => {
       const parsed = alertRuleInputSchema.safeParse(request.body);
       if (!parsed.success) {
         return reply.status(400).send({ error: parsed.error.issues[0]?.message });
       }
-      return reply.status(201).send(store.createRule(userId, parsed.data));
+      return reply.status(201).send(await store.createRule(userId, parsed.data));
     });
 
     app.put('/rules/:id', async (request, reply) => {
@@ -225,7 +226,7 @@ export function createApiRoutes(deps: ApiDependencies): FastifyPluginAsync {
         return reply.status(400).send({ error: parsed.error.issues[0]?.message });
       }
 
-      const updated = store.updateRule(params.data.id, parsed.data);
+      const updated = await store.updateRule(params.data.id, parsed.data);
       if (!updated) return reply.status(404).send({ error: 'Rule not found' });
       return updated;
     });
@@ -234,7 +235,7 @@ export function createApiRoutes(deps: ApiDependencies): FastifyPluginAsync {
       const params = idParamSchema.safeParse(request.params);
       if (!params.success) return reply.status(400).send({ error: 'Invalid rule id' });
 
-      const deleted = store.deleteRule(params.data.id);
+      const deleted = await store.deleteRule(params.data.id);
       if (!deleted) return reply.status(404).send({ error: 'Rule not found' });
       return reply.status(204).send();
     });
@@ -252,7 +253,7 @@ export function createApiRoutes(deps: ApiDependencies): FastifyPluginAsync {
       if (!parsed.success) {
         return reply.status(400).send({ error: 'Invalid push subscription' });
       }
-      const subscription = store.addSubscription({
+      const subscription = await store.addSubscription({
         userId,
         provider: 'webpush',
         subscriptionData: JSON.stringify(parsed.data),
@@ -266,13 +267,13 @@ export function createApiRoutes(deps: ApiDependencies): FastifyPluginAsync {
       if (!parsed.success) {
         return reply.status(400).send({ error: 'Invalid push subscription' });
       }
-      const removed = store.removeSubscriptionByData(userId, JSON.stringify(parsed.data));
+      const removed = await store.removeSubscriptionByData(userId, JSON.stringify(parsed.data));
       return { removed };
     });
 
     app.get('/push/subscriptions', async () => ({
       // Counts only. The subscription payload is a secret.
-      count: store.listSubscriptions(userId).length,
+      count: (await store.listSubscriptions(userId)).length,
     }));
 
     app.post('/notifications/test', async (_request, reply) => {
@@ -284,7 +285,7 @@ export function createApiRoutes(deps: ApiDependencies): FastifyPluginAsync {
     });
 
     app.get('/notifications', async () => ({
-      notifications: store.listRecentNotifications(userId, 20),
+      notifications: await store.listRecentNotifications(userId, 20),
     }));
   };
 }

@@ -9,6 +9,7 @@ export default tseslint.config(
       '**/dist/**',
       '**/node_modules/**',
       '**/coverage/**',
+      '.wrangler/**',
       'apps/web/dev-dist/**',
       'apps/web/public/**',
     ],

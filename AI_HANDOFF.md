@@ -10,12 +10,11 @@ If this file and the code disagree, **the code is right** — fix this file.
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
 - **Current branch:** `main`
-- **Last known good application commit:** `8b9d9dd` on `main`; the current
-  branch's infrastructure/documentation state is also verified
+- **Last known good main commit:** `adf79a4`
 - **Build status:** passing — `npm run verify`
 - **Test status:** passing — 204 tests across 8 files
-- **Deployed:** nowhere yet; Cloudflare requires a persistent origin host and
-  an authenticated account/domain
+- **Deployed:** `https://octoprice.alanclinch.workers.dev` on Cloudflare
+  Workers, with D1 in WEUR and a five-minute Cron Trigger
 - **Git remote:** public GitHub repository at
   `https://github.com/alanclinch/OctoPrice`; `main` is pushed and GitHub CI
   has completed successfully
@@ -27,9 +26,9 @@ npm-workspaces TypeScript monorepo. Full detail in `docs/architecture.md`.
 - `packages/core` — pure domain logic, no I/O and no clock reads: London/UTC
   time handling, price normalisation, the alert rules engine, the cheapest
   window calculator, notification text and dedupe keys.
-- `apps/server` — Fastify API, Octopus client, polling scheduler, SQLite
-  persistence via a `Store` interface, notification delivery behind a
-  provider interface. Serves the built PWA in production.
+- `apps/server` — native Cloudflare Worker API, D1 persistence and Cron
+  scheduling in production; Fastify, SQLite and timers for local Node
+  development; shared Octopus, rules and notification services.
 - `apps/web` — Vite + React mobile-first PWA with a custom service worker.
 
 Data flows one way: Octopus to poller to database, then out through the API to
@@ -60,30 +59,20 @@ GitHub remote or a real device:
 
 ## Currently In Progress
 
-No repository work is half-finished. GitHub setup and the repository-side
-Cloudflare preparation are complete on `main`; local verification and GitHub
-CI pass.
-
-Live Cloudflare provisioning is blocked because the account has no managed
-domain and no production origin has been selected. The known
-`holiday-king-nucbox` hostname is not currently resolvable from this machine.
-
-Application source files have not been changed.
+No implementation work is half-finished. The Cloudflare-native conversion is
+verified locally and live. At the first production check, Octopus had
+published 46 of 48 periods for 2026-08-27; D1 stored them and the scheduler
+correctly kept the day incomplete so later Cron runs will retry.
 
 ## Next Recommended Work
 
-1. **Provision the production origin and Cloudflare Tunnel.** Add or register
-   a domain in Cloudflare, choose the
-   always-on Node host, persistent SQLite path and hostname, then follow
-   `docs/deployment.md`.
-2. **Generate VAPID keys and verify push on a real device.** `npm run
-   generate:vapid`, paste into `.env`, restart, then install the PWA on an
-   Android phone and use the test-notification button. This is the one part
-   of the MVP that has never been exercised for real.
-3. **Watch several real Octopus publication cycles** (DESIGN.md section 42,
+1. **Verify push on a real device.** Install the deployed PWA on an Android
+   phone and use the test-notification button. This is the one part of the MVP
+   that has never been exercised for real.
+2. **Watch several real Octopus publication cycles** (DESIGN.md section 42,
    step 21) before calling the MVP released. Confirm the daily notification
    arrives once, at a sensible time, and does not repeat.
-4. Then Phase Two (DESIGN.md section 39). The rules engine, the window
+3. Then Phase Two (DESIGN.md section 39). The rules engine, the window
    calculator and the provider interface are already general enough for
    Telegram, Home Assistant and EV-charging features without redesign.
 
@@ -95,18 +84,27 @@ Application source files have not been changed.
   `/sw.js` correctly with the right content type, so this looks like a
   sandbox restriction rather than an app bug). Treat push as unproven until
   someone sees a notification on a phone.
-- **No GitHub remote, so CI has never run.** The workflow is written but
-  unexecuted.
 - **`node:sqlite` prints an experimental warning on Node 24.** Harmless, but
-  noisy in logs.
-- **PostgreSQL is not implemented.** A `postgres://` URL fails with a clear
-  message rather than silently using SQLite.
+  noisy in local development; production uses D1.
 - **Product discovery has only been exercised for `AGILE-24-10-01`**, the
   currently available product.
 - Vite prints a deprecation warning about `inlineDynamicImports` from
   `vite-plugin-pwa`; it comes from the plugin, not from our config.
 
 ## Important Decisions
+
+### 2026-08-26 — Cloudflare Workers, D1 and Cron for production
+
+**Decision:** run the PWA and API on Workers, persist state in D1 and drive
+polling with Cron Triggers. Keep Fastify/SQLite as the local Node runtime.
+**Reason:** this provides a no-server, no-domain deployment on `workers.dev`
+that fits the expected personal-use free allowances. The storage boundary and
+polling plan are shared between runtimes. The Worker uses native Fetch API
+routing because Fastify's router performs runtime code generation, which the
+Workers runtime disallows.
+
+The earlier Tunnel decision below is superseded by the user's explicit
+approval to redesign the application for Cloudflare-native hosting.
 
 ### 2026-08-26 — Cloudflare Tunnel, not Workers, for the unchanged app
 
@@ -189,6 +187,21 @@ bundle is 87 kB gzipped, which matters for a phone-first PWA.
 been larger and harder to bend to the negative-price presentation.
 
 ## Recent Agent Handoffs
+
+### 2026-08-26 — Codex, Cloudflare-native deployment
+
+**Work completed:** added the Worker Fetch API adapter, D1 store and migration,
+Cron-driven polling, Wrangler configuration and deployment scripts; made the
+shared storage boundary asynchronous; updated CI and documentation; created
+the live D1 database, configured encrypted VAPID secrets and deployed the PWA.
+
+**Verification:** `npm run verify` passed (204 tests plus format, lint,
+typecheck and build). Wrangler's local runtime passed site/API/D1 smoke tests.
+The live site, health, status and push-key endpoints return 200; the live Cron
+and manual check both reached Octopus and stored a partial 46-of-48 day in D1.
+
+**Outstanding:** install on a real phone and confirm Web Push delivery; observe
+several publication cycles before declaring the MVP released.
 
 ### 2026-08-26 — Codex
 

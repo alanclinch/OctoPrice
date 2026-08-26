@@ -52,15 +52,15 @@ export interface BuiltApp {
  * These are ordinary rules the user can edit or delete; seeding just means
  * the app is useful before anyone opens Settings.
  */
-function seedDefaultRules(store: Store, userId: string, logger: Logger): void {
-  if (store.getState('rules_seeded') !== null) return;
-  if (store.listRules(userId).length === 0) {
+async function seedDefaultRules(store: Store, userId: string, logger: Logger): Promise<void> {
+  if ((await store.getState('rules_seeded')) !== null) return;
+  if ((await store.listRules(userId)).length === 0) {
     for (const rule of DEFAULT_ALERT_RULES) {
-      store.createRule(userId, alertRuleInputSchema.parse(rule));
+      await store.createRule(userId, alertRuleInputSchema.parse(rule));
     }
     logger.info('Created default alert rules', { count: DEFAULT_ALERT_RULES.length });
   }
-  store.setState('rules_seeded', new Date().toISOString());
+  await store.setState('rules_seeded', new Date().toISOString());
 }
 
 /** Resolves the built PWA directory, or null when it has not been built. */
@@ -85,7 +85,7 @@ export async function buildApp(
     overrides.store ??
     new SqliteStore({ file: config.databaseFile, defaultRegion: config.defaultRegion });
 
-  seedDefaultRules(store, config.userId, logger);
+  await seedDefaultRules(store, config.userId, logger);
 
   const client = new OctopusClient({
     baseUrl: config.octopus.baseUrl,
@@ -186,7 +186,7 @@ export async function buildApp(
   const close = async (): Promise<void> => {
     poller?.stop();
     await app.close();
-    store.close();
+    await store.close();
   };
 
   const { version, commit } = buildInfo();

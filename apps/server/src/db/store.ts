@@ -44,6 +44,9 @@ export interface NotificationLogInput {
   error?: string | null;
 }
 
+/** SQLite returns immediately; remote stores such as D1 resolve asynchronously. */
+export type StoreResult<T> = T | Promise<T>;
+
 export interface Store {
   // --- Prices ------------------------------------------------------------
 
@@ -52,53 +55,53 @@ export interface Store {
    * Re-storing identical data is harmless, which matters because the poller
    * may fetch overlapping windows.
    */
-  upsertPrices(periods: readonly StoredPricePeriod[]): number;
+  upsertPrices(periods: readonly StoredPricePeriod[]): StoreResult<number>;
 
   /** Prices for a tariff whose period starts within `[from, to)`. */
-  getPrices(tariffCode: string, from: Date, to: Date): PricePeriod[];
+  getPrices(tariffCode: string, from: Date, to: Date): StoreResult<PricePeriod[]>;
 
   /** Total number of stored price rows, for the status page. */
-  countPrices(): number;
+  countPrices(): StoreResult<number>;
 
   /** Deletes prices starting before `before`, returning the count removed. */
-  prunePricesBefore(before: Date): number;
+  prunePricesBefore(before: Date): StoreResult<number>;
 
   // --- Alert rules -------------------------------------------------------
 
-  listRules(userId: string): AlertRule[];
-  getRule(id: string): AlertRule | null;
-  createRule(userId: string, input: AlertRuleInput): AlertRule;
-  updateRule(id: string, input: AlertRuleInput): AlertRule | null;
-  deleteRule(id: string): boolean;
-  markRuleTriggered(id: string, at: Date): void;
+  listRules(userId: string): StoreResult<AlertRule[]>;
+  getRule(id: string): StoreResult<AlertRule | null>;
+  createRule(userId: string, input: AlertRuleInput): StoreResult<AlertRule>;
+  updateRule(id: string, input: AlertRuleInput): StoreResult<AlertRule | null>;
+  deleteRule(id: string): StoreResult<boolean>;
+  markRuleTriggered(id: string, at: Date): StoreResult<void>;
 
   // --- Notification subscriptions ---------------------------------------
 
-  listSubscriptions(userId: string): NotificationSubscription[];
-  addSubscription(subscription: NewSubscription): NotificationSubscription;
+  listSubscriptions(userId: string): StoreResult<NotificationSubscription[]>;
+  addSubscription(subscription: NewSubscription): StoreResult<NotificationSubscription>;
   /** Removes by provider-specific identity (a push endpoint). Idempotent. */
-  removeSubscriptionByData(userId: string, subscriptionData: string): boolean;
-  removeSubscription(id: string): boolean;
-  recordSubscriptionResult(id: string, success: boolean, at: Date): void;
-  disableSubscription(id: string): void;
+  removeSubscriptionByData(userId: string, subscriptionData: string): StoreResult<boolean>;
+  removeSubscription(id: string): StoreResult<boolean>;
+  recordSubscriptionResult(id: string, success: boolean, at: Date): StoreResult<void>;
+  disableSubscription(id: string): StoreResult<void>;
 
   // --- Notification log and deduplication --------------------------------
 
   /** True when this exact notification has already been sent successfully. */
-  hasSentNotification(dedupeKey: string): boolean;
-  recordNotification(entry: NotificationLogInput, at: Date): NotificationLogEntry;
-  listRecentNotifications(userId: string, limit: number): NotificationLogEntry[];
-  lastNotificationAt(userId: string): string | null;
+  hasSentNotification(dedupeKey: string): StoreResult<boolean>;
+  recordNotification(entry: NotificationLogInput, at: Date): StoreResult<NotificationLogEntry>;
+  listRecentNotifications(userId: string, limit: number): StoreResult<NotificationLogEntry[]>;
+  lastNotificationAt(userId: string): StoreResult<string | null>;
 
   // --- Settings ----------------------------------------------------------
 
-  getSettings(userId: string): UserSettings;
-  updateSettings(userId: string, input: UserSettingsInput): UserSettings;
+  getSettings(userId: string): StoreResult<UserSettings>;
+  updateSettings(userId: string, input: UserSettingsInput): StoreResult<UserSettings>;
 
   // --- Worker state ------------------------------------------------------
 
-  getState(key: string): string | null;
-  setState(key: string, value: string): void;
+  getState(key: string): StoreResult<string | null>;
+  setState(key: string, value: string): StoreResult<void>;
 
-  close(): void;
+  close(): StoreResult<void>;
 }

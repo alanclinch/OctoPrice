@@ -57,7 +57,7 @@ export class PricePoller {
   /** Begins polling. Safe to call once; use `stop` to shut down cleanly. */
   start(): void {
     this.stopped = false;
-    this.scheduleNext();
+    void this.scheduleNext();
   }
 
   stop(): void {
@@ -73,13 +73,22 @@ export class PricePoller {
    * wake-up. Exposed for tests and for the manual "check now" endpoint.
    */
   async tick(): Promise<void> {
+    await this.runDecision(true);
+  }
+
+  /** Runs one decision without creating a timer, for Cloudflare Cron Triggers. */
+  async runScheduled(): Promise<void> {
+    await this.runDecision(false);
+  }
+
+  private async runDecision(scheduleNext: boolean): Promise<void> {
     if (this.running) return;
     this.running = true;
 
     try {
-      const plan = planPoll(this.now(), this.window, (date) => this.priceService.isRetrieved(date));
+      const { plan, retrieved } = await this.currentPlan();
 
-      if (plan.reason === 'after-cutoff' && !this.priceService.isRetrieved(plan.targetDate)) {
+      if (plan.reason === 'after-cutoff' && !retrieved) {
         this.logger.warn('Gave up waiting for prices today', {
           event: LOG_EVENTS.schedulerGaveUp,
           date: plan.targetDate,
@@ -98,7 +107,7 @@ export class PricePoller {
       });
     } finally {
       this.running = false;
-      this.scheduleNext();
+      if (scheduleNext) await this.scheduleNext();
     }
   }
 
@@ -139,11 +148,19 @@ export class PricePoller {
     }
   }
 
-  private scheduleNext(): void {
+  private async currentPlan() {
+    const at = this.now();
+    const provisional = planPoll(at, this.window, () => false);
+    const retrieved = await this.priceService.isRetrieved(provisional.targetDate);
+    const plan = planPoll(at, this.window, (date) => date === provisional.targetDate && retrieved);
+    return { plan, retrieved };
+  }
+
+  private async scheduleNext(): Promise<void> {
     if (this.stopped) return;
     if (this.timer !== null) this.clearTimeoutFn(this.timer);
 
-    const plan = planPoll(this.now(), this.window, (date) => this.priceService.isRetrieved(date));
+    const { plan } = await this.currentPlan();
     const delay = Math.min(
       Math.max(plan.nextRunAt.getTime() - this.now().getTime(), 1_000),
       MAX_TIMER_MS,

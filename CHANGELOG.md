@@ -14,6 +14,9 @@ Octopus publication cycles.
 
 ### Added
 
+- **Cloudflare-native hosting.** The PWA and API can run on Workers with
+  Static Assets, D1 persistence and Cron Trigger polling, including a free
+  `workers.dev` deployment with no separate origin server.
 - **Live prices.** Current price, next price, and every half-hour period for
   today and tomorrow, with a chart and a plain table. Negative and cheap
   periods are colour-banded so they stand out.

@@ -409,12 +409,12 @@ share models and validation.
 such as Next.js may be used if server and frontend integration makes
 deployment simpler.
 
-**Backend** — Node.js / TypeScript, responsible for Octopus API integration,
-the scheduler, price persistence, rule evaluation and notification sending.
+**Backend** — TypeScript on Cloudflare Workers in production and Node.js for
+local development, responsible for Octopus API integration, scheduling, price
+persistence, rule evaluation and notification sending.
 
-**Database** — SQLite for development, PostgreSQL for hosted/multi-user
-production. The data-access layer should avoid unnecessary database-specific
-behaviour so migration remains straightforward.
+**Database** — Cloudflare D1 in production and SQLite for local development.
+Both implement the same domain-level storage interface.
 
 ---
 

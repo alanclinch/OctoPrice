@@ -49,7 +49,7 @@ export class NotificationService {
    * an identical one has already gone out.
    */
   async deliver(userId: string, payload: NotificationPayload): Promise<DeliverySummary> {
-    if (this.store.hasSentNotification(payload.dedupeKey)) {
+    if (await this.store.hasSentNotification(payload.dedupeKey)) {
       this.logger.debug('Notification already sent, skipping', {
         event: LOG_EVENTS.notificationSkipped,
         type: payload.type,
@@ -58,14 +58,14 @@ export class NotificationService {
       return { sent: false, skipped: true, delivered: 0, failed: 0 };
     }
 
-    const subscriptions = this.store.listSubscriptions(userId);
+    const subscriptions = await this.store.listSubscriptions(userId);
     if (subscriptions.length === 0) {
       this.logger.warn('No notification subscriptions registered', {
         event: LOG_EVENTS.notificationFailed,
         type: payload.type,
         userId,
       });
-      this.record(userId, payload, 'failed', 'No subscriptions registered');
+      await this.record(userId, payload, 'failed', 'No subscriptions registered');
       return { sent: false, skipped: false, delivered: 0, failed: 0 };
     }
 
@@ -85,7 +85,7 @@ export class NotificationService {
 
       const results = await sender.send(payload, targets);
       for (const result of results) {
-        this.store.recordSubscriptionResult(result.targetId, result.success, this.now());
+        await this.store.recordSubscriptionResult(result.targetId, result.success, this.now());
         if (result.success) {
           delivered += 1;
           continue;
@@ -96,7 +96,7 @@ export class NotificationService {
 
         if (result.expired) {
           // The device is gone. Disable rather than retry forever.
-          this.store.disableSubscription(result.targetId);
+          await this.store.disableSubscription(result.targetId);
           this.logger.info('Disabled an expired push subscription', {
             event: LOG_EVENTS.subscriptionExpired,
             subscriptionId: result.targetId,
@@ -114,7 +114,12 @@ export class NotificationService {
     }
 
     const sent = delivered > 0;
-    this.record(userId, payload, sent ? 'sent' : 'failed', sent ? null : errors.join('; ') || null);
+    await this.record(
+      userId,
+      payload,
+      sent ? 'sent' : 'failed',
+      sent ? null : errors.join('; ') || null,
+    );
 
     if (sent) {
       this.logger.info('Notification sent', {
@@ -126,20 +131,20 @@ export class NotificationService {
         dedupeKey: payload.dedupeKey,
       });
       if (payload.ruleId) {
-        this.store.markRuleTriggered(payload.ruleId, this.now());
+        await this.store.markRuleTriggered(payload.ruleId, this.now());
       }
     }
 
     return { sent, skipped: false, delivered, failed };
   }
 
-  private record(
+  private async record(
     userId: string,
     payload: NotificationPayload,
     status: 'sent' | 'failed',
     error: string | null,
-  ): void {
-    this.store.recordNotification(
+  ): Promise<void> {
+    await this.store.recordNotification(
       {
         userId,
         ruleId: payload.ruleId ?? null,

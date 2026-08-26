@@ -101,7 +101,10 @@ export class OctopusClient {
   constructor(options: OctopusClientOptions) {
     this.baseUrl = (options.baseUrl ?? 'https://api.octopus.energy/v1').replace(/\/$/, '');
     this.logger = options.logger;
-    this.fetchFn = options.fetchFn ?? fetch;
+    // Workers requires platform functions to be invoked through their global
+    // binding; retaining a bare reference to `fetch` causes "Illegal
+    // invocation" at runtime.
+    this.fetchFn = options.fetchFn ?? ((input, init) => fetch(input, init));
     this.timeoutMs = options.timeoutMs ?? 15_000;
     this.maxAttempts = options.maxAttempts ?? 3;
     this.retryDelayMs = options.retryDelayMs ?? 1_000;

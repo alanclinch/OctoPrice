@@ -6,10 +6,10 @@
               Octopus Energy API
                       |
                       v
-            PricePoller (scheduler)
+       Cron Trigger / PricePoller
                       |
                       v
-              PriceService  ------>  Store (SQLite)
+              PriceService  ------>  Store (D1 or SQLite)
                       |                  ^
                       v                  |
              AlertDispatcher             |
@@ -22,7 +22,7 @@
    WebPushSender                    Fastify API
           |                              |
           v                              v
-   User's devices                   React PWA
+   User's devices              Worker API / React PWA
 ```
 
 Data moves in one direction. Nothing downstream of the store calls back into
@@ -33,7 +33,7 @@ the Octopus client, and the PWA never talks to Octopus directly.
 | Package            | Responsibility                                                       |
 | ------------------ | -------------------------------------------------------------------- |
 | `@octoprice/core`  | Domain logic. Pure: no network, no database, no reading of the clock. |
-| `@octoprice/server`| Everything with a side effect: HTTP, Octopus, SQLite, timers, push.   |
+| `@octoprice/server`| HTTP adapters, Octopus, D1/SQLite, scheduling and push delivery.      |
 | `@octoprice/web`   | The mobile-first PWA.                                                 |
 
 `core` being pure is what makes the awkward parts testable. Daylight-saving
@@ -89,9 +89,21 @@ out in production.
 
 ### Storage is behind an interface
 
-`Store` is expressed in domain terms with no SQL. `SqliteStore` implements it
-using Node's built-in `node:sqlite`, chosen to avoid a native build step.
-PostgreSQL should need only a second implementation.
+`Store` is expressed in domain terms with no SQL and permits synchronous or
+asynchronous implementations. `D1Store` is used by Cloudflare production;
+`SqliteStore` uses Node's built-in `node:sqlite` for local development and
+tests.
+
+### Cloudflare is the production runtime
+
+The Worker serves the built PWA through Static Assets and handles `/api/*`
+with the Web Fetch API. D1 persists prices, rules, subscriptions and
+deduplication state. A five-minute Cron Trigger invokes the same polling plan
+used by the Node timer; most invocations are deliberate no-ops outside the
+16:05–22:15 Europe/London publication window.
+
+Fastify remains the local Node HTTP adapter. It is not bundled into the Worker
+because its router uses runtime code generation, which Workers disallow.
 
 ## Request flow
 

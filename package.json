@@ -32,9 +32,15 @@
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm run test && npm run build",
     "dev": "npm run dev --workspace @octoprice/server",
     "dev:web": "npm run dev --workspace @octoprice/web",
+    "dev:cloudflare": "npm run build --workspace @octoprice/web && wrangler dev",
+    "deploy:cloudflare": "npm run build && wrangler deploy",
+    "deploy:cloudflare:dry-run": "npm run build && wrangler deploy --dry-run",
+    "d1:migrate:local": "wrangler d1 migrations apply octoprice --local",
+    "d1:migrate:remote": "wrangler d1 migrations apply octoprice --remote",
     "generate:vapid": "node apps/server/src/scripts/generate-vapid.ts"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260826.1",
     "@eslint/js": "^10.0.1",
     "@types/node": "^26.3.0",
     "eslint": "^10.9.1",
@@ -43,6 +49,7 @@
     "prettier": "^3.9.6",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.68.0",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.11",
+    "wrangler": "^4.126.0"
   }
 }

@@ -62,15 +62,12 @@ npm run dev:web      # PWA dev server
 
 ## Deployment
 
-- Production is a persistent Node 24 process with a persistent SQLite volume.
-- Cloudflare supplies HTTPS through a named Tunnel to the origin. Follow
-  `docs/deployment.md` and start from
-  `deploy/cloudflare/config.yml.example`.
-- Do not add Wrangler or claim ordinary Workers support without deliberately
-  redesigning the listener, scheduler and storage layer. Cloudflare Containers
-  have ephemeral local disk and require the paid Workers plan.
+- Production runs on Cloudflare Workers with Static Assets, D1 and a Cron
+  Trigger. Follow `docs/deployment.md` and `wrangler.jsonc`.
+- The Node/Fastify/SQLite path remains the local development runtime.
+- Apply D1 migrations before deploying code that depends on them.
 - Deploy only committed `main` revisions after CI passes. Keep tunnel
-  credentials, VAPID keys and host access credentials outside Git.
+  credentials and other secrets outside Git.
 
 ## Coding standards
 
@@ -107,7 +104,8 @@ covered by tests that must keep passing.
 - Never log push subscriptions, Octopus API keys or account numbers.
 - Public Octopus price endpoints require no authentication; do not add
   credentialed calls without a real need.
-- Never commit Cloudflare Tunnel credential JSON or a real tunnel config.
+- Never commit Wrangler credentials, VAPID private keys or Cloudflare API
+  tokens.
 
 ## Source-of-truth documents
 

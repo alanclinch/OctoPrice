@@ -143,16 +143,16 @@ describe('price retrieval and alerting', () => {
   });
 
   it('records the day as retrieved so polling can stop', async () => {
-    expect(context.built.priceService.isRetrieved(TOMORROW)).toBe(false);
+    expect(await context.built.priceService.isRetrieved(TOMORROW)).toBe(false);
     await context.built.priceService.refresh(TOMORROW);
-    expect(context.built.priceService.isRetrieved(TOMORROW)).toBe(true);
+    expect(await context.built.priceService.isRetrieved(TOMORROW)).toBe(true);
   });
 
   it('marks matched rules as triggered', async () => {
     const result = await context.built.priceService.refresh(TOMORROW);
     await context.built.dispatcher.dispatchForDay(TOMORROW, result.periods);
 
-    const rules = context.built.store.listRules('default');
+    const rules = await context.built.store.listRules('default');
     expect(rules.every((rule) => rule.lastTriggeredAt !== null)).toBe(true);
   });
 
@@ -169,7 +169,7 @@ describe('price retrieval and alerting', () => {
   });
 
   it('respects the daily-notification setting', async () => {
-    context.built.store.updateSettings('default', { notifyDailyPrices: false });
+    await context.built.store.updateSettings('default', { notifyDailyPrices: false });
     const result = await context.built.priceService.refresh(TOMORROW);
     await context.built.dispatcher.dispatchForDay(TOMORROW, result.periods);
 
@@ -178,7 +178,7 @@ describe('price retrieval and alerting', () => {
   });
 
   it('respects the rule-notification setting', async () => {
-    context.built.store.updateSettings('default', { notifyRuleMatches: false });
+    await context.built.store.updateSettings('default', { notifyRuleMatches: false });
     const result = await context.built.priceService.refresh(TOMORROW);
     await context.built.dispatcher.dispatchForDay(TOMORROW, result.periods);
 
@@ -193,7 +193,7 @@ describe('partial data', () => {
       const result = await context.built.priceService.refresh(TOMORROW);
       expect(result.complete).toBe(false);
       expect(result.missingCount).toBe(18);
-      expect(context.built.priceService.isRetrieved(TOMORROW)).toBe(false);
+      expect(await context.built.priceService.isRetrieved(TOMORROW)).toBe(false);
     } finally {
       await context.built.close();
     }
@@ -203,7 +203,7 @@ describe('partial data', () => {
     const context = await createTestApp(Array.from({ length: 30 }, () => 12));
     try {
       await context.built.priceService.refresh(TOMORROW);
-      expect(context.built.priceService.isRetrieved(TOMORROW)).toBe(false);
+      expect(await context.built.priceService.isRetrieved(TOMORROW)).toBe(false);
     } finally {
       await context.built.close();
     }
@@ -252,8 +252,8 @@ describe('HTTP API', () => {
     const context2 = await createTestApp();
     try {
       const store = context2.built.store;
-      const tariff = context2.built.priceService.tariff();
-      store.upsertPrices(
+      const tariff = await context2.built.priceService.tariff();
+      await store.upsertPrices(
         Array.from({ length: 48 }, (_, index) => {
           const start = Date.parse(`${TODAY}T00:00:00.000Z`) + index * 30 * 60 * 1000;
           return {

@@ -9,8 +9,8 @@ notification telling you the cheapest slot, the most expensive slot, and
 whether anything matched the alerts you set up. It installs to an Android home
 screen as an app, and works in any browser.
 
-> Status: MVP feature-complete, not yet released. See `AI_HANDOFF.md` for the
-> current verification and deployment state.
+> Status: MVP feature-complete. Cloudflare deployment is supported; see
+> `AI_HANDOFF.md` for the current live-deployment state.
 
 ## What it does
 
@@ -115,10 +115,10 @@ Run `npm run verify` before committing.
 
 ## Deployment
 
-See `docs/deployment.md`. The short version: it is one continuously running
-Node process and one persistent SQLite file. The documented Cloudflare model
-uses a named Cloudflare Tunnel for public HTTPS in front of that persistent
-origin. Ordinary Workers are not a drop-in target for this architecture.
+See `docs/deployment.md`. The production target is Cloudflare Workers with
+Static Assets, D1 persistence and a Cron Trigger. It runs on a free
+`workers.dev` address without a separate server or domain. The Fastify/SQLite
+runtime remains available for local development.
 
 ## Documentation
 

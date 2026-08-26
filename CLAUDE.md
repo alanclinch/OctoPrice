@@ -75,18 +75,13 @@ Run `npm run verify` before you commit. CI runs the same checks.
 
 ## Deployment
 
-The current application must run as a persistent Node 24 process backed by a
-persistent SQLite volume. Cloudflare is the HTTPS edge through a named Tunnel
-to that origin; follow `docs/deployment.md` and the example under
-`deploy/cloudflare/`.
+Production runs on Cloudflare Workers with Static Assets, D1 and a Cron
+Trigger; follow `docs/deployment.md` and `wrangler.jsonc`. The Node/Fastify/
+SQLite path remains the local development runtime. Apply D1 migrations before
+deploying code that depends on them.
 
-Do not add Wrangler or describe ordinary Workers as supported without a
-deliberate application redesign. The Fastify listener, in-process scheduler
-and local SQLite persistence are not a drop-in Worker workload. Cloudflare
-Containers require the paid Workers plan and have ephemeral local disk.
-
-Deploy only committed `main` revisions after CI passes. Tunnel credentials,
-VAPID keys and origin access credentials stay outside Git.
+Deploy only committed `main` revisions after CI passes. Wrangler credentials,
+VAPID keys and Cloudflare API tokens stay outside Git.
 
 ## Coding conventions
 
@@ -146,7 +141,8 @@ This is the most common source of bugs in this project. Read
 - The VAPID private key signs push messages. Treat it like a password.
 - Public Octopus price endpoints need no credentials. Do not introduce an
   authenticated call unless the feature genuinely requires one.
-- Never commit Cloudflare Tunnel credential JSON or a real tunnel config.
+- Never commit Wrangler credentials, VAPID private keys or Cloudflare API
+  tokens.
 
 ## Before you finish work
 

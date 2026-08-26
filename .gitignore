@@ -11,10 +11,9 @@ build/
 .env.*
 !.env.example
 
-# Cloudflare Tunnel credentials and local state
-.cloudflared/
-deploy/cloudflare/*.json
-deploy/cloudflare/config.yml
+# Cloudflare credentials and local state
+.wrangler/
+.dev.vars
 
 # Local database files
 *.sqlite

@@ -52,8 +52,8 @@ export class AlertDispatcher {
     date: PricingDate,
     periods: readonly PricePeriod[],
   ): Promise<DispatchSummary> {
-    const settings = this.store.getSettings(this.userId);
-    const rules = this.store.listRules(this.userId);
+    const settings = await this.store.getSettings(this.userId);
+    const rules = await this.store.listRules(this.userId);
     const matches = evaluateRules(rules, periods, date);
     const timeFormat = { hour12: settings.hour12 };
 
