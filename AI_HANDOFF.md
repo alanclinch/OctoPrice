@@ -17,8 +17,8 @@ If this file and the code disagree, **the code is right** — fix this file.
 - **Deployed:** nowhere yet; Cloudflare requires a persistent origin host and
   an authenticated account/domain
 - **Git remote:** public GitHub repository at
-  `https://github.com/alanclinch/OctoPrice`; `main` and the infrastructure
-  branch are pushed
+  `https://github.com/alanclinch/OctoPrice`; `main` is pushed and GitHub CI
+  has completed successfully
 
 ## Current Architecture
 
@@ -60,9 +60,9 @@ GitHub remote or a real device:
 
 ## Currently In Progress
 
-GitHub setup and the repository-side Cloudflare preparation are complete on
-`main`. The documentation, environment template, secret exclusions and named
-Cloudflare Tunnel example are complete and `npm run verify` passes.
+No repository work is half-finished. GitHub setup and the repository-side
+Cloudflare preparation are complete on `main`; local verification and GitHub
+CI pass.
 
 Live Cloudflare provisioning is blocked because the account has no managed
 domain and no production origin has been selected. The known
@@ -72,19 +72,18 @@ Application source files have not been changed.
 
 ## Next Recommended Work
 
-1. **Confirm GitHub CI passes** for the infrastructure merge on `main`.
-2. **Provision the production origin and Cloudflare Tunnel.** Add or register
+1. **Provision the production origin and Cloudflare Tunnel.** Add or register
    a domain in Cloudflare, choose the
    always-on Node host, persistent SQLite path and hostname, then follow
    `docs/deployment.md`.
-3. **Generate VAPID keys and verify push on a real device.** `npm run
+2. **Generate VAPID keys and verify push on a real device.** `npm run
    generate:vapid`, paste into `.env`, restart, then install the PWA on an
    Android phone and use the test-notification button. This is the one part
    of the MVP that has never been exercised for real.
-4. **Watch several real Octopus publication cycles** (DESIGN.md section 42,
+3. **Watch several real Octopus publication cycles** (DESIGN.md section 42,
    step 21) before calling the MVP released. Confirm the daily notification
    arrives once, at a sensible time, and does not repeat.
-5. Then Phase Two (DESIGN.md section 39). The rules engine, the window
+4. Then Phase Two (DESIGN.md section 39). The rules engine, the window
    calculator and the provider interface are already general enough for
    Telegram, Home Assistant and EV-charging features without redesign.
 
@@ -202,9 +201,9 @@ aligned `AGENTS.md`, `CLAUDE.md`, `README.md`, `.env.example` and `.gitignore`.
 build) passed. A production-style server smoke test returned 200 from the app
 shell and `ok` from `/api/health` with an in-memory test database.
 
-**Outstanding:** confirm CI, then add a Cloudflare-managed domain, select the
-persistent origin and hostname, and provision/test the named Tunnel. No
-application files were modified.
+**Outstanding:** add a Cloudflare-managed domain, select the persistent origin
+and hostname, and provision/test the named Tunnel. No application files were
+modified.
 
 ### 2026-08-26 — Claude
 
