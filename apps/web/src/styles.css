@@ -1,0 +1,556 @@
+/*
+ * Mobile-first styling.
+ *
+ * The interface is deliberately plain (DESIGN.md sections 12 and 41): the job
+ * is to show a price and get out of the way. Colour is reserved for price
+ * bands, so it always means something.
+ *
+ * Theme follows the system unless the user has chosen light or dark, which is
+ * stamped onto the root element as `data-theme`.
+ */
+
+:root {
+  --bg: #f5f6f8;
+  --surface: #ffffff;
+  --surface-alt: #eef0f4;
+  --border: #dcdfe6;
+  --text: #16191f;
+  --text-muted: #5d6470;
+  --accent: #4a3aff;
+  --accent-contrast: #ffffff;
+
+  /* Price bands, cheap to expensive. */
+  --band-negative: #6d28d9;
+  --band-verycheap: #0f8a4d;
+  --band-cheap: #4faa2e;
+  --band-normal: #d99a13;
+  --band-high: #dd6b20;
+  --band-veryhigh: #c62828;
+
+  --radius: 14px;
+  --gap: 12px;
+  --shadow: 0 1px 2px rgb(16 23 37 / 8%);
+
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #101725;
+    --surface: #18202f;
+    --surface-alt: #212a3b;
+    --border: #2c374a;
+    --text: #eef1f6;
+    --text-muted: #9aa4b6;
+    --accent: #8b7cff;
+    --accent-contrast: #101725;
+
+    --band-negative: #a78bfa;
+    --band-verycheap: #34d399;
+    --band-cheap: #86d34e;
+    --band-normal: #fbbf24;
+    --band-high: #fb923c;
+    --band-veryhigh: #f87171;
+
+    --shadow: 0 1px 2px rgb(0 0 0 / 35%);
+
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  --bg: #101725;
+  --surface: #18202f;
+  --surface-alt: #212a3b;
+  --border: #2c374a;
+  --text: #eef1f6;
+  --text-muted: #9aa4b6;
+  --accent: #8b7cff;
+  --accent-contrast: #101725;
+
+  --band-negative: #a78bfa;
+  --band-verycheap: #34d399;
+  --band-cheap: #86d34e;
+  --band-normal: #fbbf24;
+  --band-high: #fb923c;
+  --band-veryhigh: #f87171;
+
+  --shadow: 0 1px 2px rgb(0 0 0 / 35%);
+
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  font-size: 16px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0 var(--gap) calc(72px + env(safe-area-inset-bottom));
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+}
+
+/* --- Header ------------------------------------------------------------- */
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap);
+  padding: calc(12px + env(safe-area-inset-top)) 0 12px;
+}
+
+.app-header h1 {
+  font-size: 1.15rem;
+}
+
+.app-header .region {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* --- Cards -------------------------------------------------------------- */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+  margin-bottom: var(--gap);
+}
+
+.card h2 {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+/* --- The headline "now" price ------------------------------------------- */
+
+.now-price {
+  font-size: 3.2rem;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  margin: 4px 0;
+}
+
+.now-price .unit {
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-left: 4px;
+}
+
+.now-meta {
+  color: var(--text-muted);
+  font-size: 0.92rem;
+}
+
+.next-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.next-row .label {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.next-row .value {
+  font-size: 1.25rem;
+  font-weight: 650;
+}
+
+/* --- Price band colouring ----------------------------------------------- */
+
+.band-negative {
+  color: var(--band-negative);
+}
+.band-verycheap {
+  color: var(--band-verycheap);
+}
+.band-cheap {
+  color: var(--band-cheap);
+}
+.band-normal {
+  color: var(--band-normal);
+}
+.band-high {
+  color: var(--band-high);
+}
+.band-veryhigh {
+  color: var(--band-veryhigh);
+}
+
+.bar-negative {
+  fill: var(--band-negative);
+}
+.bar-verycheap {
+  fill: var(--band-verycheap);
+}
+.bar-cheap {
+  fill: var(--band-cheap);
+}
+.bar-normal {
+  fill: var(--band-normal);
+}
+.bar-high {
+  fill: var(--band-high);
+}
+.bar-veryhigh {
+  fill: var(--band-veryhigh);
+}
+
+/* --- Chart -------------------------------------------------------------- */
+
+.chart {
+  width: 100%;
+  height: auto;
+  display: block;
+  touch-action: manipulation;
+}
+
+.chart .axis-line {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.chart .zero-line {
+  stroke: var(--text-muted);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  opacity: 0.7;
+}
+
+.chart .axis-label {
+  fill: var(--text-muted);
+  font-size: 9px;
+}
+
+.chart .now-marker {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.chart .bar {
+  cursor: pointer;
+}
+
+.chart .bar.selected {
+  stroke: var(--text);
+  stroke-width: 1.5;
+}
+
+.chart-readout {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 8px;
+  min-height: 1.5rem;
+  font-size: 0.95rem;
+}
+
+.chart-readout .muted {
+  color: var(--text-muted);
+}
+
+/* --- Table -------------------------------------------------------------- */
+
+.price-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.price-table th {
+  text-align: left;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.price-table th.numeric,
+.price-table td.numeric {
+  text-align: right;
+}
+
+.price-table td {
+  padding: 7px 0;
+  border-bottom: 1px solid var(--surface-alt);
+}
+
+.price-table tr.is-now td {
+  background: var(--surface-alt);
+  font-weight: 650;
+}
+
+.price-table tr.is-past td {
+  opacity: 0.5;
+}
+
+.price-table td.price {
+  font-weight: 650;
+}
+
+/* --- Tabs and navigation ------------------------------------------------ */
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--surface-alt);
+  border-radius: var(--radius);
+  padding: 4px;
+  margin-bottom: var(--gap);
+}
+
+.tabs button {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  padding: 9px 6px;
+  border-radius: calc(var(--radius) - 5px);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.tabs button[aria-selected='true'] {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+}
+
+/* --- Status pills ------------------------------------------------------- */
+
+.pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  color: var(--text-muted);
+}
+
+.pill.ready {
+  color: var(--band-verycheap);
+  border-color: currentcolor;
+}
+
+.pill.waiting {
+  color: var(--band-normal);
+  border-color: currentcolor;
+}
+
+/* --- Forms and buttons -------------------------------------------------- */
+
+label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+input[type='text'],
+input[type='number'],
+input[type='time'],
+select {
+  width: 100%;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.field {
+  margin-bottom: 12px;
+}
+
+.field-row {
+  display: flex;
+  gap: 10px;
+}
+
+.field-row > * {
+  flex: 1;
+}
+
+.btn {
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  color: var(--text);
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.btn.danger {
+  color: var(--band-veryhigh);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.btn-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--surface-alt);
+}
+
+.toggle:last-child {
+  border-bottom: 0;
+}
+
+.toggle span.title {
+  color: var(--text);
+  font-size: 0.95rem;
+  display: block;
+}
+
+.toggle span.hint {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  display: block;
+}
+
+input[type='checkbox'] {
+  width: 22px;
+  height: 22px;
+  accent-color: var(--accent);
+  flex: 0 0 auto;
+}
+
+/* --- Rules -------------------------------------------------------------- */
+
+.rule {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 10px;
+  background: var(--surface);
+}
+
+.rule.disabled {
+  opacity: 0.6;
+}
+
+.rule .rule-name {
+  font-weight: 650;
+}
+
+.rule .rule-detail {
+  color: var(--text-muted);
+  font-size: 0.86rem;
+}
+
+/* --- Utility ------------------------------------------------------------ */
+
+.muted {
+  color: var(--text-muted);
+}
+
+.small {
+  font-size: 0.85rem;
+}
+
+.error {
+  color: var(--band-veryhigh);
+  font-size: 0.9rem;
+}
+
+.stack > * + * {
+  margin-top: 10px;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 14px;
+  font-size: 0.9rem;
+}
+
+.status-grid dt {
+  color: var(--text-muted);
+}
+
+.status-grid dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.centre {
+  text-align: center;
+  padding: 28px 0;
+  color: var(--text-muted);
+}
+
+@media (min-width: 600px) {
+  .now-price {
+    font-size: 3.8rem;
+  }
+}
