@@ -9,7 +9,7 @@ If this file and the code disagree, **the code is right** — fix this file.
 ## Current State
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
-- **Current branch:** `codex/infrastructure-deployment`
+- **Current branch:** `main`
 - **Last known good application commit:** `8b9d9dd` on `main`; the current
   branch's infrastructure/documentation state is also verified
 - **Build status:** passing — `npm run verify`
@@ -60,9 +60,8 @@ GitHub remote or a real device:
 
 ## Currently In Progress
 
-Codex is completing GitHub and Cloudflare infrastructure on
-`codex/infrastructure-deployment`. GitHub is connected and both branches are
-pushed. The documentation, environment template, secret exclusions and named
+GitHub setup and the repository-side Cloudflare preparation are complete on
+`main`. The documentation, environment template, secret exclusions and named
 Cloudflare Tunnel example are complete and `npm run verify` passes.
 
 Live Cloudflare provisioning is blocked because the account has no managed
@@ -73,8 +72,7 @@ Application source files have not been changed.
 
 ## Next Recommended Work
 
-1. **Finish GitHub setup.** Merge `codex/infrastructure-deployment` into
-   `main` and confirm the CI workflow passes.
+1. **Confirm GitHub CI passes** for the infrastructure merge on `main`.
 2. **Provision the production origin and Cloudflare Tunnel.** Add or register
    a domain in Cloudflare, choose the
    always-on Node host, persistent SQLite path and hostname, then follow
@@ -204,9 +202,9 @@ aligned `AGENTS.md`, `CLAUDE.md`, `README.md`, `.env.example` and `.gitignore`.
 build) passed. A production-style server smoke test returned 200 from the app
 shell and `ok` from `/api/health` with an in-memory test database.
 
-**Outstanding:** merge the infrastructure branch and confirm CI; then add a
-Cloudflare-managed domain, select the persistent origin and hostname, and
-provision/test the named Tunnel. No application files were modified.
+**Outstanding:** confirm CI, then add a Cloudflare-managed domain, select the
+persistent origin and hostname, and provision/test the named Tunnel. No
+application files were modified.
 
 ### 2026-08-26 — Claude
 
