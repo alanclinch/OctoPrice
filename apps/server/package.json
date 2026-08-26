@@ -1,0 +1,25 @@
+{
+  "name": "@octoprice/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Price retrieval worker, rules evaluation, notifications and web API",
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc --build",
+    "clean": "tsc --build --clean",
+    "predev": "npm run build --workspace @octoprice/core",
+    "dev": "node --env-file-if-exists=../../.env --watch src/index.ts",
+    "start": "node --env-file-if-exists=../../.env dist/index.js"
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.3.0",
+    "@fastify/static": "^10.1.3",
+    "@octoprice/core": "*",
+    "fastify": "^5.12.1",
+    "web-push": "^3.6.7"
+  },
+  "devDependencies": {
+    "@types/web-push": "^3.6.4"
+  }
+}
