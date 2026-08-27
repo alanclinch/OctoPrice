@@ -10,14 +10,25 @@ import type {
   NotificationSubscription,
   PricePeriod,
   StoredPricePeriod,
+  User,
   UserSettings,
   UserSettingsInput,
 } from '@octoprice/core';
 import { FALLBACK_AGILE_PRODUCT_CODE } from '@octoprice/core';
-import type { NewSubscription, NotificationLogInput, Store } from './store.ts';
+import type { NewSubscription, NewUser, NotificationLogInput, Store } from './store.ts';
 
 const bool = (value: boolean): number => (value ? 1 : 0);
 const fromBool = (value: unknown): boolean => value === 1 || value === true;
+
+interface UserRow {
+  id: string;
+  name: string;
+  token_hash: string | null;
+  is_owner: number;
+  created_at: string;
+  claimed_at: string | null;
+  last_seen_at: string | null;
+}
 
 interface PriceRow {
   valid_from: string;
@@ -93,6 +104,84 @@ export class D1Store implements Store {
     this.defaultRegion = options.defaultRegion;
     this.defaultProductCode = options.defaultProductCode ?? FALLBACK_AGILE_PRODUCT_CODE;
   }
+
+  // --- Users ---------------------------------------------------------------
+
+  async findUserByTokenHash(tokenHash: string): Promise<User | null> {
+    const row = await this.database
+      .prepare('SELECT * FROM users WHERE token_hash = ?')
+      .bind(tokenHash)
+      .first<UserRow>();
+    return row ? toUser(row) : null;
+  }
+
+  async getUser(id: string): Promise<User | null> {
+    const row = await this.database
+      .prepare('SELECT * FROM users WHERE id = ?')
+      .bind(id)
+      .first<UserRow>();
+    return row ? toUser(row) : null;
+  }
+
+  async listUsers(): Promise<User[]> {
+    const { results } = await this.database
+      .prepare('SELECT * FROM users ORDER BY is_owner DESC, created_at ASC')
+      .all<UserRow>();
+    return results.map(toUser);
+  }
+
+  async createUser(user: NewUser): Promise<User> {
+    const id = randomUUID();
+    await this.database
+      .prepare(
+        `INSERT INTO users (id, name, token_hash, is_owner, created_at)
+         VALUES (?, ?, ?, ?, ?)`,
+      )
+      .bind(id, user.name, user.tokenHash, bool(user.isOwner ?? false), new Date().toISOString())
+      .run();
+    return (await this.getUser(id)) as User;
+  }
+
+  async setUserToken(id: string, tokenHash: string): Promise<void> {
+    // Reissuing a link also clears the claim, so the list honestly shows the
+    // new link as unused until it is opened.
+    await this.database
+      .prepare('UPDATE users SET token_hash = ?, claimed_at = NULL WHERE id = ?')
+      .bind(tokenHash, id)
+      .run();
+  }
+
+  async markUserClaimed(id: string, at: Date): Promise<void> {
+    await this.database
+      .prepare('UPDATE users SET claimed_at = ? WHERE id = ? AND claimed_at IS NULL')
+      .bind(at.toISOString(), id)
+      .run();
+  }
+
+  async recordUserSeen(id: string, at: Date): Promise<void> {
+    await this.database
+      .prepare('UPDATE users SET last_seen_at = ? WHERE id = ?')
+      .bind(at.toISOString(), id)
+      .run();
+  }
+
+  async deleteUser(id: string): Promise<boolean> {
+    // The older tables carry no foreign keys, so the user's rows go
+    // explicitly. Batched so a partial delete cannot leave orphans behind.
+    const statements = [
+      'DELETE FROM alert_rules WHERE user_id = ?',
+      'DELETE FROM notification_subscriptions WHERE user_id = ?',
+      'DELETE FROM notification_log WHERE user_id = ?',
+      'DELETE FROM settings WHERE user_id = ?',
+      'DELETE FROM users WHERE id = ?',
+    ].map((sql) => this.database.prepare(sql).bind(id));
+
+    const results = await this.database.batch(statements);
+    const deletedUser = results[results.length - 1];
+    return Number(deletedUser?.meta?.changes ?? 0) > 0;
+  }
+
+  // --- Prices --------------------------------------------------------------
 
   async upsertPrices(periods: readonly StoredPricePeriod[]): Promise<number> {
     if (periods.length === 0) return 0;
@@ -377,6 +466,13 @@ export class D1Store implements Store {
     return this.getSettings(userId);
   }
 
+  async listAllSettings(): Promise<UserSettings[]> {
+    const { results } = await this.database
+      .prepare('SELECT * FROM settings ORDER BY user_id ASC')
+      .all<SettingsRow>();
+    return results.map(toSettings);
+  }
+
   async updateSettings(userId: string, input: UserSettingsInput): Promise<UserSettings> {
     const current = await this.getSettings(userId);
     const merged: UserSettings = {
@@ -434,6 +530,19 @@ export class D1Store implements Store {
   close(): void {
     // D1 bindings are managed by the Workers runtime.
   }
+}
+
+function toUser(row: UserRow): User {
+  return {
+    id: row.id,
+    name: row.name,
+    isOwner: fromBool(row.is_owner),
+    createdAt: row.created_at,
+    claimedAt: row.claimed_at,
+    lastSeenAt: row.last_seen_at,
+    // The hash itself never leaves the store.
+    hasToken: row.token_hash !== null,
+  };
 }
 
 function toAlertRule(row: RuleRow): AlertRule {

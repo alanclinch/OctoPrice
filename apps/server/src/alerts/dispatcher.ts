@@ -45,20 +45,17 @@ export interface AlertDispatcherOptions {
   store: Store;
   notifications: NotificationService;
   logger: Logger;
-  userId: string;
 }
 
 export class AlertDispatcher {
   private readonly store: Store;
   private readonly notifications: NotificationService;
   private readonly logger: Logger;
-  private readonly userId: string;
 
   constructor(options: AlertDispatcherOptions) {
     this.store = options.store;
     this.notifications = options.notifications;
     this.logger = options.logger;
-    this.userId = options.userId;
   }
 
   /**
@@ -72,9 +69,10 @@ export class AlertDispatcher {
   async dispatchForDay(
     date: PricingDate,
     periods: readonly PricePeriod[],
+    userId: string,
   ): Promise<DispatchSummary> {
-    const settings = await this.store.getSettings(this.userId);
-    const rules = await this.store.listRules(this.userId);
+    const settings = await this.store.getSettings(userId);
+    const rules = await this.store.listRules(userId);
     const coverage = describeDayCoverage(periods, date);
     const matches = evaluateRules(rules, periods, date, {
       settledUntil: coverage.complete ? null : coverage.coveredUntil,
@@ -97,9 +95,9 @@ export class AlertDispatcher {
     const summary = summariseDay(periods, date);
     if (settings.notifyDailyPrices && summary) {
       const result = await this.notifications.deliver(
-        this.userId,
+        userId,
         buildDailyPricesNotification({
-          userId: this.userId,
+          userId: userId,
           summary,
           matches,
           rules,
@@ -116,8 +114,8 @@ export class AlertDispatcher {
         if (!rule || !rule.notify) continue;
 
         const result = await this.notifications.deliver(
-          this.userId,
-          buildRuleMatchNotification({ userId: this.userId, rule, match, timeFormat }),
+          userId,
+          buildRuleMatchNotification({ userId: userId, rule, match, timeFormat }),
         );
         if (result.sent) ruleNotificationsSent += 1;
       }
@@ -139,13 +137,14 @@ export class AlertDispatcher {
    */
   async dispatchUpcoming(
     now: Date,
+    userId: string,
     lookupPeriods: (date: PricingDate) => Promise<PricePeriod[]> | PricePeriod[],
     leadMinutes = UPCOMING_LEAD_MINUTES,
   ): Promise<number> {
-    const settings = await this.store.getSettings(this.userId);
+    const settings = await this.store.getSettings(userId);
     if (!settings.notifyRuleMatches) return 0;
 
-    const rules = await this.store.listRules(this.userId);
+    const rules = await this.store.listRules(userId);
     if (rules.length === 0) return 0;
 
     const timeFormat = { hour12: settings.hour12 };
@@ -170,8 +169,8 @@ export class AlertDispatcher {
         if (!rule || !rule.notify) continue;
 
         const result = await this.notifications.deliver(
-          this.userId,
-          buildUpcomingMatchNotification({ userId: this.userId, rule, match, now, timeFormat }),
+          userId,
+          buildUpcomingMatchNotification({ userId: userId, rule, match, now, timeFormat }),
         );
         if (result.sent) {
           sent += 1;

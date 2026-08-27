@@ -76,6 +76,28 @@ npx wrangler secret put VAPID_SUBJECT
 `VAPID_SUBJECT` must be a contact URI such as `mailto:you@example.com`.
 Deploy again after adding or changing secrets.
 
+## The first access link
+
+The app is private: every API route except health and the region list needs a
+session. After the first deployment nobody has a link yet, including the
+owner, so issue one from the command line - the only place that can, since
+there is no session to authorise it and no public bootstrap endpoint to abuse:
+
+```bash
+npm run issue-link -- --url https://<worker>.workers.dev
+```
+
+The link is written to `.octoprice-link.txt`, which is git-ignored, rather
+than printed, so it does not end up in shell history or a screen share. Open
+it once, then delete the file.
+
+Everyone else is invited from the People tab in the app, which is visible only
+to the owner. Reissuing somebody's link invalidates the previous one and keeps
+their rules and devices.
+
+Run this **after** the migration and deployment. Applying migration 0003 to a
+live installation locks it until a link is claimed.
+
 ## Configuration
 
 Non-secret production values live under `vars` in `wrangler.jsonc`:

@@ -712,3 +712,21 @@ input[type='checkbox'] {
     font-size: 3.8rem;
   }
 }
+
+/* --- Invite links -------------------------------------------------------- */
+
+.link-box {
+  display: block;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-alt);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.78rem;
+  /* An access link is long and must never be silently truncated. */
+  overflow-wrap: anywhere;
+}
+
+.issued-link {
+  margin-top: 6px;
+}

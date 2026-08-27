@@ -15,6 +15,7 @@ import type {
   NotificationSubscription,
   PricePeriod,
   StoredPricePeriod,
+  User,
   UserSettings,
   UserSettingsInput,
 } from '@octoprice/core';
@@ -47,7 +48,35 @@ export interface NotificationLogInput {
 /** SQLite returns immediately; remote stores such as D1 resolve asynchronously. */
 export type StoreResult<T> = T | Promise<T>;
 
+export interface NewUser {
+  name: string;
+  isOwner?: boolean;
+  /** SHA-256 hex of the access token. */
+  tokenHash: string;
+}
+
 export interface Store {
+  // --- Users -------------------------------------------------------------
+
+  /**
+   * Resolves an access token hash to its user, or null.
+   *
+   * Callers pass a *hash*, never a raw token, so the plain value is confined
+   * to the request that carried it.
+   */
+  findUserByTokenHash(tokenHash: string): StoreResult<User | null>;
+
+  getUser(id: string): StoreResult<User | null>;
+  listUsers(): StoreResult<User[]>;
+  createUser(user: NewUser): StoreResult<User>;
+  /** Replaces a user's token, invalidating any previous link. */
+  setUserToken(id: string, tokenHash: string): StoreResult<void>;
+  /** Records that an invite link has been opened, if it had not been. */
+  markUserClaimed(id: string, at: Date): StoreResult<void>;
+  recordUserSeen(id: string, at: Date): StoreResult<void>;
+  /** Removes a user along with their rules, subscriptions and settings. */
+  deleteUser(id: string): StoreResult<boolean>;
+
   // --- Prices ------------------------------------------------------------
 
   /**
@@ -96,6 +125,11 @@ export interface Store {
   // --- Settings ----------------------------------------------------------
 
   getSettings(userId: string): StoreResult<UserSettings>;
+  /**
+   * Settings for everyone who has any, used by the poller to work out which
+   * distinct tariffs need fetching.
+   */
+  listAllSettings(): StoreResult<UserSettings[]>;
   updateSettings(userId: string, input: UserSettingsInput): StoreResult<UserSettings>;
 
   // --- Worker state ------------------------------------------------------

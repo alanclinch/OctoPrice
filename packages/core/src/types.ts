@@ -208,7 +208,37 @@ export interface NotificationPayload {
   ruleId?: string | null;
 }
 
-/** User-level settings. The MVP is single-user but keyed by user throughout. */
+/**
+ * Someone who uses this installation.
+ *
+ * A user *is* an invite: the owner creates one with an access token, sends the
+ * link, and the row records when it was first opened. There are no passwords
+ * and no email addresses, which suits a handful of friends and family.
+ *
+ * The token itself never appears here. Only its hash is stored, and the full
+ * value is shown exactly once, when the link is created or regenerated.
+ */
+export interface User {
+  id: string;
+  /** Friendly label chosen by the owner, e.g. "Mum". Not a login name. */
+  name: string;
+  /** The owner can invite and remove other people. */
+  isOwner: boolean;
+  createdAt: string;
+  /** When the invite link was first opened. Null means unused. */
+  claimedAt: string | null;
+  lastSeenAt: string | null;
+  /** Whether an access link currently exists for this person. */
+  hasToken: boolean;
+}
+
+export const inviteInputSchema = z.object({
+  name: z.string().trim().min(1).max(60),
+});
+
+export type InviteInput = z.infer<typeof inviteInputSchema>;
+
+/** User-level settings. Each person has their own region and preferences. */
 export interface UserSettings {
   userId: string;
   region: string;

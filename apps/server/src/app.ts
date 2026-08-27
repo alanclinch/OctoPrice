@@ -93,10 +93,10 @@ export async function buildApp(
   });
 
   const priceService = new PriceService({
+    defaultRegion: config.defaultRegion,
     store,
     client,
     logger,
-    userId: config.userId,
     forcedProductCode: config.octopus.productCode,
     ...(overrides.now ? { now: overrides.now } : {}),
   });
@@ -113,7 +113,6 @@ export async function buildApp(
     store,
     notifications,
     logger,
-    userId: config.userId,
   });
 
   const poller = config.enableScheduler
@@ -145,9 +144,10 @@ export async function buildApp(
       store,
       priceService,
       notifications,
+      dispatcher,
       poller,
       logger,
-      ...(overrides.now ? { now: overrides.now } : {}),
+      now: overrides.now ?? (() => new Date()),
     }),
     { prefix: '/api' },
   );

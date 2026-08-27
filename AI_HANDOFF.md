@@ -12,7 +12,7 @@ If this file and the code disagree, **the code is right** — fix this file.
 - **Current branch:** `main`
 - **Source control:** clean `main`, synced to `origin/main`
 - **Build status:** passing — `npm run verify`
-- **Test status:** passing — 238 tests across 8 files
+- **Test status:** passing — 259 tests across 9 files
 - **Deployed:** `https://octoprice.alanclinch.workers.dev` on Cloudflare
   Workers, with D1 in WEUR and a five-minute Cron Trigger
 - **Git remote:** public GitHub repository at
@@ -91,6 +91,10 @@ GitHub remote or a real device:
 
 ## Known Problems
 
+- **Migration 0003 locks a live installation until a link is claimed.** Apply
+  the migration, deploy, then immediately run `npm run issue-link`. Existing
+  push subscriptions belong to the owner and keep working once claimed.
+
 - **The notification fix is unproven in production.** It is covered by tests,
   including one that reproduces the exact failure, but no notification has yet
   been seen arriving from a real publication cycle. Until that happens, treat
@@ -109,6 +113,40 @@ GitHub remote or a real device:
   `vite-plugin-pwa`; it comes from the plugin, not from our config.
 
 ## Important Decisions
+
+### 2026-08-27 — Invite links rather than accounts
+
+**Decision:** a user *is* an invite. The owner creates a row with a random
+token; the link carries it and the browser keeps it in an HttpOnly cookie.
+Only the SHA-256 of the token is stored.
+**Reason:** the audience is a handful of friends and family. Passwords mean a
+credential store, a reset flow and an email dependency, all for people who
+would rather be sent a link. Storing only the hash means a database copy does
+not grant access, and reissuing replaces a lost link without disturbing the
+person's rules or devices.
+**Alternatives considered:** Cloudflare Access (free to 50 users and no auth
+code, but every person needs a Cloudflare-brokered login and it sits in front
+of the push endpoints); a single shared secret (keeps one shared account, so
+no per-person rules).
+**Consequence:** there is no public bootstrap endpoint. The owner's first link
+is issued with `npm run issue-link`, which requires database access, so the
+first visitor after a deployment cannot claim ownership.
+
+### 2026-08-27 — The API is defined once, with two adapters
+
+**Decision:** routing, validation and authentication live in
+`api/handler.ts`; Fastify and the Worker are thin adapters.
+**Reason:** they were two implementations of the same twenty endpoints, and
+production ran the one the tests never touched. Access control would have had
+to be written twice. The tests now exercise the same code the Worker runs.
+
+### 2026-08-27 — Prices are fetched per tariff, not per person
+
+**Decision:** the poller groups people by tariff and fetches once per distinct
+tariff.
+**Reason:** everyone in one region costs a single request, and somebody in
+another region still gets correct prices. Special-casing the common case
+would have cost the same and broken silently when it stopped holding.
 
 ### 2026-08-27 — Publication triggers on coverage, not completeness
 

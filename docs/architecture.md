@@ -79,6 +79,31 @@ A day that is publishable but not complete keeps being re-fetched while the
 poller is awake, so it fills in by itself. Re-running the alerts each time is
 safe because dedupe keys suppress anything already sent.
 
+### One installation, several people
+
+Every table has always been keyed by `user_id`; until recently the value was
+the constant `'default'`, which meant one shared account behind an
+unauthenticated public URL. Now a user is a real row, and a user *is* an
+invite: the owner creates one with a random token, sends the link, and opening
+it once stores an HttpOnly session cookie on that device.
+
+There are no passwords and no email addresses. For a handful of friends and
+family that is the right trade: nothing to remember, nothing to reset, and no
+credential store to look after. Only the SHA-256 of a token is kept, so a copy
+of the database does not hand over anybody's access, and a lost link is
+replaced by reissuing - the user id never changes, so their rules and devices
+survive.
+
+What is private to a person: their region, their alert rules, their devices,
+their notification history. What is shared: the price data itself, which is
+public information keyed by tariff rather than by person.
+
+The poller fetches **once per distinct tariff**, not once per person. A
+household all in the same region therefore costs exactly one request, while
+somebody in another region still gets their own prices. That is deliberately
+not optimised away for the common case: hardcoding a single region would cost
+the same and break silently the day somebody moves.
+
 ### Alerts come in two flavours
 
 Publication alerts are *advance notice*: when tomorrow's prices land, the app
@@ -121,6 +146,18 @@ rule, pricing date, the matched run's start and length. The key is written to
 next. It is separate from the timer that drives it, so restart-at-03:00,
 restart-at-20:00 and cutoff-passed are unit tests rather than things to find
 out in production.
+
+### The API is defined once
+
+`api/handler.ts` holds the routing, validation and authentication as a plain
+function from a request description to a response. `api/routes.ts` adapts it
+to Fastify and `worker.ts` adapts it to `fetch`.
+
+This was two separate implementations of the same twenty endpoints, which
+meant production ran the copy the tests never touched. Access control made
+that untenable - authentication written twice is authentication wrong once -
+so the routing moved to one place. The tests drive it through Fastify, which
+is now the same code the Worker runs.
 
 ### Storage is behind an interface
 

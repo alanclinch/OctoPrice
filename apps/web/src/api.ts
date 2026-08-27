@@ -19,6 +19,18 @@ import type {
   UserSettingsInput,
 } from '@octoprice/core';
 
+/** A person using this installation, as the API describes them. */
+export interface SessionUser {
+  id: string;
+  name: string;
+  isOwner: boolean;
+  createdAt: string;
+  claimedAt: string | null;
+  lastSeenAt: string | null;
+  /** Whether an access link currently exists for them. */
+  hasLink: boolean;
+}
+
 export interface DayPayload {
   date: PricingDate;
   periods: PricePeriod[];
@@ -41,6 +53,8 @@ export interface Overview {
   tomorrow: DayPayload;
   settings: UserSettings;
   tariff: TariffInfo;
+  /** Who this response belongs to. */
+  user: SessionUser;
 }
 
 export interface WindowsPayload {
@@ -108,6 +122,26 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 const json = (body: unknown): RequestInit['body'] => JSON.stringify(body);
 
 export const api = {
+  // --- Session -----------------------------------------------------------
+
+  session: () => request<{ user: SessionUser }>('/session'),
+  /** Exchanges an invite token for a session cookie. */
+  claim: (token: string) =>
+    request<{ user: SessionUser }>('/session/claim', { method: 'POST', body: json({ token }) }),
+  signOut: () => request<{ signedOut: boolean }>('/session/signout', { method: 'POST' }),
+
+  // --- People (owner only) -----------------------------------------------
+
+  invites: () => request<{ users: SessionUser[] }>('/invites'),
+  createInvite: (name: string) =>
+    request<{ user: SessionUser; link: string }>('/invites', {
+      method: 'POST',
+      body: json({ name }),
+    }),
+  reissueLink: (id: string) =>
+    request<{ user: SessionUser; link: string }>(`/invites/${id}/link`, { method: 'POST' }),
+  removeInvite: (id: string) => request<void>(`/invites/${id}`, { method: 'DELETE' }),
+
   overview: () => request<Overview>('/overview'),
 
   prices: (date?: PricingDate) =>

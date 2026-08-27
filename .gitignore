@@ -11,6 +11,9 @@ build/
 .env.*
 !.env.example
 
+# Access links written by the issue-link script
+.octoprice-link.txt
+
 # Cloudflare credentials and local state
 .wrangler/
 .dev.vars
