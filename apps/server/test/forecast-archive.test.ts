@@ -19,8 +19,8 @@ import {
 import {
   COLLECTOR_USER_AGENT,
   collectCarbonIntensity,
-  collectNesoEmbedded,
-  nesoTargetStart,
+  nesoArchivePeriodStart,
+  type CollectedInput,
 } from '../src/forecast/collectors.ts';
 import { silentLogger } from './helpers.ts';
 
@@ -52,31 +52,6 @@ function mixBody(periods: number, base: Date = NOW) {
         ],
       };
     }),
-  };
-}
-
-/**
- * NESO's real shape: `DATE_GMT` is the *day*, with a midnight time and no
- * timezone, and the half-hour lives separately in `TIME_GMT`.
- *
- * An earlier fixture invented a full timestamp in `DATE_GMT`. That is why a
- * collector reading `DATE_GMT` alone passed its tests and then collapsed
- * every period of a day onto midnight in production.
- */
-function nesoBody(records: number, base: Date = NOW) {
-  return {
-    result: {
-      records: Array.from({ length: records }, (_, index) => {
-        const at = new Date(base.getTime() + index * 30 * 60 * 1000);
-        return {
-          DATE_GMT: `${at.toISOString().slice(0, 10)}T00:00:00`,
-          TIME_GMT: at.toISOString().slice(11, 16),
-          SETTLEMENT_PERIOD: (index % 48) + 1,
-          EMBEDDED_WIND_FORECAST: 1000 + index,
-          EMBEDDED_SOLAR_FORECAST: 500,
-        };
-      }),
-    },
   };
 }
 
@@ -167,21 +142,6 @@ describe('collectors', () => {
     expect(rows[0]?.payload.intensityForecast).toBe(100);
     expect(rows[0]?.payload['mix.gas']).toBeUndefined();
   });
-
-  it('discards observations beyond the forecast horizon', async () => {
-    // 14 days of NESO records, of which only the first 72 hours are wanted.
-    const rows = await collectNesoEmbedded({
-      logger: silentLogger(),
-      now: () => NOW,
-      horizonHours: 72,
-      fetchFn: fakeFetch({ neso: nesoBody(672) }),
-    });
-
-    expect(rows.length).toBeLessThanOrEqual(146);
-    for (const row of rows) {
-      expect(Date.parse(row.targetStart)).toBeLessThanOrEqual(NOW.getTime() + 72 * 3600 * 1000);
-    }
-  });
 });
 
 describe('archiving', () => {
@@ -205,7 +165,6 @@ describe('archiving', () => {
   const healthyAt = (base: Date) => ({
     '/intensity/': intensityBody(4, base),
     '/generation/': mixBody(4, base),
-    neso: nesoBody(4, base),
   });
   const healthy = healthyAt(NOW);
 
@@ -243,7 +202,6 @@ describe('archiving', () => {
     const broken = {
       '/intensity/': new Error('down'),
       '/generation/': new Error('down'),
-      neso: new Error('down'),
     };
     const result = await runArchive(options(NOW, broken));
 
@@ -261,7 +219,6 @@ describe('archiving', () => {
     const partial = {
       '/intensity/': intensityBody(4),
       '/generation/': mixBody(4),
-      neso: new Error('down'),
     };
     const result = await runArchive(options(NOW, partial));
 
@@ -318,7 +275,6 @@ describe('it cannot break anything else', () => {
         fetchFn: fakeFetch({
           intensity: intensityBody(2),
           generation: mixBody(2),
-          neso: nesoBody(2),
         }),
       }),
     ).resolves.toMatchObject({ stored: 0 });
@@ -332,113 +288,12 @@ describe('it cannot break anything else', () => {
       fetchFn: fakeFetch({
         '/intensity/': intensityBody(4),
         '/generation/': mixBody(4),
-        neso: nesoBody(4),
       }),
     });
 
     expect(store.countPrices()).toBe(0);
     // And nothing has claimed a pricing day as retrieved.
     expect(store.getState('retrieved_date:E-1R-AGILE-24-10-01-C:2026-08-28')).toBeNull();
-  });
-});
-
-describe('NESO settlement period timestamps', () => {
-  it('combines the date and the time, rather than reading the date alone', () => {
-    // The bug this exists for: DATE_GMT is the day, TIME_GMT is the half-hour.
-    expect(nesoTargetStart('2026-08-27T00:00:00', '15:30')).toBe('2026-08-27T15:30:00.000Z');
-    expect(nesoTargetStart('2026-08-27T00:00:00', '00:00')).toBe('2026-08-27T00:00:00.000Z');
-  });
-
-  it('treats the fields as UTC whatever the runtime timezone is', () => {
-    // DATE_GMT carries no offset, so Date.parse read it in the *local* zone:
-    // the same code produced 23:00Z on a BST workstation and 00:00Z in the
-    // Worker. The field is named GMT and is now treated as such everywhere.
-    expect(nesoTargetStart('2026-06-15T00:00:00', '12:00')).toBe('2026-06-15T12:00:00.000Z');
-    expect(nesoTargetStart('2026-01-15T00:00:00', '12:00')).toBe('2026-01-15T12:00:00.000Z');
-  });
-
-  it('rolls hour 24 into the following day', () => {
-    expect(nesoTargetStart('2026-08-27T00:00:00', '24:00')).toBe('2026-08-28T00:00:00.000Z');
-  });
-
-  it('rejects a record it cannot place, rather than putting it at midnight', () => {
-    // A missing row is recoverable. A row at the wrong instant is not.
-    expect(nesoTargetStart('2026-08-27T00:00:00', undefined)).toBeNull();
-    expect(nesoTargetStart('2026-08-27T00:00:00', 'nonsense')).toBeNull();
-    expect(nesoTargetStart(undefined, '15:30')).toBeNull();
-    expect(nesoTargetStart('not-a-date', '15:30')).toBeNull();
-  });
-
-  it('gives every collected period its own instant', async () => {
-    const rows = await collectNesoEmbedded({
-      logger: silentLogger(),
-      now: () => NOW,
-      fetchFn: fakeFetch({ neso: nesoBody(48) }),
-    });
-
-    const distinct = new Set(rows.map((row) => row.targetStart));
-    expect(rows.length).toBeGreaterThan(1);
-    expect(distinct.size).toBe(rows.length);
-  });
-
-  it('keeps the settlement period, so a stored row can be checked later', async () => {
-    const rows = await collectNesoEmbedded({
-      logger: silentLogger(),
-      now: () => NOW,
-      fetchFn: fakeFetch({ neso: nesoBody(4) }),
-    });
-    expect(rows[0]?.payload.settlementPeriod).toBeTypeOf('number');
-  });
-});
-
-describe('per-source scheduling and retry', () => {
-  let store: SqliteStore;
-
-  beforeEach(() => {
-    store = makeStore();
-  });
-
-  afterEach(() => {
-    store.close();
-  });
-
-  it('retries a failed source on the next invocation, even when another succeeded', async () => {
-    // The bug: a single shared "last run" marker meant one succeeding source
-    // suppressed retries for a failing one for the whole interval, losing
-    // vintages that cannot be recovered.
-    await runArchive({
-      store,
-      logger: silentLogger(),
-      now: () => NOW,
-      fetchFn: fakeFetch({
-        '/intensity/': intensityBody(4),
-        '/generation/': mixBody(4),
-        neso: new Error('down'),
-      }),
-    });
-
-    expect(await store.lastForecastInputAt('neso_embedded')).toBeNull();
-
-    // One minute later, well inside the interval, NESO is retried.
-    const soon = new Date(NOW.getTime() + 60 * 1000);
-    const result = await runArchive({
-      store,
-      logger: silentLogger(),
-      now: () => soon,
-      fetchFn: fakeFetch({
-        '/intensity/': intensityBody(4, soon),
-        '/generation/': mixBody(4, soon),
-        neso: nesoBody(4, soon),
-      }),
-    });
-
-    const neso = result.perSource.find((entry) => entry.source === 'neso_embedded');
-    const carbon = result.perSource.find((entry) => entry.source === 'carbon_intensity');
-
-    expect(neso?.stored).toBeGreaterThan(0);
-    // ...while the source that already succeeded is left alone.
-    expect(carbon?.ran).toBe(false);
-    expect(carbon?.reason).toBe('not due');
   });
 });
 
@@ -473,7 +328,6 @@ describe('retention', () => {
       fetchFn: fakeFetch({
         '/intensity/': intensityBody(4),
         '/generation/': mixBody(4),
-        neso: nesoBody(4),
       }),
     });
 
@@ -493,7 +347,6 @@ describe('retention', () => {
       fetchFn: fakeFetch({
         '/intensity/': new Error('down'),
         '/generation/': new Error('down'),
-        neso: new Error('down'),
       }),
     });
 
@@ -530,5 +383,101 @@ describe('scheduled job ordering', () => {
       archive: undefined,
     });
     expect(order).toEqual(['core']);
+  });
+});
+
+describe('NESO archive period timestamps', () => {
+  /*
+   * This has been got wrong twice, so the semantics are pinned down here.
+   *
+   * TIME_GMT / DATE_GMT is the settlement period *end*. Settlement period 27
+   * on 12 June 2026 is published as 12:30; British Summer Time makes SP27
+   * 13:00-13:30 local, which is 12:00-12:30 UTC. The period starts at 12:00.
+   *
+   * First attempt: read the date alone, putting all 48 periods at midnight.
+   * Second attempt: combine date and time, leaving every row 30 minutes late.
+   */
+  it('returns the period start, not the published end', () => {
+    expect(nesoArchivePeriodStart('2026-06-12T00:00:00', '12:30')).toBe('2026-06-12T12:00:00.000Z');
+  });
+
+  it('handles the first period of a day rolling back across midnight', () => {
+    expect(nesoArchivePeriodStart('2026-01-15T00:00:00', '00:30')).toBe('2026-01-15T00:00:00.000Z');
+    expect(nesoArchivePeriodStart('2026-01-15T00:00:00', '00:00')).toBe('2026-01-14T23:30:00.000Z');
+  });
+
+  it('reads the fields as UTC whatever the runtime timezone is', () => {
+    // No offset is published, so parsing as a string would use the local zone
+    // and give a different answer in BST than in the Worker.
+    expect(nesoArchivePeriodStart('2026-06-15T00:00:00', '12:30')).toBe('2026-06-15T12:00:00.000Z');
+    expect(nesoArchivePeriodStart('2026-01-15T00:00:00', '12:30')).toBe('2026-01-15T12:00:00.000Z');
+  });
+
+  it('accepts a space separator as well as T', () => {
+    expect(nesoArchivePeriodStart('2026-06-12 00:00:00', '12:30')).toBe('2026-06-12T12:00:00.000Z');
+  });
+
+  it('rejects anything it cannot place', () => {
+    expect(nesoArchivePeriodStart('nope', '12:30')).toBeNull();
+    expect(nesoArchivePeriodStart(undefined, '12:30')).toBeNull();
+    expect(nesoArchivePeriodStart('2026-06-12', 'nope')).toBeNull();
+  });
+});
+
+describe('per-source scheduling and retry', () => {
+  let store: SqliteStore;
+
+  beforeEach(() => {
+    store = makeStore();
+  });
+
+  afterEach(() => {
+    store.close();
+  });
+
+  /** Two stub sources, so this tests the scheduler rather than any collector. */
+  const stub = (name: string, behaviour: () => Promise<CollectedInput[]>) => ({
+    name,
+    collect: behaviour,
+  });
+
+  const oneRow = (name: string, at: Date): CollectedInput[] => [
+    {
+      source: name,
+      targetStart: at.toISOString(),
+      issuedAt: null,
+      payload: { value: 1 },
+    },
+  ];
+
+  it('retries a failed source on the next invocation, even when another succeeded', async () => {
+    // The bug: a single shared "last run" marker meant one succeeding source
+    // suppressed retries for a failing one for the whole interval, losing
+    // vintages that cannot be recovered.
+    const collectors = [
+      stub('good', async () => oneRow('good', NOW)),
+      stub('bad', async () => {
+        throw new Error('down');
+      }),
+    ];
+
+    await runArchive({ store, logger: silentLogger(), now: () => NOW, collectors });
+    expect(await store.lastForecastInputAt('bad')).toBeNull();
+
+    // One minute later, far inside the interval, the failed source is retried
+    // while the one that already succeeded is left alone.
+    const soon = new Date(NOW.getTime() + 60 * 1000);
+    const result = await runArchive({
+      store,
+      logger: silentLogger(),
+      now: () => soon,
+      collectors: [
+        stub('good', async () => oneRow('good', soon)),
+        stub('bad', async () => oneRow('bad', soon)),
+      ],
+    });
+
+    expect(result.perSource.find((entry) => entry.source === 'bad')?.stored).toBe(1);
+    expect(result.perSource.find((entry) => entry.source === 'good')?.reason).toBe('not due');
   });
 });

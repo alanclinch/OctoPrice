@@ -1,11 +1,10 @@
 /**
  * Collectors for forecasting inputs that cannot be reconstructed later.
  *
- * Elexon and Open-Meteo can be asked what they said at a past time, so their
- * history can be fetched whenever it is needed. NESO and the Carbon Intensity
- * API cannot: their responses carry no issue time and no history endpoint.
- * For those, the archive *is* the record, and it only exists from the moment
- * collection starts.
+ * Only the Carbon Intensity API is collected. Elexon, Open-Meteo and NESO all
+ * publish their own forecast vintages, so their history can be fetched when it
+ * is needed; Carbon Intensity does not, so for that one the archive *is* the
+ * record and it only exists from the moment collection starts.
  *
  * These functions fetch and shape. They do not store, decide when to run, or
  * know about the database, so they can be tested against recorded payloads.
@@ -29,7 +28,7 @@
  */
 
 import type { Logger } from '../logger.ts';
-import { LOG_EVENTS, describeError } from '../logger.ts';
+import { describeError } from '../logger.ts';
 
 /**
  * Identifies this application, as the Carbon Intensity terms require. It is
@@ -55,11 +54,7 @@ export interface CollectorOptions {
   /** Injected so tests do not depend on the real clock. */
   now?: () => Date;
   timeoutMs?: number;
-  /**
-   * How far ahead to keep observations. NESO publishes 14 days, but storing
-   * all of it every run is mostly redundant - the far-out periods barely move
-   * - and multiplies the archive for no benefit at a 72-hour horizon.
-   */
+  /** How far ahead to keep observations. */
   horizonHours?: number;
 }
 
@@ -178,30 +173,43 @@ export async function collectCarbonIntensity(options: CollectorOptions): Promise
   );
 }
 
-/** NESO's 14-day embedded wind and solar forecast. */
-const NESO_EMBEDDED_RESOURCE = 'db6c038f-98af-4570-ab60-24d71ebd0ae5';
-
 /**
- * Builds the settlement period instant from NESO's two fields.
+ * NESO's embedded wind and solar forecast is **not** collected live.
  *
- * `DATE_GMT` is the *day* only - every half-hour of 27 August arrives as
- * `2026-08-27T00:00:00` - and the half-hour lives in `TIME_GMT` as `15:30`.
- * Reading the date alone collapses all 48 periods onto midnight, which is
- * exactly what an earlier version did, and the resulting rows cannot be
- * joined to a price period or repaired afterwards.
+ * The archive existed on the premise that NESO cannot be asked what it said
+ * in the past. That premise was wrong. NESO publishes annual half-hourly
+ * forecast archives carrying a real `Forecast_Datetime` for every issue of
+ * every 0-14 day forecast - resource `31861619-0b86-47ba-bac2-d008a760af54`
+ * for June to December 2026, about 1.13 million rows, and current to within
+ * an hour when checked.
  *
- * The components are assembled with `Date.UTC` rather than parsed as a
- * string. `DATE_GMT` carries no timezone, so `Date.parse` would read it in
- * the *runtime's* zone: the same code produced 23:00Z on a BST workstation
- * and 00:00Z in the Worker. The field is named GMT, so it is treated as UTC
- * everywhere.
+ * That archive is better than anything collected here in every respect: it
+ * has a genuine issue time rather than our collection time standing in for
+ * one, it can be back-filled for periods before this application existed, and
+ * it costs us no storage. Collecting the rolling feed as well would archive a
+ * worse copy of data that is already archived.
  *
- * A record with no usable time is rejected rather than placed at midnight.
- * A missing row is recoverable; a row at the wrong instant is not.
+ * Carbon Intensity has no equivalent, which is why it is still collected.
+ *
+ * ## The period timestamp, which has been wrong twice
+ *
+ * `TIME_GMT` is the settlement period **end**, not its start. In the archive
+ * `DATE_GMT` is the same instant as a full UTC timestamp. Settlement period
+ * 27 on 12 June 2026 appears as `DATE_GMT: 2026-06-12T12:30:00`; British
+ * Summer Time makes SP27 13:00-13:30 local, which is 12:00-12:30 UTC, so the
+ * period *starts* at 12:00.
+ *
+ * A first version read the date alone and put every period at midnight. The
+ * correction combined date and time but kept the end instant, leaving every
+ * row half an hour late. Hence this function and its tests: whoever writes
+ * the back-test reader should not have to discover it a third time.
  */
-export function nesoTargetStart(dateGmt: unknown, timeGmt: unknown): string | null {
+export function nesoArchivePeriodStart(dateGmt: unknown, timeGmt: unknown): string | null {
   if (typeof dateGmt !== 'string' || typeof timeGmt !== 'string') return null;
 
+  // Only the *date* part of DATE_GMT is used. It is rendered inconsistently -
+  // sometimes midnight, sometimes carrying the period time - whereas TIME_GMT
+  // is consistently the period end.
   const date = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateGmt);
   const time = /^(\d{1,2}):(\d{2})/.exec(timeGmt);
   if (!date || !time) return null;
@@ -210,105 +218,8 @@ export function nesoTargetStart(dateGmt: unknown, timeGmt: unknown): string | nu
   const minute = Number(time[2]);
   if (hour > 24 || minute > 59) return null;
 
-  // Date.UTC rolls hour 24 into the next day, which is how some feeds spell
-  // the final period.
-  return new Date(
-    Date.UTC(Number(date[1]), Number(date[2]) - 1, Number(date[3]), hour, minute),
-  ).toISOString();
-}
-
-interface NesoRecord {
-  DATE_GMT?: unknown;
-  TIME_GMT?: unknown;
-  SETTLEMENT_DATE?: unknown;
-  SETTLEMENT_PERIOD?: unknown;
-  EMBEDDED_WIND_FORECAST?: unknown;
-  EMBEDDED_SOLAR_FORECAST?: unknown;
-  EMBEDDED_WIND_CAPACITY?: unknown;
-  EMBEDDED_SOLAR_CAPACITY?: unknown;
-}
-
-/**
- * Embedded (distribution-connected) wind and solar, which do not appear in
- * transmission-level generation figures but do suppress demand and therefore
- * price.
- */
-export async function collectNesoEmbedded(
-  options: CollectorOptions,
-  // NESO publishes 14 days; asking for all of it means parsing ~160 KB to
-  // keep the ~144 half-hours inside the horizon, and CPU is the scarce
-  // resource in a Worker. Four days of settlement periods is ample cover.
-  limit = 200,
-): Promise<CollectedInput[]> {
-  const url =
-    `https://api.neso.energy/api/3/action/datastore_search` +
-    `?resource_id=${NESO_EMBEDDED_RESOURCE}&limit=${limit}`;
-  const body = (await getJson(url, options)) as {
-    result?: { records?: NesoRecord[] };
-  };
-
-  const collected: CollectedInput[] = [];
-  for (const record of body.result?.records ?? []) {
-    const targetStart = nesoTargetStart(record.DATE_GMT, record.TIME_GMT);
-    if (!targetStart) continue;
-
-    const payload: Record<string, number | string> = {};
-    // Kept so a stored row can be checked against its own settlement period
-    // later, rather than being trusted blind.
-    if (typeof record.SETTLEMENT_PERIOD === 'number') {
-      payload.settlementPeriod = record.SETTLEMENT_PERIOD;
-    } else if (typeof record.SETTLEMENT_PERIOD === 'string') {
-      const parsed = Number(record.SETTLEMENT_PERIOD);
-      if (Number.isFinite(parsed)) payload.settlementPeriod = parsed;
-    }
-    const numbers: [string, unknown][] = [
-      ['embeddedWind', record.EMBEDDED_WIND_FORECAST],
-      ['embeddedSolar', record.EMBEDDED_SOLAR_FORECAST],
-      ['embeddedWindCapacity', record.EMBEDDED_WIND_CAPACITY],
-      ['embeddedSolarCapacity', record.EMBEDDED_SOLAR_CAPACITY],
-    ];
-    for (const [key, value] of numbers) {
-      const numeric = typeof value === 'string' ? Number(value) : value;
-      if (typeof numeric === 'number' && Number.isFinite(numeric)) payload[key] = numeric;
-    }
-    if (Object.keys(payload).length === 0) continue;
-
-    collected.push({
-      source: 'neso_embedded',
-      targetStart,
-      issuedAt: null,
-      payload,
-    });
-  }
-  return withinHorizon(collected, options);
-}
-
-/**
- * Runs every collector, keeping whatever succeeds.
- *
- * A source being down must not lose the others, and must never surface as an
- * error: forecasting is an enhancement and cannot be allowed to fail anything
- * else. Failures are logged and the run continues.
- */
-export async function collectAll(options: CollectorOptions): Promise<CollectedInput[]> {
-  const collectors: [string, () => Promise<CollectedInput[]>][] = [
-    ['carbon_intensity', () => collectCarbonIntensity(options)],
-    ['neso_embedded', () => collectNesoEmbedded(options)],
-  ];
-
-  const collected: CollectedInput[] = [];
-  for (const [name, run] of collectors) {
-    try {
-      const rows = await run();
-      collected.push(...rows);
-      options.logger.debug('Collected forecasting inputs', { source: name, count: rows.length });
-    } catch (error) {
-      options.logger.warn('Forecasting input collector failed', {
-        event: LOG_EVENTS.octopusApiError,
-        source: name,
-        ...describeError(error),
-      });
-    }
-  }
-  return collected;
+  const end = Date.UTC(Number(date[1]), Number(date[2]) - 1, Number(date[3]), hour, minute);
+  // The published instant is the period *end*; we record period starts. A
+  // period ending at 00:00 therefore starts at 23:30 the previous day.
+  return new Date(end - 30 * 60 * 1000).toISOString();
 }

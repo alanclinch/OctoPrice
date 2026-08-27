@@ -23,7 +23,7 @@ original conversation.
 - **Current branch:** `main`
 - **Source control:** clean `main`, synced to `origin/main`
 - **Build status:** passing — `npm run verify`
-- **Test status:** passing — 309 tests across 11 files
+- **Test status:** passing — 307 tests across 11 files
 - **Deployed:** `https://octoprice.alanclinch.workers.dev` on Cloudflare
   Workers, with D1 in WEUR and a five-minute Cron Trigger
 - **Git remote:** public GitHub repository at
@@ -72,44 +72,36 @@ GitHub remote or a real device:
 
 ## Open Review Findings
 
-### Forecast input archive re-review — open
+### Forecast input archive re-review — addressed
 
-Codex re-reviewed Claude's fixes in `5b9cd5f` on 2026-08-27 against both the
-live NESO feed and NESO's official 2026 archive. The original five findings
-were substantially addressed, but the more realistic checks exposed three
-further issues. Claude should use this section as the next fix queue.
+Codex re-reviewed `5b9cd5f` against the live NESO feed *and* NESO's official
+2026 archives, and found three more. All three were right, and the second
+invalidated a premise this component was built on.
 
-1. **P1 — corrected NESO rows are still shifted 30 minutes late.**
-   `nesoTargetStart` combines `DATE_GMT` and `TIME_GMT` directly, but
-   `TIME_GMT` is the settlement-period **end**, while `target_start` is
-   explicitly the period beginning. NESO's January archive makes this
-   unambiguous: settlement period 1 has `TIME_GMT: "00:30:00"`; its period
-   starts at 00:00. The live BST feed likewise reports period 33 at 15:30 UTC,
-   whose start is 15:00 UTC. Subtract 30 minutes after strictly parsing the
-   fields and cross-check the result against `SETTLEMENT_PERIOD`. Replace the
-   tests that currently assert 15:30 is the start. Because `5b9cd5f` was
-   deployed, NESO rows written by it are also unusable and must be deleted or
-   excluded before training.
-2. **P1 — NESO forecast vintages can be reconstructed after all.** The
-   central research premise and collector comments are false. NESO publishes
-   annual half-hourly forecast archives with a precise `Forecast_Datetime` for
-   every 0–14-day forecast. The Jan–Jun 2026 resource
-   `d6375700-69c2-4c25-8bde-883a205d742e` contains about 2.43 million rows;
-   the current Jun–Dec resource `31861619-0b86-47ba-bac2-d008a760af54`
-   contains about 1.13 million and was current on 2026-08-27. This permits
-   leak-free historical back-filling and supplies a real `issued_at`, unlike
-   the rolling feed. Correct `docs/forecasting.md`, reassess whether bespoke
-   live NESO storage is needed at all, and prefer the official archive for
-   training. Carbon Intensity still needs live collection unless a comparable
-   forecast-vintage archive is found.
-3. **P2 — retention scans the entire archive on every successful run.** Both
-   stores execute `DELETE FROM forecast_inputs WHERE target_start < ?`, but
-   the available indexes begin with `source`; SQLite's query planner reports
-   `SCAN forecast_inputs`. At the documented steady state this repeats a scan
-   over roughly 345,000 rows eight times a day, wasting D1 reads and scheduled
-   work. Add an index whose leading column matches the retention predicate, or
-   prune per source so `idx_forecast_inputs_target` can be used. Verify with
-   `EXPLAIN QUERY PLAN`, not only a small in-memory functional test.
+1. **P1 — the corrected NESO timestamps were still 30 minutes late.** *Fixed.*
+   `TIME_GMT` is the settlement period **end**. SP27 on 25 August publishes as
+   12:30; BST makes that 12:00–12:30 UTC, so the period starts at 12:00. Two
+   attempts reached production: the first put every period at midnight, the
+   second put every period half an hour late. The shifted rows were deleted.
+2. **P1 — NESO vintages were retrievable all along.** *Premise wrong, collector
+   removed.* NESO publishes annual half-hourly forecast archives with a real
+   `Forecast_Datetime` per issue — `31861619-…` (Jun–Dec 2026, ~1.13 M rows)
+   and `d6375700-…` (Jan–Jun). The current one is up to date within the hour,
+   so it serves live use as well as history, and can back-fill periods from
+   before this application existed. Archiving the rolling feed was storing a
+   worse copy of something already kept, so the live NESO collector is gone.
+   `docs/research/neso-forecast-vintages.mjs` demonstrates the vintages.
+   **Only Carbon Intensity genuinely needs live collection.**
+3. **P2 — retention scanned the whole table.** *Fixed, verified with
+   `EXPLAIN QUERY PLAN`.* Both indexes lead with `source`, so
+   `DELETE … WHERE target_start < ?` reported `SCAN forecast_inputs` — a full
+   scan eight times a day over a growing table. Migration 0006 adds an index on
+   `target_start`; the plan is now `SEARCH … USING INDEX`.
+
+**Worth carrying forward:** the NESO period semantics have now been got wrong
+twice and the "no vintages" premise once. Neither was findable from the rolling
+feed alone — both needed the official archive, which nobody had looked at.
+Before trusting any feed, read the provider's own historical dataset first.
 
 ### Forecast input archive review — addressed
 
@@ -265,9 +257,8 @@ so neither agent re-raises them.
 - Nothing is half-finished. `main` is deployed and verified live.
 - Forecasting: the **input archive is built** (`docs/forecasting.md` section
   8) and is the only forecasting code that exists. It produces no forecasts
-  and changes nothing a user sees. The first review's five fixes are deployed,
-  but the re-review above found that the replacement NESO timestamps remain
-  30 minutes late and that NESO's official historical archive was overlooked.
+  and changes nothing a user sees. It now collects **Carbon Intensity only**;
+  NESO was removed because its own archives are better in every respect.
 
 ## Forecasting
 
@@ -276,10 +267,9 @@ Stages 1-4 are recorded in `docs/forecasting.md`, and stage 5's first piece
 cannot supply history (Carbon Intensity and NESO), insert-only so vintages are
 never overwritten, and bounded to the forecast horizon. It produces no
 forecasts. Carbon Intensity data collected before 2026-08-27 15:30 is sound;
-NESO data from the first run was deleted as unusable. The replacement NESO
-rows are also unusable because `TIME_GMT` is the period end, not its start;
-see **Open Review Findings**. NESO's official annual archives also mean its
-forecast vintages can be back-filled after all.
+All NESO rows were deleted — both the midnight-collapsed and the 30-minute-late
+ones — and NESO is no longer collected. Its forecast vintages come from the
+official annual archives instead, which carry a real issue time.
 
 A practical note for whoever continues: the CPU constraint from section 4.6
 showed up immediately. Parse and shape of the collected payloads was 2.5 ms of
@@ -324,10 +314,8 @@ against it. Test ENTSO-E alongside those steps rather than blocking them.
 
 ## Next Recommended Work
 
-1. **Resolve the archive re-review.** Correct or remove the live NESO
-   collector, discard its newly shifted rows, adopt the official historical
-   vintages for back-testing, and make retention use an index before relying
-   on the archive.
+1. **Let the Carbon Intensity archive accumulate**, and pull NESO history
+   from its official archives when the back-test is written.
 2. **Confirm the new Android badge visually.** Send another test notification
    after the updated service worker is active and confirm the tray shows the
    system-tinted lightning bolt rather than a white square. Push delivery

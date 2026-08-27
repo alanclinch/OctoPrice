@@ -290,13 +290,43 @@ time*. Tested 2026-08-27:
 | Elexon day-ahead demand | **Yes** | `/forecast/demand/day-ahead/history?publishTime=…` |
 | Elexon (any dataset) | **Yes** | `/datasets/{name}?publishDateTimeFrom=…&publishDateTimeTo=…` |
 | Open-Meteo | **Yes** | `historical-forecast-api.open-meteo.com` serves past forecast runs |
-| NESO embedded wind/solar | **No** | Fields are `SETTLEMENT_DATE, SETTLEMENT_PERIOD, EMBEDDED_WIND_FORECAST…` with no issue or publish time |
+| NESO embedded wind/solar | **Yes** | Annual forecast archives carry `Forecast_Datetime` per issue — see below |
 
-**Consequence:** leak-free back-testing is possible today for the Elexon and
-weather inputs, which is most of the feature set. NESO is the exception and
-cannot be reconstructed after the fact, so **a live archive of NESO
-observations must start before any NESO feature is trusted in a back-test** —
-collection can begin immediately and independently of everything else.
+**An earlier version of this section was wrong about NESO**, and the input
+archive was partly built on that error. NESO's *rolling* feed carries no issue
+time, which is what was checked. But NESO also publishes **annual half-hourly
+forecast archives** with a `Forecast_Datetime` for every issue of every 0–14
+day forecast:
+
+| Resource | Period | Rows |
+| -------- | ------ | ---- |
+| `d6375700-69c2-4c25-8bde-883a205d742e` | Jan–Jun 2026 | ~2.43 M |
+| `31861619-0b86-47ba-bac2-d008a760af54` | Jun–Dec 2026 | ~1.13 M |
+
+The second was current to within an hour when checked, so it serves live use
+as well as history. `docs/research/neso-forecast-vintages.mjs` demonstrates
+it: hourly issues for a single settlement period, with the estimate visibly
+revising as the day approaches.
+
+**Consequence:** only the **Carbon Intensity API** genuinely needs live
+collection. NESO can be back-filled, including for periods before this
+application existed, which is strictly better than anything we could have
+recorded. The live NESO collector was removed rather than kept as a worse
+duplicate.
+
+### The NESO period timestamp, which has been wrong twice
+
+`TIME_GMT` is the settlement period **end**, and `DATE_GMT` supplies only the
+date (rendered inconsistently — sometimes midnight, sometimes carrying the
+period time). Settlement period 27 on 25 August 2026 appears as
+`TIME_GMT: "12:30"`; BST makes SP27 13:00–13:30 local, which is 12:00–12:30
+UTC, so the period **starts at 12:00**.
+
+Two mistakes were made here in succession: first reading `DATE_GMT` alone,
+which put all 48 periods of a day on midnight; then combining the fields but
+keeping the end instant, leaving every row half an hour late. Both reached
+production. `nesoArchivePeriodStart` and its tests exist so that whoever
+writes the back-test reader does not discover this a third time.
 
 Every stored observation should record both the source's own issue time and
 our collection time. They are different facts and only the first prevents
@@ -702,7 +732,11 @@ a few hundred database rows a day.
 | Source | Rows per run | Contents |
 | ------ | ------------ | -------- |
 | `carbon_intensity` | 96 | Forecast intensity and full generation mix by fuel, 48 hours, national |
-| `neso_embedded` | 144 | Embedded wind and solar forecast and capacity |
+
+NESO was collected initially and has been **removed**: its own archives supply
+better data with real issue times (section 3a), so archiving the rolling feed
+was storing a worse copy of something already kept. That halves the growth
+figures below.
 
 Verified against the live APIs. Roughly 240 rows a run and, at the default
 three-hour interval, about 1,900 rows a day.
@@ -756,6 +790,20 @@ passing test suite.
    existed in the config schema but was never threaded through the Worker's
    `Env`, so production always used the default. Fixed, along with retention.
 5. **Growth was understated and unbounded.** See below.
+
+A second review then found three more, two of them P1:
+
+6. **The corrected NESO timestamps were still 30 minutes late** — `TIME_GMT`
+   is the period end. Both the original and the correction reached
+   production. See section 3a.
+7. **NESO vintages were retrievable all along**, from annual archives with a
+   real issue time. The premise for collecting it was wrong, and the collector
+   has been removed.
+8. **Retention scanned the whole table.** The indexes lead with `source`, so
+   `DELETE … WHERE target_start < ?` could not use them —
+   `EXPLAIN QUERY PLAN` reported `SCAN forecast_inputs`, repeated eight times
+   a day over a growing table. Migration 0006 adds an index on
+   `target_start`; the plan is now `SEARCH … USING INDEX`.
 
 ### Design points worth keeping
 

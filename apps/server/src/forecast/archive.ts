@@ -31,7 +31,6 @@ import type { NewForecastInput, Store } from '../db/store.ts';
 import { describeError, type Logger } from '../logger.ts';
 import {
   collectCarbonIntensity,
-  collectNesoEmbedded,
   type CollectedInput,
   type CollectorOptions,
 } from './collectors.ts';
@@ -52,16 +51,13 @@ export interface SourceCollector {
 }
 
 /**
- * Sources are scheduled and retried independently.
- *
- * A shared "last run" marker meant one succeeding source suppressed retries
- * for a failing one: if Carbon Intensity worked and NESO did not, NESO waited
- * the full interval instead of being retried on the next invocation, losing
- * vintages that cannot be recovered.
+ * Sources are scheduled and retried independently, so one failing does not
+ * suppress retries for another. Only one remains: NESO publishes its own
+ * forecast vintages, so archiving it here was duplicating a better record
+ * (see `collectors.ts`).
  */
 export const COLLECTORS: readonly SourceCollector[] = [
   { name: 'carbon_intensity', collect: collectCarbonIntensity },
-  { name: 'neso_embedded', collect: (options) => collectNesoEmbedded(options) },
 ];
 
 export interface ArchiveOptions {
