@@ -50,7 +50,7 @@ GitHub remote or a real device:
   treats a day as published only when every expected period is present.
 - Generic alert rules: four operators, optional time restrictions that may
   cross midnight, minimum-duration matching over consecutive periods.
-- Web push implemented end to end in code, including the service worker.
+- Web push implemented end to end and confirmed on a real Android device.
 - Persistent configuration and duplicate-notification protection.
 - Structured logging with the event names from DESIGN.md section 37.
 - `DESIGN.md`, `README.md`, `CLAUDE.md`, `AGENTS.md`, this file,
@@ -61,15 +61,16 @@ GitHub remote or a real device:
 
 ## Currently In Progress
 
-No implementation work is half-finished. The compact price-tools release is
-deployed and verified live. The production migration previously removed the
-duplicated defaults, leaving exactly three rules.
+No implementation work is half-finished. The label, authorship and Android
+notification-badge polish release is deployed and verified live. Alert rules
+in production are user-managed; do not assume the original defaults remain.
 
 ## Next Recommended Work
 
-1. **Verify push on a real device.** Install the deployed PWA on an Android
-   phone and use the test-notification button. This is the one part of the MVP
-   that has never been exercised for real.
+1. **Confirm the new Android badge visually.** Send another test notification
+   after the updated service worker is active and confirm the tray shows the
+   system-tinted lightning bolt rather than a white square. Push delivery
+   itself has been confirmed on a real Android device.
 2. **Watch several real Octopus publication cycles** (DESIGN.md section 42,
    step 21) before calling the MVP released. Confirm the daily notification
    arrives once, at a sensible time, and does not repeat.
@@ -79,12 +80,11 @@ duplicated defaults, leaving exactly three rules.
 
 ## Known Problems
 
-- **Push is unverified against a real device.** The code is complete and unit
-  tested with a recording sender, but the embedded browser used during
-  development refuses to register a service worker (the page fetches
-  `/sw.js` correctly with the right content type, so this looks like a
-  sandbox restriction rather than an app bug). Treat push as unproven until
-  someone sees a notification on a phone.
+- **The new Android notification badge has not yet been seen on the phone.**
+  The previous badge delivered successfully but appeared as a white square.
+  Its replacement is a verified transparent lightning-bolt alpha mask and is
+  served live, but still needs one real notification to confirm Android's
+  rendering.
 - **`node:sqlite` prints an experimental warning on Node 24.** Harmless, but
   noisy in local development; production uses D1.
 - **Product discovery has only been exercised for `AGILE-24-10-01`**, the
@@ -188,6 +188,23 @@ bundle is 87 kB gzipped, which matters for a phone-first PWA.
 been larger and harder to bend to the negative-price presentation.
 
 ## Recent Agent Handoffs
+
+### 2026-08-27 — Codex, labels and Android notification polish
+
+**Work completed:** removed the internal region letter from the header;
+reworded the unpublished state as “Prices usually update around 4pm”;
+separated and title-cased default alert-rule names; replaced the opaque
+Android notification badge with a transparent lightning-bolt mask; added an
+Alan Clinch footer credit, source link and author metadata.
+
+**Verification:** `npm run verify` passed twice (205 tests), including on the
+fast-forwarded `main`; GitHub Actions run 33052629302 passed. Phone-viewport
+checks confirmed the header, price wording, alert spacing, creator credit and
+metadata with no browser errors. The live 500-byte badge returns 200 as a PNG.
+Commit `c2fe756` is deployed and the UI was verified live.
+
+**Outstanding:** send one more Android test notification after the service
+worker update and visually confirm the lightning-bolt tray badge.
 
 ### 2026-08-27 — Codex, compact price tools
 
