@@ -311,6 +311,13 @@ describe('HTTP API', () => {
     const response = await context.app.inject({ method: 'GET', url: '/api/rules' });
     const names = response.json().rules.map((rule: { name: string }) => rule.name);
     expect(names).toEqual(['Negative prices', 'Cheap electricity', 'Two cheap hours']);
+    expect(await context.built.store.setStateIfAbsent('rules_seeded', 'later')).toBe(false);
+  });
+
+  it('claims a new state key only once', async () => {
+    expect(await context.built.store.setStateIfAbsent('test_claim', 'first')).toBe(true);
+    expect(await context.built.store.setStateIfAbsent('test_claim', 'second')).toBe(false);
+    expect(await context.built.store.getState('test_claim')).toBe('first');
   });
 
   it('creates, updates and deletes a rule', async () => {

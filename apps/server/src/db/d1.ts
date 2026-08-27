@@ -423,6 +423,14 @@ export class D1Store implements Store {
       .run();
   }
 
+  async setStateIfAbsent(key: string, value: string): Promise<boolean> {
+    const result = await this.database
+      .prepare('INSERT INTO app_state (key, value) VALUES (?, ?) ON CONFLICT (key) DO NOTHING')
+      .bind(key, value)
+      .run();
+    return (result.meta.changes ?? 0) > 0;
+  }
+
   close(): void {
     // D1 bindings are managed by the Workers runtime.
   }

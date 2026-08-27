@@ -6,8 +6,9 @@
  * noticing a small numeric difference.
  */
 
-import type { PricePeriod } from '@octoprice/core';
-import { bandClass, pence, periodRange, type DisplayOptions } from '../format.ts';
+import { Fragment } from 'react';
+import { londonDateOf, type PricePeriod } from '@octoprice/core';
+import { bandClass, longDate, pence, periodRange, type DisplayOptions } from '../format.ts';
 import type { JSX } from 'react';
 
 export interface PriceTableProps {
@@ -42,25 +43,34 @@ export function PriceTable({
         </tr>
       </thead>
       <tbody>
-        {visible.map((period) => {
+        {visible.map((period, index) => {
           const from = Date.parse(period.validFrom);
           const to = Date.parse(period.validTo);
           const isNow = from <= at && to > at;
           const isPast = to <= at;
+          const date = londonDateOf(new Date(from));
+          const previousDate =
+            index > 0 ? londonDateOf(new Date(visible[index - 1]?.validFrom ?? from)) : null;
 
           return (
-            <tr
-              key={period.validFrom}
-              className={isNow ? 'is-now' : isPast ? 'is-past' : undefined}
-            >
-              <td>
-                {periodRange(period, display)}
-                {isNow && <span className="muted small"> · now</span>}
-              </td>
-              <td className={`numeric price ${bandClass(period.valueIncVat)}`}>
-                {pence(period.valueIncVat, 2)}
-              </td>
-            </tr>
+            <Fragment key={period.validFrom}>
+              {date !== previousDate && (
+                <tr className="day-separator">
+                  <th colSpan={2} scope="rowgroup">
+                    {longDate(date)}
+                  </th>
+                </tr>
+              )}
+              <tr className={isNow ? 'is-now' : isPast ? 'is-past' : undefined}>
+                <td>
+                  {periodRange(period, display)}
+                  {isNow && <span className="muted small"> · now</span>}
+                </td>
+                <td className={`numeric price ${bandClass(period.valueIncVat)}`}>
+                  {pence(period.valueIncVat, 2)}
+                </td>
+              </tr>
+            </Fragment>
           );
         })}
       </tbody>

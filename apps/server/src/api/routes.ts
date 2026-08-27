@@ -202,7 +202,12 @@ export function createApiRoutes(deps: ApiDependencies): FastifyPluginAsync {
       if (!parsed.success) {
         return reply.status(400).send({ error: parsed.error.issues[0]?.message });
       }
-      return await store.updateSettings(userId, parsed.data);
+      const previous = await store.getSettings(userId);
+      const updated = await store.updateSettings(userId, parsed.data);
+      if (parsed.data.region && parsed.data.region !== previous.region) {
+        await priceService.refreshCurrentDays();
+      }
+      return updated;
     });
 
     // --- Alert rules -------------------------------------------------------

@@ -6,7 +6,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import type { NotificationLogEntry } from '@octoprice/core';
+import { getRegion, isRegionCode, type NotificationLogEntry } from '@octoprice/core';
 import { api, type SystemStatusPayload } from '../api.ts';
 import { relativeTime } from '../format.ts';
 import type { JSX } from 'react';
@@ -54,6 +54,7 @@ export function StatusView({ now }: { now: Date }): JSX.Element {
   if (!status) {
     return <p className="centre">{error ?? 'Loading status…'}</p>;
   }
+  const region = isRegionCode(status.region) ? getRegion(status.region) : null;
 
   return (
     <>
@@ -102,7 +103,7 @@ export function StatusView({ now }: { now: Date }): JSX.Element {
           <dt>Tariff</dt>
           <dd>{status.tariffCode}</dd>
           <dt>Region</dt>
-          <dd>{status.region}</dd>
+          <dd>{region ? `${region.area} (${region.code})` : status.region}</dd>
         </dl>
       </div>
 

@@ -1,41 +1,99 @@
-/**
- * The application shell.
- *
- * Four tabs, no router: the app has one screen per thing a person might want,
- * and a dependency-free `?date=` query parameter is enough for a notification
- * to deep-link into tomorrow (DESIGN.md section 6).
- */
+/** The application shell and first-run region setup. */
 
 import { useCallback, useEffect, useState } from 'react';
-import type { UserSettings } from '@octoprice/core';
-import { addDays, londonDateOf } from '@octoprice/core';
+import {
+  getRegion,
+  isRegionCode,
+  REGIONS,
+  type RegionCode,
+  type UserSettings,
+} from '@octoprice/core';
 import { api, ApiError, type Overview } from './api.ts';
-import { NowCard } from './components/NowCard.tsx';
-import { DayView } from './components/DayView.tsx';
+import { PricesView } from './components/PricesView.tsx';
 import { SettingsView } from './components/SettingsView.tsx';
 import { StatusView } from './components/StatusView.tsx';
 import type { JSX } from 'react';
 
-type Tab = 'today' | 'tomorrow' | 'settings' | 'status';
+type Tab = 'prices' | 'settings' | 'status';
 
-/** Refresh often enough that the "now" price is never visibly stale. */
-const REFRESH_INTERVAL_MS = 60_000;
-
-/** A notification opens the app at `/?date=YYYY-MM-DD`; honour that. */
-function initialTab(): Tab {
-  const requested = new URLSearchParams(window.location.search).get('date');
-  if (requested && requested === addDays(londonDateOf(new Date()), 1)) return 'tomorrow';
-  if (window.location.pathname.startsWith('/settings')) return 'settings';
-  return 'today';
+interface InstallPromptEvent extends Event {
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
-/** Applies the chosen theme, or lets the system decide. */
+const REFRESH_INTERVAL_MS = 60_000;
+const REGION_CONFIRMED_KEY = 'octoprice_region_confirmed_v1';
+
+function initialTab(): Tab {
+  if (window.location.pathname.startsWith('/settings')) return 'settings';
+  return 'prices';
+}
+
 function applyTheme(theme: UserSettings['theme']): void {
-  if (theme === 'system') {
-    document.documentElement.removeAttribute('data-theme');
-  } else {
-    document.documentElement.setAttribute('data-theme', theme);
-  }
+  if (theme === 'system') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme', theme);
+}
+
+function isStandalone(): boolean {
+  return (
+    window.matchMedia('(display-mode: standalone)').matches ||
+    (navigator as Navigator & { standalone?: boolean }).standalone === true
+  );
+}
+
+interface RegionSetupProps {
+  initialRegion: RegionCode;
+  onConfirm(region: RegionCode): Promise<void>;
+}
+
+function RegionSetup({ initialRegion, onConfirm }: RegionSetupProps): JSX.Element {
+  const [region, setRegion] = useState(initialRegion);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async (): Promise<void> => {
+    setSaving(true);
+    setError(null);
+    try {
+      await onConfirm(region);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Could not save your region.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <main className="setup-screen">
+      <div className="card setup-card">
+        <p className="eyebrow">One quick step</p>
+        <h2>Where do you use electricity?</h2>
+        <p className="muted">
+          Agile prices differ across Great Britain. Choose your area so every price shown is the one
+          you would actually pay.
+        </p>
+        <div className="field">
+          <label htmlFor="initial-region">Your area</label>
+          <select
+            id="initial-region"
+            value={region}
+            onChange={(event) => setRegion(event.target.value as RegionCode)}
+          >
+            {REGIONS.map((option) => (
+              <option key={option.code} value={option.code}>
+                {option.area}
+              </option>
+            ))}
+          </select>
+        </div>
+        <button type="button" className="btn primary wide" disabled={saving} onClick={save}>
+          {saving ? 'Saving…' : `Use ${getRegion(region).area}`}
+        </button>
+        <p className="muted small">You can change this later in Settings.</p>
+        {error && <p className="error">{error}</p>}
+      </div>
+    </main>
+  );
 }
 
 export function App(): JSX.Element {
@@ -44,6 +102,12 @@ export function App(): JSX.Element {
   const [now, setNow] = useState(() => new Date());
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [needsRegion, setNeedsRegion] = useState(
+    () => localStorage.getItem(REGION_CONFIRMED_KEY) !== 'true',
+  );
+  const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
+  const [showInstall, setShowInstall] = useState(() => !isStandalone());
+  const [installHelp, setInstallHelp] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -73,8 +137,6 @@ export function App(): JSX.Element {
     return () => clearInterval(timer);
   }, [load]);
 
-  // Coming back to a backgrounded PWA should show current prices, not the
-  // ones from whenever it was last open.
   useEffect(() => {
     const onVisible = (): void => {
       if (document.visibilityState === 'visible') {
@@ -86,34 +148,80 @@ export function App(): JSX.Element {
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, [load]);
 
-  const settings = overview?.settings;
-  const display = { hour12: settings?.hour12 ?? false };
+  useEffect(() => {
+    const onPrompt = (event: Event): void => {
+      event.preventDefault();
+      setInstallPrompt(event as InstallPromptEvent);
+      setShowInstall(true);
+    };
+    const onInstalled = (): void => {
+      setInstallPrompt(null);
+      setShowInstall(false);
+      setInstallHelp(null);
+    };
+    window.addEventListener('beforeinstallprompt', onPrompt);
+    window.addEventListener('appinstalled', onInstalled);
+    return () => {
+      window.removeEventListener('beforeinstallprompt', onPrompt);
+      window.removeEventListener('appinstalled', onInstalled);
+    };
+  }, []);
+
+  const install = async (): Promise<void> => {
+    if (!installPrompt) {
+      setInstallHelp('Open your browser menu and choose “Install app” or “Add to Home Screen”.');
+      return;
+    }
+    await installPrompt.prompt();
+    const choice = await installPrompt.userChoice;
+    if (choice.outcome === 'accepted') setShowInstall(false);
+    setInstallPrompt(null);
+  };
 
   const onSettingsChange = (updated: UserSettings): void => {
     applyTheme(updated.theme);
+    localStorage.setItem(REGION_CONFIRMED_KEY, 'true');
     setOverview((previous) => (previous ? { ...previous, settings: updated } : previous));
     void load();
   };
+
+  const confirmRegion = async (region: RegionCode): Promise<void> => {
+    const updated = await api.updateSettings({ region });
+    localStorage.setItem(REGION_CONFIRMED_KEY, 'true');
+    setNeedsRegion(false);
+    onSettingsChange(updated);
+  };
+
+  if (loading && !overview) return <p className="centre">Loading prices…</p>;
+  if (!overview) return <p className="error">{error ?? 'Could not load OctoPrice.'}</p>;
+  const regionCode = isRegionCode(overview.settings.region) ? overview.settings.region : 'C';
+  if (needsRegion) return <RegionSetup initialRegion={regionCode} onConfirm={confirmRegion} />;
+
+  const display = { hour12: overview.settings.hour12 };
+  const region = getRegion(regionCode);
 
   return (
     <>
       <header className="app-header">
         <div>
           <h1>OctoPrice</h1>
-          {overview && <span className="region">Agile · region {overview.tariff.region}</span>}
-        </div>
-        {overview && (
-          <span className={`pill ${overview.tomorrow.complete ? 'ready' : 'waiting'}`}>
-            {overview.tomorrow.complete ? 'Tomorrow ready' : 'Awaiting tomorrow'}
+          <span className="region">
+            {region.area} · region {region.code}
           </span>
+        </div>
+        {showInstall && (
+          <button type="button" className="btn compact" onClick={() => void install()}>
+            Install app
+          </button>
         )}
       </header>
+
+      {installHelp && <p className="install-help">{installHelp}</p>}
 
       <nav className="tabs" role="tablist">
         {(
           [
-            ['today', 'Today'],
-            ['tomorrow', 'Tomorrow'],
+            ['prices', 'Prices'],
             ['settings', 'Settings'],
             ['status', 'Status'],
           ] as [Tab, string][]
@@ -132,23 +240,10 @@ export function App(): JSX.Element {
 
       {error && <p className="error">{error}</p>}
 
-      {loading && !overview && <p className="centre">Loading prices…</p>}
-
-      {overview && tab === 'today' && (
-        <>
-          <NowCard current={overview.current} next={overview.next} display={display} />
-          <DayView day={overview.today} now={now} display={display} defaultHidePast />
-        </>
+      {tab === 'prices' && <PricesView overview={overview} now={now} display={display} />}
+      {tab === 'settings' && (
+        <SettingsView settings={overview.settings} onSettingsChange={onSettingsChange} />
       )}
-
-      {overview && tab === 'tomorrow' && (
-        <DayView day={overview.tomorrow} now={now} display={display} />
-      )}
-
-      {overview && settings && tab === 'settings' && (
-        <SettingsView settings={settings} onSettingsChange={onSettingsChange} />
-      )}
-
       {tab === 'status' && <StatusView now={now} />}
     </>
   );

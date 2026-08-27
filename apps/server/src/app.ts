@@ -53,14 +53,13 @@ export interface BuiltApp {
  * the app is useful before anyone opens Settings.
  */
 async function seedDefaultRules(store: Store, userId: string, logger: Logger): Promise<void> {
-  if ((await store.getState('rules_seeded')) !== null) return;
+  if (!(await store.setStateIfAbsent('rules_seeded', new Date().toISOString()))) return;
   if ((await store.listRules(userId)).length === 0) {
     for (const rule of DEFAULT_ALERT_RULES) {
       await store.createRule(userId, alertRuleInputSchema.parse(rule));
     }
     logger.info('Created default alert rules', { count: DEFAULT_ALERT_RULES.length });
   }
-  await store.setState('rules_seeded', new Date().toISOString());
 }
 
 /** Resolves the built PWA directory, or null when it has not been built. */

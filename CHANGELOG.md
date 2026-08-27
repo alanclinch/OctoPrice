@@ -14,6 +14,13 @@ Octopus publication cycles.
 
 ### Added
 
+- **First-run setup and install action.** New devices choose their electricity
+  area before viewing prices, the header shows the area's real name, and an
+  install button either opens the native PWA prompt or gives browser-specific
+  Add to Home Screen guidance.
+- **Continuous price timeline.** Today and tomorrow now form one scrollable
+  sequence with date separators. Remaining periods are the default, the
+  current slot is first, and the toggle restores elapsed prices.
 - **Cloudflare-native hosting.** The PWA and API can run on Workers with
   Static Assets, D1 persistence and Cron Trigger polling, including a free
   `workers.dev` deployment with no separate origin server.
@@ -43,3 +50,11 @@ Octopus publication cycles.
   the build version.
 - Correct handling of British Summer Time, including the 46 and 50-period days
   either side of a daylight-saving change.
+
+### Fixed
+
+- Changing region now immediately backfills current and next-day prices for
+  the selected area.
+- Default alert rules are claimed atomically during first-run setup, and the
+  migration removes the duplicate defaults created by the initial concurrent
+  Worker startup.

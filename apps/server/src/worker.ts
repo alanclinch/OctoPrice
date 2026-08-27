@@ -101,13 +101,12 @@ function configFor(env: Env): AppConfig {
 }
 
 async function seedDefaultRules(store: Store, userId: string): Promise<void> {
-  if ((await store.getState('rules_seeded')) !== null) return;
+  if (!(await store.setStateIfAbsent('rules_seeded', new Date().toISOString()))) return;
   if ((await store.listRules(userId)).length === 0) {
     for (const rule of DEFAULT_ALERT_RULES) {
       await store.createRule(userId, alertRuleInputSchema.parse(rule));
     }
   }
-  await store.setState('rules_seeded', new Date().toISOString());
 }
 
 async function createRuntime(env: Env): Promise<Runtime> {
@@ -276,7 +275,12 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
     if (method === 'PATCH' && path === '/api/settings') {
       const parsed = userSettingsInputSchema.safeParse(await requestBody(request));
       if (!parsed.success) return validationError(parsed);
-      return json(await store.updateSettings(userId, parsed.data));
+      const previous = await store.getSettings(userId);
+      const updated = await store.updateSettings(userId, parsed.data);
+      if (parsed.data.region && parsed.data.region !== previous.region) {
+        await priceService.refreshCurrentDays();
+      }
+      return json(updated);
     }
 
     if (method === 'GET' && path === '/api/rules') {
@@ -356,7 +360,19 @@ export default {
   },
 
   async scheduled(_controller: ScheduledController, env: Env, context: ExecutionContext) {
-    const { poller } = await getRuntime(env);
-    context.waitUntil(poller.runScheduled());
+    const { poller, priceService, logger } = await getRuntime(env);
+    const backfillToday = async (): Promise<void> => {
+      const today = londonDateOf(new Date());
+      if (await priceService.isRetrieved(today)) return;
+      try {
+        await priceService.refresh(today);
+      } catch (error) {
+        logger.error('Current-day price backfill failed', {
+          date: today,
+          ...describeError(error),
+        });
+      }
+    };
+    context.waitUntil(Promise.all([backfillToday(), poller.runScheduled()]).then(() => undefined));
   },
 } satisfies ExportedHandler<Env>;

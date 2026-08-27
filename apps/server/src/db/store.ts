@@ -102,6 +102,8 @@ export interface Store {
 
   getState(key: string): StoreResult<string | null>;
   setState(key: string, value: string): StoreResult<void>;
+  /** Atomically inserts a state key, returning false when it already exists. */
+  setStateIfAbsent(key: string, value: string): StoreResult<boolean>;
 
   close(): StoreResult<void>;
 }

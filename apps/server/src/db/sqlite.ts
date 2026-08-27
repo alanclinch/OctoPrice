@@ -543,6 +543,13 @@ export class SqliteStore implements Store {
       .run(key, value);
   }
 
+  setStateIfAbsent(key: string, value: string): boolean {
+    const result = this.db
+      .prepare('INSERT INTO app_state (key, value) VALUES (?, ?) ON CONFLICT (key) DO NOTHING')
+      .run(key, value);
+    return Number(result.changes) > 0;
+  }
+
   close(): void {
     this.db.close();
   }

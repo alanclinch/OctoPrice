@@ -16,8 +16,11 @@ screen as an app, and works in any browser.
 
 - **Current price, front and centre.** What you are paying right now and what
   the next half hour costs.
-- **Today and tomorrow.** A chart and a plain table of every half-hour period,
-  with negative and cheap periods obvious at a glance.
+- **One continuous price timeline.** The current half-hour appears first by
+  default, followed by every published price across today and tomorrow. Past
+  prices remain available with one toggle.
+- **Guided setup and installation.** The first visit asks for your electricity
+  area, and the header always offers an install action for the PWA.
 - **Publication alerts.** Octopus usually publishes next-day prices around
   16:00 but is entitled to take until 22:00. OctoPrice polls until the full
   day has actually arrived, then tells you.

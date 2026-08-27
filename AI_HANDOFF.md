@@ -12,7 +12,7 @@ If this file and the code disagree, **the code is right** — fix this file.
 - **Current branch:** `main`
 - **Source control:** clean `main`, synced to `origin/main`
 - **Build status:** passing — `npm run verify`
-- **Test status:** passing — 204 tests across 8 files
+- **Test status:** passing — 205 tests across 8 files
 - **Deployed:** `https://octoprice.alanclinch.workers.dev` on Cloudflare
   Workers, with D1 in WEUR and a five-minute Cron Trigger
 - **Git remote:** public GitHub repository at
@@ -40,8 +40,10 @@ triggers an Octopus fetch, so a slow upstream cannot make the UI slow.
 Everything in the MVP list (DESIGN.md section 38) except items that need a
 GitHub remote or a real device:
 
-- Responsive, installable PWA: dashboard, chart, table, settings, status.
-- Region selection across all 14 DNO regions.
+- Responsive, installable PWA: combined price timeline, chart, table, settings,
+  status and an explicit install action.
+- First-run area selection across all 14 DNO regions, with immediate price
+  backfill when the area changes.
 - Automatic Agile product discovery, with a fallback product code.
 - Today, tomorrow, current price, next price, cheapest continuous window.
 - Publication detection: polls from 16:05 every 5 minutes until 22:15, and
@@ -59,10 +61,11 @@ GitHub remote or a real device:
 
 ## Currently In Progress
 
-No implementation work is half-finished. The Cloudflare-native conversion is
-verified locally and live. At the first production check, Octopus had
-published 46 of 48 periods for 2026-08-27; D1 stored them and the scheduler
-correctly kept the day incomplete so later Cron runs will retry.
+The `codex/ux-fixes` release is verified locally and awaits production
+deployment. It replaces separate Today/Tomorrow screens with one chronological
+timeline, defaults to remaining prices with the current slot first, adds
+first-run region setup and installation guidance, backfills after a region
+change, and prevents/cleans duplicate default rules.
 
 ## Next Recommended Work
 
@@ -187,6 +190,22 @@ bundle is 87 kB gzipped, which matters for a phone-first PWA.
 been larger and harder to bend to the negative-price presentation.
 
 ## Recent Agent Handoffs
+
+### 2026-08-27 — Codex, first-run and price timeline fixes
+
+**Work completed:** added first-run area selection, meaningful region labels
+and PWA install guidance; merged today and tomorrow into one chronological
+timeline; made Remaining only the working default with the current slot first;
+backfilled prices after region changes; made default-rule seeding atomic and
+added a migration to remove the three duplicate production defaults.
+
+**Verification:** `npm run verify` passed (205 tests). The built PWA was tested
+in the local Cloudflare runtime at a mobile viewport: the table opened on the
+current slot, toggling Remaining only changed 31 rows to 46, onboarding and
+install guidance rendered correctly, and no new browser errors appeared.
+
+**Outstanding:** apply migration 0002, deploy the CI-passing main revision and
+repeat the live checks.
 
 ### 2026-08-26 — Codex, Cloudflare-native deployment
 

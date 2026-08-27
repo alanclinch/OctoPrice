@@ -301,7 +301,13 @@ The main screen should be extremely simple.
 > **17:30**
 > 18.9p/kWh
 
-**Tomorrow** — status: **Prices available** or **Waiting for Octopus**.
+**Published range** — one chronological timeline spanning today and tomorrow,
+with the current period first by default. Show the exact count when tomorrow
+is only partially published rather than repeating a vague waiting message.
+
+First use must ask for the user's electricity area before showing prices. The
+header should name the area as well as the underlying region code and provide
+an obvious PWA installation action.
 
 ---
 
@@ -325,6 +331,10 @@ understand on a phone.
 ## 14. Price Table
 
 Users should also be able to view a straightforward list.
+
+The list combines all stored days, inserts clear date separators, and hides
+elapsed periods by default. A working **Remaining only** control lets the user
+restore past prices.
 
 | Time        | Price |
 | ----------- | ----: |
