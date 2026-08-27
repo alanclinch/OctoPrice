@@ -8,13 +8,18 @@ import {
   type RegionCode,
   type UserSettings,
 } from '@octoprice/core';
-import { api, ApiError, type Overview } from './api.ts';
+import { api, ApiError, type Overview, type SessionUser } from './api.ts';
 import { PricesView } from './components/PricesView.tsx';
 import { SettingsView } from './components/SettingsView.tsx';
 import { StatusView } from './components/StatusView.tsx';
+import { PeopleView } from './components/PeopleView.tsx';
+import { SignedOut } from './components/SignedOut.tsx';
 import type { JSX } from 'react';
 
-type Tab = 'prices' | 'settings' | 'status';
+type Tab = 'prices' | 'settings' | 'people' | 'status';
+
+/** Whether this device is signed in, and if not, why not. */
+type AuthState = 'checking' | 'signed-in' | 'no-link' | 'bad-link';
 
 interface InstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -96,8 +101,33 @@ function RegionSetup({ initialRegion, onConfirm }: RegionSetupProps): JSX.Elemen
   );
 }
 
+/**
+ * Signs the device in when it arrives via an invite link.
+ *
+ * The token is removed from the address bar immediately afterwards so it does
+ * not linger in history, bookmarks or a shared screenshot. The session lives
+ * in an HttpOnly cookie from then on.
+ */
+async function claimFromUrl(): Promise<AuthState | null> {
+  const url = new URL(window.location.href);
+  const token = url.searchParams.get('invite');
+  if (!token) return null;
+
+  url.searchParams.delete('invite');
+  window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+
+  try {
+    await api.claim(token);
+    return 'signed-in';
+  } catch {
+    return 'bad-link';
+  }
+}
+
 export function App(): JSX.Element {
   const [tab, setTab] = useState<Tab>(initialTab);
+  const [auth, setAuth] = useState<AuthState>('checking');
+  const [user, setUser] = useState<SessionUser | null>(null);
   const [overview, setOverview] = useState<Overview | null>(null);
   const [now, setNow] = useState(() => new Date());
   const [error, setError] = useState<string | null>(null);
@@ -113,9 +143,17 @@ export function App(): JSX.Element {
     try {
       const loaded = await api.overview();
       setOverview(loaded);
+      setUser(loaded.user);
+      setAuth('signed-in');
       applyTheme(loaded.settings.theme);
       setError(null);
     } catch (caught) {
+      if (caught instanceof ApiError && caught.status === 401) {
+        // Not an error to show: the person simply has not been invited yet.
+        setAuth((previous) => (previous === 'bad-link' ? previous : 'no-link'));
+        setError(null);
+        return;
+      }
       setError(
         caught instanceof ApiError && caught.status === 0
           ? 'Cannot reach the OctoPrice server. Showing nothing rather than something wrong.'
@@ -129,13 +167,30 @@ export function App(): JSX.Element {
   }, []);
 
   useEffect(() => {
-    void load();
+    let cancelled = false;
+    void (async () => {
+      const claimed = await claimFromUrl();
+      if (cancelled) return;
+      if (claimed === 'bad-link') {
+        setAuth('bad-link');
+        setLoading(false);
+        return;
+      }
+      await load();
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [load]);
+
+  useEffect(() => {
+    if (auth !== 'signed-in') return;
     const timer = setInterval(() => {
       setNow(new Date());
       void load();
     }, REFRESH_INTERVAL_MS);
     return () => clearInterval(timer);
-  }, [load]);
+  }, [auth, load]);
 
   useEffect(() => {
     const onVisible = (): void => {
@@ -192,7 +247,12 @@ export function App(): JSX.Element {
     onSettingsChange(updated);
   };
 
-  if (loading && !overview) return <p className="centre">Loading prices…</p>;
+  if (auth === 'checking' || (loading && !overview)) {
+    return <p className="centre">Loading prices…</p>;
+  }
+  if (auth === 'no-link' || auth === 'bad-link') {
+    return <SignedOut reason={auth === 'bad-link' ? 'invalid' : 'missing'} />;
+  }
   if (!overview) return <p className="error">{error ?? 'Could not load OctoPrice.'}</p>;
   const regionCode = isRegionCode(overview.settings.region) ? overview.settings.region : 'C';
   if (needsRegion) return <RegionSetup initialRegion={regionCode} onConfirm={confirmRegion} />;
@@ -205,7 +265,10 @@ export function App(): JSX.Element {
       <header className="app-header">
         <div>
           <h1>OctoPrice</h1>
-          <span className="region">{region.area}</span>
+          <span className="region">
+            {region.area}
+            {user && !user.isOwner ? ` · ${user.name}` : ''}
+          </span>
         </div>
         {showInstall && (
           <button type="button" className="btn compact" onClick={() => void install()}>
@@ -221,6 +284,7 @@ export function App(): JSX.Element {
           [
             ['prices', 'Prices'],
             ['settings', 'Settings'],
+            ...(user?.isOwner ? ([['people', 'People']] as [Tab, string][]) : []),
             ['status', 'Status'],
           ] as [Tab, string][]
         ).map(([value, label]) => (
@@ -242,6 +306,7 @@ export function App(): JSX.Element {
       {tab === 'settings' && (
         <SettingsView settings={overview.settings} onSettingsChange={onSettingsChange} />
       )}
+      {tab === 'people' && user?.isOwner && <PeopleView />}
       {tab === 'status' && <StatusView now={now} />}
 
       <footer className="app-footer">

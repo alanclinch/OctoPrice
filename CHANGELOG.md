@@ -12,6 +12,23 @@ MVP feature-complete. Not yet released: push notifications still need
 confirming on a real device, and the app has not yet watched several real
 Octopus publication cycles.
 
+### Added
+
+- **Sharing with friends and family.** The app is no longer one shared account
+  behind a public URL. The owner invites people by name from a new People tab
+  and sends them a link; opening it once signs that device in for good. No
+  passwords, no sign-up form, nothing to reset.
+- Each person has their own region, their own alert rules, their own devices
+  and their own notification history. Nobody can see or change anyone
+  else&rsquo;s, and prices are fetched once per region rather than once per
+  person.
+
+### Changed
+
+- **The app is now private.** Every screen requires an invite link. Anyone
+  with the address used to be able to read the dashboard and change the
+  region, alert rules and notifications for everybody.
+
 ### Fixed
 
 - **Notifications now actually arrive.** No notification of any kind had ever

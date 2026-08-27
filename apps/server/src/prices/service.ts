@@ -16,15 +16,19 @@
  * covers the day up to roughly 23:00 local, and the remainder lands later,
  * usually with the following day's batch. Gating notification on completeness
  * therefore meant no notification was ever sent at all.
+ *
+ * Everything here is keyed by *tariff*, not by user. Agile prices differ by
+ * distribution region, so two people in different regions have genuinely
+ * different prices, while everyone in the same region shares one copy.
  */
 
 import type { DayCoverage, DaySummary, PricePeriod, StoredPricePeriod } from '@octoprice/core';
 import {
   FALLBACK_AGILE_PRODUCT_CODE,
   buildTariffCode,
+  describeDayCoverage,
   endOfLondonDay,
   expectedPeriodCount,
-  describeDayCoverage,
   isRegionCode,
   londonDateOf,
   missingPeriodStarts,
@@ -44,8 +48,15 @@ export interface TariffSelection {
   region: RegionCode;
 }
 
+export interface TariffGroup {
+  tariff: TariffSelection;
+  /** Everyone on this tariff. */
+  userIds: string[];
+}
+
 export interface RefreshResult {
   date: PricingDate;
+  tariff: TariffSelection;
   /** True when every expected period is stored. Governs what the UI claims. */
   complete: boolean;
   /** True when enough of the day has arrived to notify on it. */
@@ -61,9 +72,9 @@ export interface PriceServiceOptions {
   store: Store;
   client: OctopusClient;
   logger: Logger;
-  userId: string;
   /** When set, product discovery is skipped. */
   forcedProductCode?: string | undefined;
+  defaultRegion?: RegionCode;
   now?: () => Date;
 }
 
@@ -71,26 +82,63 @@ export class PriceService {
   private readonly store: Store;
   private readonly client: OctopusClient;
   private readonly logger: Logger;
-  private readonly userId: string;
   private readonly forcedProductCode: string | undefined;
+  private readonly defaultRegion: RegionCode;
   private readonly now: () => Date;
 
   constructor(options: PriceServiceOptions) {
     this.store = options.store;
     this.client = options.client;
     this.logger = options.logger;
-    this.userId = options.userId;
     this.forcedProductCode = options.forcedProductCode;
+    this.defaultRegion = options.defaultRegion ?? 'C';
     this.now = options.now ?? (() => new Date());
   }
 
-  /** The product and tariff currently in use, from settings. */
-  async tariff(): Promise<TariffSelection> {
-    const settings = await this.store.getSettings(this.userId);
-    const region = isRegionCode(settings.region) ? settings.region : 'C';
-    const productCode =
-      this.forcedProductCode ?? settings.productCode ?? FALLBACK_AGILE_PRODUCT_CODE;
-    return { productCode, tariffCode: buildTariffCode(productCode, region), region };
+  /** The product and tariff a particular person is on. */
+  async tariff(userId: string): Promise<TariffSelection> {
+    const settings = await this.store.getSettings(userId);
+    return this.tariffFrom(settings.region, settings.productCode);
+  }
+
+  private tariffFrom(region: string, productCode: string | undefined): TariffSelection {
+    const resolvedRegion = isRegionCode(region) ? region : this.defaultRegion;
+    const resolvedProduct = this.forcedProductCode ?? productCode ?? FALLBACK_AGILE_PRODUCT_CODE;
+    return {
+      productCode: resolvedProduct,
+      tariffCode: buildTariffCode(resolvedProduct, resolvedRegion),
+      region: resolvedRegion,
+    };
+  }
+
+  /**
+   * Every distinct tariff anyone is using.
+   *
+   * The poller fetches one copy per tariff rather than one per person, so a
+   * household all in the same region costs exactly one request - while
+   * someone in a different region still gets their own prices.
+   */
+  async distinctTariffs(): Promise<TariffSelection[]> {
+    return (await this.tariffGroups()).map((group) => group.tariff);
+  }
+
+  /**
+   * Everyone, grouped by the tariff they are on.
+   *
+   * This is the shape the poller wants: fetch once per tariff, then notify
+   * each person who is on it.
+   */
+  async tariffGroups(): Promise<TariffGroup[]> {
+    const settings = await this.store.listAllSettings();
+    const groups = new Map<string, TariffGroup>();
+
+    for (const entry of settings) {
+      const tariff = this.tariffFrom(entry.region, entry.productCode);
+      const existing = groups.get(tariff.tariffCode);
+      if (existing) existing.userIds.push(entry.userId);
+      else groups.set(tariff.tariffCode, { tariff, userIds: [entry.userId] });
+    }
+    return [...groups.values()];
   }
 
   /**
@@ -100,52 +148,57 @@ export class PriceService {
    * hard-coded product, but a stored or fallback code keeps the app working
    * when the products endpoint is unreachable.
    */
-  async discoverProduct(): Promise<string> {
-    if (this.forcedProductCode) return this.forcedProductCode;
+  async discoverProduct(): Promise<void> {
+    if (this.forcedProductCode) return;
 
     try {
       const discovered = await this.client.findCurrentAgileProduct(this.now());
-      if (discovered && discovered !== (await this.store.getSettings(this.userId)).productCode) {
-        await this.store.updateSettings(this.userId, { productCode: discovered });
-        this.logger.info('Updated Agile product from discovery', {
-          event: LOG_EVENTS.productDiscovered,
-          productCode: discovered,
-        });
+      if (!discovered) return;
+
+      // The current Agile product is the same for everyone, so a discovery
+      // applies to every person rather than only whoever triggered it.
+      for (const settings of await this.store.listAllSettings()) {
+        if (settings.productCode !== discovered) {
+          await this.store.updateSettings(settings.userId, { productCode: discovered });
+        }
       }
-      if (discovered) return discovered;
+      this.logger.info('Updated Agile product from discovery', {
+        event: LOG_EVENTS.productDiscovered,
+        productCode: discovered,
+      });
     } catch (error) {
       this.logger.warn('Agile product discovery failed, keeping stored product', {
         event: LOG_EVENTS.octopusApiError,
         ...describeError(error),
       });
     }
-    return (await this.tariff()).productCode;
   }
 
-  /** Prices already stored for a London day. */
-  async storedDay(date: PricingDate): Promise<PricePeriod[]> {
-    const { tariffCode } = await this.tariff();
+  /** Prices already stored for a London day on a given tariff. */
+  async storedDay(date: PricingDate, tariffCode: string): Promise<PricePeriod[]> {
     return this.store.getPrices(tariffCode, startOfLondonDay(date), endOfLondonDay(date));
   }
 
-  /** Whether a complete day has been recorded as retrieved. */
-  async isRetrieved(date: PricingDate): Promise<boolean> {
-    return (await this.store.getState(`${STATE_KEYS.retrievedDatePrefix}${date}`)) !== null;
+  /** Whether a usable day has been recorded for a tariff. */
+  async isRetrieved(date: PricingDate, tariffCode: string): Promise<boolean> {
+    return (await this.store.getState(this.retrievedKey(date, tariffCode))) !== null;
   }
 
-  private async markRetrieved(date: PricingDate): Promise<void> {
-    await this.store.setState(`${STATE_KEYS.retrievedDatePrefix}${date}`, this.now().toISOString());
+  private retrievedKey(date: PricingDate, tariffCode: string): string {
+    // Keyed by tariff as well as date: one region being published says
+    // nothing about another.
+    return `${STATE_KEYS.retrievedDatePrefix}${tariffCode}:${date}`;
   }
 
   /**
-   * Fetches a London day from Octopus, stores it, and reports whether the day
-   * is now complete.
+   * Fetches a London day from Octopus for one tariff, stores it, and reports
+   * how much of it has arrived.
    *
    * The request window is the local day converted to UTC, so a 23-hour or
    * 25-hour day asks for exactly the periods it should have.
    */
-  async refresh(date: PricingDate): Promise<RefreshResult> {
-    const { productCode, tariffCode, region } = await this.tariff();
+  async refresh(date: PricingDate, tariff: TariffSelection): Promise<RefreshResult> {
+    const { productCode, tariffCode, region } = tariff;
     const from = startOfLondonDay(date);
     const to = endOfLondonDay(date);
 
@@ -176,13 +229,14 @@ export class PriceService {
       this.logger.debug('Stored price periods', {
         event: LOG_EVENTS.priceDataStored,
         date,
+        tariffCode,
         count: rows.length,
       });
     }
 
     // Read back from the store so coverage reflects everything held for the
     // day, not just what this request happened to return.
-    const periods = await this.storedDay(date);
+    const periods = await this.storedDay(date, tariffCode);
     const coverage = describeDayCoverage(periods, date);
     const missingCount = missingPeriodStarts(periods, date).length;
 
@@ -192,20 +246,21 @@ export class PriceService {
       // for completeness, because Octopus delivers the final period or two
       // later - often not until the following day's batch - and waiting for
       // that meant the day was never dispatched at all.
-      await this.markRetrieved(date);
+      await this.store.setState(this.retrievedKey(date, tariffCode), this.now().toISOString());
       await this.store.setState(STATE_KEYS.lastSuccessfulRetrievalAt, this.now().toISOString());
       this.logger.info('Pricing day published', {
         event: LOG_EVENTS.priceDataComplete,
         date,
+        tariffCode,
         periods: periods.length,
         expected: coverage.expectedPeriodCount,
         complete: coverage.complete,
-        coveredUntil: coverage.coveredUntil,
       });
     } else {
       this.logger.info('Pricing day not yet usable', {
         event: LOG_EVENTS.priceDataNotReady,
         date,
+        tariffCode,
         have: periods.length,
         expected: coverage.expectedPeriodCount,
         leading: coverage.leadingPeriodCount,
@@ -215,6 +270,7 @@ export class PriceService {
 
     return {
       date,
+      tariff,
       complete: coverage.complete,
       publishable: coverage.publishable,
       coverage,
@@ -225,31 +281,30 @@ export class PriceService {
   }
 
   /**
-   * Refreshes today and, if it has been published, tomorrow.
+   * Refreshes today and tomorrow for every tariff in use.
    *
    * Used at startup so a freshly started server has something to show
    * immediately rather than waiting for the next polling window.
    */
   async refreshCurrentDays(): Promise<RefreshResult[]> {
     const today = londonDateOf(this.now());
+    const tomorrow = londonDateOf(endOfLondonDay(today));
     const results: RefreshResult[] = [];
 
-    for (const date of [today, this.tomorrowOf(today)]) {
-      try {
-        results.push(await this.refresh(date));
-      } catch (error) {
-        this.logger.error('Startup price refresh failed', {
-          event: LOG_EVENTS.octopusApiError,
-          date,
-          ...describeError(error),
-        });
+    for (const tariff of await this.distinctTariffs()) {
+      for (const date of [today, tomorrow]) {
+        try {
+          results.push(await this.refresh(date, tariff));
+        } catch (error) {
+          this.logger.error('Startup price refresh failed', {
+            event: LOG_EVENTS.octopusApiError,
+            date,
+            tariffCode: tariff.tariffCode,
+            ...describeError(error),
+          });
+        }
       }
     }
     return results;
-  }
-
-  private tomorrowOf(date: PricingDate): PricingDate {
-    const start = endOfLondonDay(date);
-    return londonDateOf(start);
   }
 }

@@ -10,8 +10,9 @@
  */
 
 import { DatabaseSync } from 'node:sqlite';
-import { mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import type {
   AlertRule,
@@ -22,94 +23,59 @@ import type {
   NotificationSubscription,
   PricePeriod,
   StoredPricePeriod,
+  User,
   UserSettings,
   UserSettingsInput,
 } from '@octoprice/core';
 import { FALLBACK_AGILE_PRODUCT_CODE } from '@octoprice/core';
-import type { NewSubscription, NotificationLogInput, Store } from './store.ts';
+import type { NewSubscription, NewUser, NotificationLogInput, Store } from './store.ts';
 
 /**
- * Schema migrations, applied in order. Never edit a migration that has
- * shipped; add another one.
+ * Schema migrations, read from the same `migrations/*.sql` files that
+ * Wrangler applies to D1.
+ *
+ * They used to be a separate hardcoded array here, which had already drifted:
+ * migration 0002 was applied to production but never to a local database.
+ * Reading one source means local development cannot diverge from production
+ * again, and a new migration is added in exactly one place.
  */
-const MIGRATIONS: readonly string[] = [
-  `
-  CREATE TABLE prices (
-    id            TEXT PRIMARY KEY,
-    tariff_code   TEXT NOT NULL,
-    region        TEXT NOT NULL,
-    valid_from    TEXT NOT NULL,
-    valid_to      TEXT NOT NULL,
-    price_inc_vat REAL NOT NULL,
-    price_exc_vat REAL NOT NULL,
-    retrieved_at  TEXT NOT NULL,
-    UNIQUE (tariff_code, valid_from)
-  );
-  CREATE INDEX idx_prices_tariff_from ON prices (tariff_code, valid_from);
+function migrationsDirectory(): string {
+  const here = dirname(fileURLToPath(import.meta.url));
+  // Four levels up from both `src/db` and `dist/db` reaches the repository
+  // root; the extra candidates keep this working if the layout moves.
+  const candidates = [
+    resolve(here, '..', '..', '..', '..', 'migrations'),
+    resolve(here, '..', '..', '..', 'migrations'),
+    resolve(process.cwd(), 'migrations'),
+  ];
+  const found = candidates.find((candidate) => existsSync(candidate));
+  if (!found) throw new Error('Could not locate the migrations directory');
+  return found;
+}
 
-  CREATE TABLE alert_rules (
-    id                       TEXT PRIMARY KEY,
-    user_id                  TEXT NOT NULL,
-    name                     TEXT NOT NULL,
-    enabled                  INTEGER NOT NULL DEFAULT 1,
-    comparison_operator      TEXT NOT NULL,
-    price_threshold          REAL NOT NULL,
-    minimum_duration_minutes INTEGER NOT NULL DEFAULT 30,
-    time_start               TEXT,
-    time_end                 TEXT,
-    notify                   INTEGER NOT NULL DEFAULT 1,
-    created_at               TEXT NOT NULL,
-    updated_at               TEXT NOT NULL,
-    last_triggered_at        TEXT
+function loadMigrations(): string[] {
+  const directory = migrationsDirectory();
+  return (
+    readdirSync(directory)
+      .filter((name) => name.endsWith('.sql'))
+      // Names are zero-padded and ordered, e.g. 0001_initial.sql.
+      .sort()
+      .map((name) => readFileSync(join(directory, name), 'utf8'))
   );
-  CREATE INDEX idx_rules_user ON alert_rules (user_id);
-
-  CREATE TABLE notification_subscriptions (
-    id                TEXT PRIMARY KEY,
-    user_id           TEXT NOT NULL,
-    provider          TEXT NOT NULL,
-    subscription_data TEXT NOT NULL,
-    enabled           INTEGER NOT NULL DEFAULT 1,
-    created_at        TEXT NOT NULL,
-    last_success      TEXT,
-    last_failure      TEXT,
-    UNIQUE (user_id, subscription_data)
-  );
-
-  CREATE TABLE notification_log (
-    id         TEXT PRIMARY KEY,
-    user_id    TEXT NOT NULL,
-    rule_id    TEXT,
-    type       TEXT NOT NULL,
-    dedupe_key TEXT NOT NULL UNIQUE,
-    title      TEXT NOT NULL,
-    message    TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    status     TEXT NOT NULL,
-    error      TEXT
-  );
-  CREATE INDEX idx_log_user_created ON notification_log (user_id, created_at);
-
-  CREATE TABLE settings (
-    user_id              TEXT PRIMARY KEY,
-    region               TEXT NOT NULL,
-    product_code         TEXT NOT NULL,
-    notify_daily_prices  INTEGER NOT NULL DEFAULT 1,
-    notify_rule_matches  INTEGER NOT NULL DEFAULT 1,
-    hour12               INTEGER NOT NULL DEFAULT 0,
-    theme                TEXT NOT NULL DEFAULT 'system',
-    updated_at           TEXT NOT NULL
-  );
-
-  CREATE TABLE app_state (
-    key   TEXT PRIMARY KEY,
-    value TEXT NOT NULL
-  );
-  `,
-];
+}
 
 const bool = (value: boolean): number => (value ? 1 : 0);
 const fromBool = (value: unknown): boolean => value === 1 || value === true;
+
+interface UserRow {
+  id: string;
+  name: string;
+  token_hash: string | null;
+  is_owner: number;
+  created_at: string;
+  claimed_at: string | null;
+  last_seen_at: string | null;
+}
 
 interface PriceRow {
   valid_from: string;
@@ -206,10 +172,11 @@ export class SqliteStore implements Store {
       this.db.prepare('INSERT INTO schema_version (version) VALUES (?)').run(0);
     }
 
-    for (let index = current; index < MIGRATIONS.length; index += 1) {
+    const migrations = loadMigrations();
+    for (let index = current; index < migrations.length; index += 1) {
       this.db.exec('BEGIN');
       try {
-        this.db.exec(MIGRATIONS[index] as string);
+        this.db.exec(migrations[index] as string);
         current = index + 1;
         this.db.prepare('UPDATE schema_version SET version = ?').run(current);
         this.db.exec('COMMIT');
@@ -217,6 +184,79 @@ export class SqliteStore implements Store {
         this.db.exec('ROLLBACK');
         throw error;
       }
+    }
+  }
+
+  // --- Users ---------------------------------------------------------------
+
+  findUserByTokenHash(tokenHash: string): User | null {
+    const row = this.db
+      .prepare('SELECT * FROM users WHERE token_hash = ?')
+      .get(tokenHash) as unknown as UserRow | undefined;
+    return row ? toUser(row) : null;
+  }
+
+  getUser(id: string): User | null {
+    const row = this.db.prepare('SELECT * FROM users WHERE id = ?').get(id) as unknown as
+      UserRow | undefined;
+    return row ? toUser(row) : null;
+  }
+
+  listUsers(): User[] {
+    const rows = this.db
+      .prepare('SELECT * FROM users ORDER BY is_owner DESC, created_at ASC')
+      .all() as unknown as UserRow[];
+    return rows.map(toUser);
+  }
+
+  createUser(user: NewUser): User {
+    const id = randomUUID();
+    this.db
+      .prepare(
+        `INSERT INTO users (id, name, token_hash, is_owner, created_at)
+         VALUES (?, ?, ?, ?, ?)`,
+      )
+      .run(id, user.name, user.tokenHash, bool(user.isOwner ?? false), new Date().toISOString());
+    return this.getUser(id) as User;
+  }
+
+  setUserToken(id: string, tokenHash: string): void {
+    // Reissuing a link also clears the claim, so the list honestly shows the
+    // new link as unused until it is opened.
+    this.db
+      .prepare('UPDATE users SET token_hash = ?, claimed_at = NULL WHERE id = ?')
+      .run(tokenHash, id);
+  }
+
+  markUserClaimed(id: string, at: Date): void {
+    this.db
+      .prepare('UPDATE users SET claimed_at = ? WHERE id = ? AND claimed_at IS NULL')
+      .run(at.toISOString(), id);
+  }
+
+  recordUserSeen(id: string, at: Date): void {
+    this.db.prepare('UPDATE users SET last_seen_at = ? WHERE id = ?').run(at.toISOString(), id);
+  }
+
+  deleteUser(id: string): boolean {
+    // No foreign keys on the older tables, so the user's rows are removed
+    // explicitly rather than by cascade.
+    this.db.exec('BEGIN');
+    try {
+      for (const sql of [
+        'DELETE FROM alert_rules WHERE user_id = ?',
+        'DELETE FROM notification_subscriptions WHERE user_id = ?',
+        'DELETE FROM notification_log WHERE user_id = ?',
+        'DELETE FROM settings WHERE user_id = ?',
+      ]) {
+        this.db.prepare(sql).run(id);
+      }
+      const result = this.db.prepare('DELETE FROM users WHERE id = ?').run(id);
+      this.db.exec('COMMIT');
+      return Number(result.changes) > 0;
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
     }
   }
 
@@ -498,6 +538,13 @@ export class SqliteStore implements Store {
     return this.getSettings(userId);
   }
 
+  listAllSettings(): UserSettings[] {
+    const rows = this.db
+      .prepare('SELECT * FROM settings ORDER BY user_id ASC')
+      .all() as unknown as SettingsRow[];
+    return rows.map(toSettings);
+  }
+
   updateSettings(userId: string, input: UserSettingsInput): UserSettings {
     const current = this.getSettings(userId);
     const merged: UserSettings = {
@@ -553,6 +600,19 @@ export class SqliteStore implements Store {
   close(): void {
     this.db.close();
   }
+}
+
+function toUser(row: UserRow): User {
+  return {
+    id: row.id,
+    name: row.name,
+    isOwner: fromBool(row.is_owner),
+    createdAt: row.created_at,
+    claimedAt: row.claimed_at,
+    lastSeenAt: row.last_seen_at,
+    // The hash itself never leaves the store.
+    hasToken: row.token_hash !== null,
+  };
 }
 
 function toAlertRule(row: RuleRow): AlertRule {

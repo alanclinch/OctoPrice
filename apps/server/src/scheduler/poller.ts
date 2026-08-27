@@ -161,10 +161,27 @@ export class PricePoller {
    * already sent.
    */
   async checkAndDispatch(date: PricingDate): Promise<void> {
-    const result = await this.priceService.refresh(date);
-    if (!result.publishable) return;
+    // One fetch per distinct tariff, not per person: a household all in the
+    // same region costs a single request, while someone in another region
+    // still gets their own prices.
+    for (const { tariff, userIds } of await this.priceService.tariffGroups()) {
+      try {
+        const result = await this.priceService.refresh(date, tariff);
+        if (!result.publishable) continue;
 
-    await this.dispatcher.dispatchForDay(date, result.periods);
+        for (const userId of userIds) {
+          await this.dispatcher.dispatchForDay(date, result.periods, userId);
+        }
+      } catch (error) {
+        // One region failing must not stop the others being polled.
+        this.logger.error('Price check failed for a tariff', {
+          event: LOG_EVENTS.octopusApiError,
+          date,
+          tariffCode: tariff.tariffCode,
+          ...describeError(error),
+        });
+      }
+    }
   }
 
   /**
@@ -181,10 +198,13 @@ export class PricePoller {
     try {
       await this.priceService.discoverProduct();
       const results = await this.priceService.refreshCurrentDays();
+      const groups = await this.priceService.tariffGroups();
 
       for (const result of results) {
-        if (result.publishable) {
-          await this.dispatcher.dispatchForDay(result.date, result.periods);
+        if (!result.publishable) continue;
+        const group = groups.find((g) => g.tariff.tariffCode === result.tariff.tariffCode);
+        for (const userId of group?.userIds ?? []) {
+          await this.dispatcher.dispatchForDay(result.date, result.periods, userId);
         }
       }
     } catch (error) {
@@ -201,12 +221,24 @@ export class PricePoller {
    * down by itself rather than polling a finished day forever.
    */
   async backfillIncomplete(date: PricingDate): Promise<void> {
-    const coverage = describeDayCoverage(await this.priceService.storedDay(date), date);
-    if (coverage.complete) return;
+    for (const { tariff, userIds } of await this.priceService.tariffGroups()) {
+      const stored = await this.priceService.storedDay(date, tariff.tariffCode);
+      if (describeDayCoverage(stored, date).complete) continue;
 
-    const result = await this.priceService.refresh(date);
-    if (result.publishable) {
-      await this.dispatcher.dispatchForDay(date, result.periods);
+      try {
+        const result = await this.priceService.refresh(date, tariff);
+        if (!result.publishable) continue;
+        for (const userId of userIds) {
+          await this.dispatcher.dispatchForDay(date, result.periods, userId);
+        }
+      } catch (error) {
+        this.logger.error('Backfill failed for a tariff', {
+          event: LOG_EVENTS.octopusApiError,
+          date,
+          tariffCode: tariff.tariffCode,
+          ...describeError(error),
+        });
+      }
     }
   }
 
@@ -217,20 +249,35 @@ export class PricePoller {
    * invocation, all day, rather than only inside the publication window.
    */
   async checkUpcoming(): Promise<number> {
+    let sent = 0;
     try {
-      return await this.dispatcher.dispatchUpcoming(this.now(), (date) =>
-        this.priceService.storedDay(date),
-      );
+      for (const { tariff, userIds } of await this.priceService.tariffGroups()) {
+        for (const userId of userIds) {
+          sent += await this.dispatcher.dispatchUpcoming(this.now(), userId, (date) =>
+            this.priceService.storedDay(date, tariff.tariffCode),
+          );
+        }
+      }
     } catch (error) {
       this.logger.error('Starting-soon check failed', { ...describeError(error) });
-      return 0;
     }
+    return sent;
   }
 
   private async currentPlan() {
     const at = this.now();
     const provisional = planPoll(at, this.window, () => false);
-    const retrieved = await this.priceService.isRetrieved(provisional.targetDate);
+
+    // Polling stops only once *every* tariff in use has the day. One region
+    // arriving early must not stop another region being waited for.
+    const tariffs = await this.priceService.distinctTariffs();
+    const flags = await Promise.all(
+      tariffs.map((tariff) =>
+        this.priceService.isRetrieved(provisional.targetDate, tariff.tariffCode),
+      ),
+    );
+    const retrieved = tariffs.length > 0 && flags.every(Boolean);
+
     const plan = planPoll(at, this.window, (date) => date === provisional.targetDate && retrieved);
     return { plan, retrieved };
   }
