@@ -1,6 +1,7 @@
 # Agile price forecasting — research and proposed architecture
 
-**Status: research and design only. Nothing here is implemented yet.**
+**Status: research and design, plus one implemented piece — the input
+archive (section 8). No forecasts are produced yet.**
 
 This document covers stages 1–4 of the staged plan in the feature request:
 review prior art, investigate data sources, propose an architecture, and
@@ -648,11 +649,8 @@ worth continuing from:
 These are ordered so that nothing waits on an unknown, and each step is
 worth doing even if the next never happens.
 
-1. **Start archiving the vintage-less sources now** — NESO *and* the Carbon
-   Intensity forecast (section 3a). Neither can be reconstructed after the
-   fact, so every day without an archive is a day that can never be
-   back-tested. Nothing else depends on this starting first, which is exactly
-   why it should.
+1. ~~**Start archiving the vintage-less sources now**~~ — **done**, see
+   section 8.
 2. **Implement the regional coefficient fitting** from 1.1, with its health
    check. Independently useful, low risk, and ships on its own.
 3. **Back-test the seasonal-naive baseline and publish its error.** Until this
@@ -685,3 +683,62 @@ archive are what unblock everything, and both can proceed without it.
 - NESO data portal — <https://www.neso.energy/data-portal>
 - Open-Meteo — <https://open-meteo.com/>
 - ENTSO-E Transparency Platform — <https://transparency.entsoe.eu/>
+
+---
+
+## 8. Built: the input archive
+
+The first and only piece of forecasting implemented so far. It produces no
+forecasts and changes nothing a user sees. It exists now because it is the
+only part that gets worse by waiting: NESO and the Carbon Intensity API cannot
+be asked what they said last week, so a day not collected is a day that can
+never be used to validate a model honestly.
+
+If the forecasting idea is abandoned tomorrow, the cost of having run this is
+a few hundred database rows a day.
+
+### What it collects
+
+| Source | Rows per run | Contents |
+| ------ | ------------ | -------- |
+| `carbon_intensity` | 96 | Forecast intensity and full generation mix by fuel, 48 hours, national |
+| `neso_embedded` | 144 | Embedded wind and solar forecast and capacity |
+
+Verified against the live APIs. Roughly 240 rows a run and, at the default
+three-hour interval, about 1,900 rows a day — comfortably inside D1's free
+allowance of 100,000 writes a day.
+
+### Design points worth keeping
+
+- **Insert-only.** A later collection of the same period is a new row, never
+  an update. The difference between two vintages *is* the revision a
+  back-test must not see, so throwing it away would defeat the purpose.
+- **Collection time is the vintage.** Both sources publish no issue time, so
+  `issued_at` is null and `collected_at` is the best available. The column
+  exists because Elexon and Open-Meteo do provide one.
+- **Bounded to the horizon.** NESO offers 14 days; storing all of it every run
+  multiplies the archive for periods that barely move. Trimmed to 72 hours.
+- **CPU-aware.** Parse, shape and serialise measures ~1.5 ms, about 15% of the
+  Workers Free 10 ms budget, and it shares an invocation with the poller.
+  Narrowing the NESO request from 700 to 200 records halved it (2.5 ms → 1.5
+  ms) with no loss of usable coverage. This is the constraint from section 4.6
+  showing up in practice on the very first piece of code.
+- **Cannot break anything.** It never throws to its caller, never touches the
+  price tables, never marks a pricing day retrieved, and runs last in the
+  scheduled handler. If every collector fails it records no run, so the next
+  invocation retries rather than waiting out the interval on a failure.
+
+### Known limitation
+
+NESO's embedded forecast begins at 23:00 on the current day, so with the
+narrowed request it reaches roughly 56 hours ahead rather than the full 72.
+That covers the next two complete days, which is the part that matters, but a
+72-hour model would need a wider request or a second call.
+
+### Terms compliance
+
+Every request identifies the application by `User-Agent`, as the Carbon
+Intensity terms require, and collection runs eight times a day rather than
+continuously. The remaining obligation is **attribution in the UI**, which
+falls due when anything derived from this data is first shown to a user — see
+the table in section 3.

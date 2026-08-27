@@ -15,7 +15,13 @@ import type {
   UserSettingsInput,
 } from '@octoprice/core';
 import { FALLBACK_AGILE_PRODUCT_CODE } from '@octoprice/core';
-import type { NewSubscription, NewUser, NotificationLogInput, Store } from './store.ts';
+import type {
+  NewForecastInput,
+  NewSubscription,
+  NewUser,
+  NotificationLogInput,
+  Store,
+} from './store.ts';
 
 const bool = (value: boolean): number => (value ? 1 : 0);
 const fromBool = (value: unknown): boolean => value === 1 || value === true;
@@ -519,6 +525,49 @@ export class D1Store implements Store {
       )
       .run();
     return this.getSettings(userId);
+  }
+
+  // --- Forecasting input archive -------------------------------------------
+
+  async appendForecastInputs(rows: readonly NewForecastInput[]): Promise<number> {
+    if (rows.length === 0) return 0;
+    const sql = `INSERT INTO forecast_inputs
+         (id, source, target_start, issued_at, collected_at, payload)
+       VALUES (?, ?, ?, ?, ?, ?)`;
+    // Batched: a few hundred rows per run, and a partial write would leave a
+    // vintage that never existed.
+    await this.database.batch(
+      rows.map((row) =>
+        this.database
+          .prepare(sql)
+          .bind(
+            randomUUID(),
+            row.source,
+            row.targetStart,
+            row.issuedAt,
+            row.collectedAt,
+            JSON.stringify(row.payload),
+          ),
+      ),
+    );
+    return rows.length;
+  }
+
+  async lastForecastInputAt(source: string): Promise<string | null> {
+    const row = await this.database
+      .prepare(
+        'SELECT collected_at FROM forecast_inputs WHERE source = ? ORDER BY collected_at DESC LIMIT 1',
+      )
+      .bind(source)
+      .first<{ collected_at: string }>();
+    return row?.collected_at ?? null;
+  }
+
+  async countForecastInputs(): Promise<number> {
+    const row = await this.database
+      .prepare('SELECT COUNT(*) AS n FROM forecast_inputs')
+      .first<{ n: number }>();
+    return row?.n ?? 0;
   }
 
   async getState(key: string): Promise<string | null> {

@@ -23,7 +23,7 @@ original conversation.
 - **Current branch:** `main`
 - **Source control:** clean `main`, synced to `origin/main`
 - **Build status:** passing — `npm run verify`
-- **Test status:** passing — 281 tests across 10 files
+- **Test status:** passing — 298 tests across 11 files
 - **Deployed:** `https://octoprice.alanclinch.workers.dev` on Cloudflare
   Workers, with D1 in WEUR and a five-minute Cron Trigger
 - **Git remote:** public GitHub repository at
@@ -189,17 +189,25 @@ so neither agent re-raises them.
 ## Currently In Progress
 
 - Nothing is half-finished. `main` is deployed and verified live.
-- Forecasting remains research-only, on `claude/forecasting-research` and
-  not merged. All ten review gates across two rounds are addressed. Next step
-  is implementation, starting with the live input archive for the sources that
-  cannot supply history (NESO and Carbon Intensity), after their terms and
-  polling design are written down.
+- Forecasting: the **input archive is built** (`docs/forecasting.md` section
+  8) and is the only forecasting code that exists. It produces no forecasts
+  and changes nothing a user sees. Everything else remains design.
+  Next: regional coefficient fitting, then the seasonal-naive baseline with
+  its error published.
 
-## Forecasting (research only, nothing built)
+## Forecasting
 
-Stages 1-4 of the forecasting feature request are done and recorded in
-`docs/forecasting.md`: prior art, data sources, proposed architecture and
-free-tier feasibility. No forecasting code exists.
+Stages 1-4 are recorded in `docs/forecasting.md`, and stage 5's first piece
+- the input archive - is built and running. It collects the two sources that
+cannot supply history (Carbon Intensity and NESO), insert-only so vintages are
+never overwritten, bounded to the forecast horizon, and isolated so it cannot
+affect confirmed prices. It produces no forecasts.
+
+A practical note for whoever continues: the CPU constraint from section 4.6
+showed up immediately. Parse and shape of the collected payloads was 2.5 ms of
+the 10 ms Worker budget until the NESO request was narrowed from 700 records
+to 200, which halved it with no loss of usable coverage. Expect to keep
+measuring this rather than assuming.
 
 AgilePredict (MIT, actively maintained) was read properly, not just
 summarised: it predicts a day-ahead wholesale series and converts per region
