@@ -72,9 +72,54 @@ GitHub remote or a real device:
 
 ## Open Review Findings
 
-None outstanding. Codex raised four on 2026-08-27 against `fb6615d` and
-`ed1fc65`; all are resolved, in `main`, and deployed. Kept here briefly with
-their outcomes so neither agent re-raises them.
+### Forecasting research review — open design gates
+
+Recorded by Codex on 2026-08-27 after reviewing `docs/forecasting.md`. These
+are not implementation defects; they are questions the next forecasting stage
+must resolve before its results can be trusted.
+
+1. **P1 — back-tests must use the input vintage available at forecast time.**
+   Grid and weather forecasts can be revised after publication. Training or
+   validating against the latest historical value would leak future knowledge
+   and make accuracy look better than a live forecast. Preserve source issue
+   time as well as collection time, verify which APIs expose historical
+   vintages, and start a live shadow-input archive immediately where they do
+   not.
+2. **P1 — regional fitting must never manufacture a confirmed price.** The
+   exact regional transform is useful for forecast output, coefficient health
+   checks and reducing model count. Official periods shown as confirmed must
+   continue to come from the Octopus API; a fitted value is still derived and
+   must not replace the authoritative confirmed-price path.
+3. **P2 — free-tier Worker inference is plausible but not yet proven.** The
+   current Workers Free CPU allowance is 10 ms per invocation. Benchmark a
+   representative 144-period linear and tree-model inference in the deployed
+   Worker before promising that JSON tree traversal fits the existing free
+   architecture. Keep GitHub Actions training; bundle or publish a versioned,
+   integrity-checked artefact rather than fetching mutable model data at
+   request time.
+4. **P2 — model selection needs decision metrics as well as MAE.** The product
+   value is choosing cheap continuous windows and warning about negative or
+   expensive events. Compare models using walk-forward MAE plus cheap-window
+   regret, event precision/recall, quantile pinball loss, and interval coverage
+   and width. A P10–P90 model output is not a trustworthy 80% interval until
+   observed coverage is calibrated.
+5. **P2 — ENTSO-E is an experiment, not the forecasting dependency.** Confirm
+   the exact GB product, resolution, publication time, completeness and
+   redistribution terms with a token. Even if useful, a day-ahead auction
+   series mainly improves the short same-day horizon and does not solve the
+   48–72-hour fundamentals forecast; baseline work and live input collection
+   should proceed independently.
+6. **P2 — make the headline empirical findings reproducible.** Check in a
+   small research script or notebook recording product codes, date ranges,
+   VAT treatment, API queries, time alignment and regression method for the
+   regional R² and Elexon MID results. Narrative figures alone cannot catch a
+   later source or methodology change.
+
+### Earlier application review — resolved
+
+Codex raised four findings on 2026-08-27 against `fb6615d` and `ed1fc65`; all
+are resolved, in `main`, and deployed. Kept here briefly with their outcomes
+so neither agent re-raises them.
 
 1. **P1 — existing users could remain on an unconfirmed default region.**
    *Resolved: no defect in this installation.* The concern is sound in general
@@ -106,7 +151,8 @@ their outcomes so neither agent re-raises them.
 ## Currently In Progress
 
 - Nothing is half-finished. `main` is deployed and verified live.
-- Nothing awaiting implementation.
+- Forecasting remains research-only. The open design gates above await
+  resolution before baseline implementation is treated as trustworthy.
 
 ## Forecasting (research only, nothing built)
 
