@@ -75,7 +75,9 @@ GitHub remote or a real device:
 ### Further forecasting research review — addressed
 
 Codex raised four more on 2026-08-27 against `4f118e1`–`5f58370`. All four
-valid; two were claims I had made without checking. Nothing outstanding.
+valid; two were claims I had made without checking. Codex re-reviewed the
+answers in `3011529`, reran the revised sizing experiment, and found no further
+actionable issue. Nothing outstanding.
 
 1. **P1 — Cron does not escape the CPU limit.** *Confirmed against Cloudflare's
    docs, and my escape hatch was wrong.* Workers Free gives a Cron Trigger the
