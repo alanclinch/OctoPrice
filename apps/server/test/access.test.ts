@@ -9,7 +9,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { OWNER_ID, createTestApp, type TestContext } from './harness.ts';
+import { OWNER_ID, PUSH_SUBSCRIPTION, createTestApp, type TestContext } from './harness.ts';
 
 describe('access control', () => {
   let context: TestContext;
@@ -239,5 +239,149 @@ describe('access control', () => {
       });
       expect(after.statusCode).toBe(401);
     });
+  });
+});
+
+describe('changing region', () => {
+  let context: TestContext;
+
+  beforeEach(async () => {
+    context = await createTestApp();
+  });
+
+  afterEach(async () => {
+    await context.built.close();
+  });
+
+  it('fetches the new area prices immediately, not at the next poll', async () => {
+    // Region M has nothing stored, so without a backfill the person would see
+    // an empty app until the publication window.
+    const before = await context.built.store.getPrices(
+      'E-1R-AGILE-24-10-01-M',
+      new Date('2026-01-01T00:00:00Z'),
+      new Date('2027-01-01T00:00:00Z'),
+    );
+    expect(before).toHaveLength(0);
+
+    const response = await context.inject({
+      method: 'PATCH',
+      url: '/api/settings',
+      payload: { region: 'M' },
+    });
+    expect(response.statusCode).toBe(200);
+
+    const after = await context.built.store.getPrices(
+      'E-1R-AGILE-24-10-01-M',
+      new Date('2026-01-01T00:00:00Z'),
+      new Date('2027-01-01T00:00:00Z'),
+    );
+    expect(after.length).toBeGreaterThan(0);
+  });
+
+  it('marks the region as confirmed when one is chosen', async () => {
+    const { token } = await context.invite('Mum');
+
+    const before = await context.injectAnonymous({
+      method: 'GET',
+      url: '/api/settings',
+      headers: context.asUser(token),
+    });
+    expect(before.json().regionConfirmed).toBe(false);
+
+    await context.injectAnonymous({
+      method: 'PATCH',
+      url: '/api/settings',
+      headers: context.asUser(token),
+      payload: { region: 'M' },
+    });
+
+    const after = await context.injectAnonymous({
+      method: 'GET',
+      url: '/api/settings',
+      headers: context.asUser(token),
+    });
+    expect(after.json().regionConfirmed).toBe(true);
+  });
+
+  it('asks each person separately, whatever device they use', async () => {
+    // The owner confirms theirs...
+    await context.inject({ method: 'PATCH', url: '/api/settings', payload: { region: 'N' } });
+    const owner = await context.inject({ method: 'GET', url: '/api/settings' });
+    expect(owner.json().regionConfirmed).toBe(true);
+
+    // ...which says nothing about anybody else, whatever device they use.
+
+    const { token } = await context.invite('Mum');
+    const mum = await context.injectAnonymous({
+      method: 'GET',
+      url: '/api/settings',
+      headers: context.asUser(token),
+    });
+    expect(mum.json().regionConfirmed).toBe(false);
+  });
+
+  it('does not refetch when the region is unchanged', async () => {
+    const settings = await context.inject({
+      method: 'PATCH',
+      url: '/api/settings',
+      payload: { hour12: true },
+    });
+    expect(settings.json().hour12).toBe(true);
+    expect(settings.json().region).toBe('C');
+  });
+});
+
+describe('push registration belongs to a person', () => {
+  let context: TestContext;
+
+  beforeEach(async () => {
+    context = await createTestApp();
+  });
+
+  afterEach(async () => {
+    await context.built.close();
+  });
+
+  it('reports a subscription as registered for the person who registered it', async () => {
+    await context.inject({
+      method: 'POST',
+      url: '/api/push/subscribe',
+      payload: PUSH_SUBSCRIPTION,
+    });
+
+    const status = await context.inject({
+      method: 'POST',
+      url: '/api/push/status',
+      payload: PUSH_SUBSCRIPTION,
+    });
+    expect(status.json().registered).toBe(true);
+  });
+
+  it('does not report someone else device subscription as theirs', async () => {
+    // The owner registers this device, then the device changes hands.
+    await context.inject({
+      method: 'POST',
+      url: '/api/push/subscribe',
+      payload: PUSH_SUBSCRIPTION,
+    });
+
+    const { token } = await context.invite('Mum');
+    const status = await context.injectAnonymous({
+      method: 'POST',
+      url: '/api/push/status',
+      headers: context.asUser(token),
+      payload: PUSH_SUBSCRIPTION,
+    });
+
+    expect(status.json().registered).toBe(false);
+  });
+
+  it('reports an unregistered subscription as not registered', async () => {
+    const status = await context.inject({
+      method: 'POST',
+      url: '/api/push/status',
+      payload: PUSH_SUBSCRIPTION,
+    });
+    expect(status.json().registered).toBe(false);
   });
 });

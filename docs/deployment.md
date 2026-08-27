@@ -140,17 +140,30 @@ Local Wrangler state is stored under `.wrangler/` and is ignored by Git.
 
 ## Verification
 
-After deployment, check:
+After deployment, these two need no session:
 
 ```text
-GET https://<worker>.workers.dev/
-GET https://<worker>.workers.dev/api/health
-GET https://<worker>.workers.dev/api/status
+GET https://<worker>.workers.dev/          -> the app shell
+GET https://<worker>.workers.dev/api/health -> {"status":"ok",...}
 ```
 
-The status response should report `schedulerEnabled: true`, the intended
-region, and `pushConfigured: true` after VAPID secrets are supplied. Install
-the PWA on a real Android device and use the test-notification control.
+Everything else is private and answers 401 without one, which is itself worth
+checking:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}
+' https://<worker>.workers.dev/api/overview
+```
+
+To read the status endpoint, pass a token from an access link:
+
+```bash
+curl -H "authorization: Bearer <token>" https://<worker>.workers.dev/api/status
+```
+
+It should report `schedulerEnabled: true`, the intended region, and
+`pushConfigured: true` once the VAPID secrets are set. Then install the PWA on
+a real Android device and use the test-notification control.
 
 Cloudflare logs are available with:
 

@@ -340,7 +340,39 @@ export async function handleApiRequest(
   if (method === 'PATCH' && path === '/api/settings') {
     const parsed = userSettingsInputSchema.safeParse(request.body);
     if (!parsed.success) return validationFailure(parsed.error);
-    return json(await store.updateSettings(userId, parsed.data));
+
+    const previous = await store.getSettings(userId);
+    const regionChanged = Boolean(parsed.data.region) && parsed.data.region !== previous.region;
+
+    const updated = await store.updateSettings(userId, {
+      ...parsed.data,
+      // Choosing a region *is* confirming it, so there is no separate step to
+      // remember and nothing device-specific to get out of step.
+      ...(parsed.data.region ? { regionConfirmed: true } : {}),
+    });
+
+    if (regionChanged) {
+      // Fetch the new region straight away. Without this a person who has
+      // just picked their area sees an empty app until the next publication
+      // window, which looks broken rather than merely unpublished.
+      const tariff = await priceService.tariff(userId);
+      const today = londonDateOf(now);
+      for (const date of [today, addDays(today, 1)]) {
+        try {
+          await priceService.refresh(date, tariff);
+        } catch (error) {
+          // Not fatal: the setting is saved either way, and the poller will
+          // pick the region up on its next run.
+          logger.warn('Could not backfill prices after a region change', {
+            date,
+            tariffCode: tariff.tariffCode,
+            ...describeError(error),
+          });
+        }
+      }
+    }
+
+    return json(updated);
   }
 
   // --- Alert rules ---------------------------------------------------------
@@ -401,6 +433,22 @@ export async function handleApiRequest(
     return json({
       removed: await store.removeSubscriptionByData(userId, JSON.stringify(parsed.data)),
     });
+  }
+
+  /**
+   * Whether a particular device subscription belongs to *this* person.
+   *
+   * A browser can hold a push subscription that was registered by whoever
+   * used the device before. Without this check the new signed-in person is
+   * told notifications are on when the server has never heard of them.
+   */
+  if (method === 'POST' && path === '/api/push/status') {
+    const parsed = webPushSubscriptionSchema.safeParse(request.body);
+    if (!parsed.success) return fail(400, 'Invalid push subscription');
+
+    const wanted = JSON.stringify(parsed.data);
+    const mine = await store.listSubscriptions(userId);
+    return json({ registered: mine.some((entry) => entry.subscriptionData === wanted) });
   }
 
   if (method === 'GET' && path === '/api/push/subscriptions') {

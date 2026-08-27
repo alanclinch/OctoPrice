@@ -132,6 +132,7 @@ interface SettingsRow {
   notify_rule_matches: number;
   hour12: number;
   theme: string;
+  region_confirmed: number;
   updated_at: string;
 }
 
@@ -557,7 +558,8 @@ export class SqliteStore implements Store {
       .prepare(
         `UPDATE settings
          SET region = ?, product_code = ?, notify_daily_prices = ?,
-             notify_rule_matches = ?, hour12 = ?, theme = ?, updated_at = ?
+             notify_rule_matches = ?, hour12 = ?, theme = ?,
+             region_confirmed = ?, updated_at = ?
          WHERE user_id = ?`,
       )
       .run(
@@ -567,6 +569,7 @@ export class SqliteStore implements Store {
         bool(merged.notifyRuleMatches),
         bool(merged.hour12),
         merged.theme,
+        bool(merged.regionConfirmed),
         merged.updatedAt,
         userId,
       );
@@ -670,6 +673,7 @@ function toSettings(row: SettingsRow): UserSettings {
     notifyRuleMatches: fromBool(row.notify_rule_matches),
     hour12: fromBool(row.hour12),
     theme: row.theme as UserSettings['theme'],
+    regionConfirmed: fromBool(row.region_confirmed),
     updatedAt: row.updated_at,
   };
 }

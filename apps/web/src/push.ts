@@ -43,7 +43,37 @@ export async function pushState(): Promise<PushState> {
   if (!configured) return 'unconfigured';
 
   if (Notification.permission === 'denied') return 'denied';
-  return (await currentSubscription()) ? 'enabled' : 'disabled';
+
+  const subscription = await currentSubscription();
+  if (!subscription) return 'disabled';
+
+  // The browser holding a subscription is not enough. It may have been
+  // registered by whoever used this device before, in which case it belongs
+  // to them and this person has no registration at all.
+  try {
+    const { registered } = await api.pushStatus(subscription.toJSON());
+    return registered ? 'enabled' : 'disabled';
+  } catch {
+    // If the check itself fails, claim nothing rather than claim wrongly.
+    return 'disabled';
+  }
+}
+
+/**
+ * Drops any push subscription this browser holds.
+ *
+ * Called when the signed-in person changes, so a device that has been handed
+ * on stops receiving the previous person's alerts immediately rather than
+ * waiting for the push service to report the subscription as gone.
+ */
+export async function releaseDeviceSubscription(): Promise<void> {
+  const subscription = await currentSubscription();
+  if (!subscription) return;
+  try {
+    await subscription.unsubscribe();
+  } catch {
+    // Nothing useful to do; the server disables it when a send fails.
+  }
 }
 
 /**

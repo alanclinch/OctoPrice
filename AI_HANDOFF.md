@@ -12,7 +12,7 @@ If this file and the code disagree, **the code is right** — fix this file.
 - **Current branch:** `main`
 - **Source control:** clean `main`, synced to `origin/main`
 - **Build status:** passing — `npm run verify`
-- **Test status:** passing — 259 tests across 9 files
+- **Test status:** passing — 273 tests across 10 files
 - **Deployed:** `https://octoprice.alanclinch.workers.dev` on Cloudflare
   Workers, with D1 in WEUR and a five-minute Cron Trigger
 - **Git remote:** public GitHub repository at
@@ -63,9 +63,7 @@ GitHub remote or a real device:
 
 - **Task:** publication-trigger fix and "starting soon" alerts.
 - **Responsible agent:** Claude
-- **Branch:** `claude/publication-trigger-fix` — complete and verified
-  locally, **not yet deployed**. Deploying is what makes it real; until then
-  production is still silent.
+- Nothing is half-finished. `main` is deployed and verified live.
 
 ## Next Recommended Work
 
@@ -95,10 +93,10 @@ GitHub remote or a real device:
   the migration, deploy, then immediately run `npm run issue-link`. Existing
   push subscriptions belong to the owner and keep working once claimed.
 
-- **The notification fix is unproven in production.** It is covered by tests,
-  including one that reproduces the exact failure, but no notification has yet
-  been seen arriving from a real publication cycle. Until that happens, treat
-  the core promise of the app as unverified.
+- **Push on a device that has changed hands.** Signing in as a different
+  person now releases the browser's push subscription, but the server-side
+  record is only cleaned up when a send to it fails and returns 410. That is
+  correct but not immediate.
 
 - **The new Android notification badge has not yet been seen on the phone.**
   The previous badge delivered successfully but appeared as a white square.

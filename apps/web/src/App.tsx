@@ -10,6 +10,7 @@ import {
 } from '@octoprice/core';
 import { api, ApiError, type Overview, type SessionUser } from './api.ts';
 import { claimAccessToken } from './claim.ts';
+import { releaseDeviceSubscription } from './push.ts';
 import { PricesView } from './components/PricesView.tsx';
 import { SettingsView } from './components/SettingsView.tsx';
 import { StatusView } from './components/StatusView.tsx';
@@ -28,7 +29,6 @@ interface InstallPromptEvent extends Event {
 }
 
 const REFRESH_INTERVAL_MS = 60_000;
-const REGION_CONFIRMED_KEY = 'octoprice_region_confirmed_v1';
 
 function initialTab(): Tab {
   if (window.location.pathname.startsWith('/settings')) return 'settings';
@@ -126,6 +126,10 @@ async function claimFromUrl(): Promise<AuthState | null> {
   switch (outcome.kind) {
     case 'claimed':
       forgetToken();
+      // Whoever used this device before may have left a push subscription
+      // behind. It belongs to them, so drop it rather than let their alerts
+      // keep arriving here.
+      await releaseDeviceSubscription();
       return 'signed-in';
     case 'rejected':
       // It will never work, so there is no reason to keep it in the URL.
@@ -145,9 +149,7 @@ export function App(): JSX.Element {
   const [now, setNow] = useState(() => new Date());
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [needsRegion, setNeedsRegion] = useState(
-    () => localStorage.getItem(REGION_CONFIRMED_KEY) !== 'true',
-  );
+
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
   const [showInstall, setShowInstall] = useState(() => !isStandalone());
   const [installHelp, setInstallHelp] = useState<string | null>(null);
@@ -248,16 +250,14 @@ export function App(): JSX.Element {
 
   const onSettingsChange = (updated: UserSettings): void => {
     applyTheme(updated.theme);
-    localStorage.setItem(REGION_CONFIRMED_KEY, 'true');
     setOverview((previous) => (previous ? { ...previous, settings: updated } : previous));
     void load();
   };
 
   const confirmRegion = async (region: RegionCode): Promise<void> => {
-    const updated = await api.updateSettings({ region });
-    localStorage.setItem(REGION_CONFIRMED_KEY, 'true');
-    setNeedsRegion(false);
-    onSettingsChange(updated);
+    // The server marks the region as confirmed and backfills that area's
+    // prices, so the app has something to show the moment this returns.
+    onSettingsChange(await api.updateSettings({ region }));
   };
 
   if (auth === 'checking' || (loading && !overview)) {
@@ -274,7 +274,11 @@ export function App(): JSX.Element {
   }
   if (!overview) return <p className="error">{error ?? 'Could not load OctoPrice.'}</p>;
   const regionCode = isRegionCode(overview.settings.region) ? overview.settings.region : 'C';
-  if (needsRegion) return <RegionSetup initialRegion={regionCode} onConfirm={confirmRegion} />;
+  // Asked per person rather than per device: signing in on a phone somebody
+  // else has used must not inherit their answer.
+  if (!overview.settings.regionConfirmed) {
+    return <RegionSetup initialRegion={regionCode} onConfirm={confirmRegion} />;
+  }
 
   const display = { hour12: overview.settings.hour12 };
   const region = getRegion(regionCode);

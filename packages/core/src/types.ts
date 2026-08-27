@@ -249,6 +249,12 @@ export interface UserSettings {
   notifyRuleMatches: boolean;
   hour12: boolean;
   theme: 'system' | 'light' | 'dark';
+  /**
+   * Whether this person has actually chosen their region, rather than being
+   * left on the default. Lives here, next to the region itself, so it follows
+   * them to any device instead of being remembered per browser.
+   */
+  regionConfirmed: boolean;
   updatedAt: string;
 }
 
@@ -259,6 +265,7 @@ export const userSettingsInputSchema = z.object({
   notifyRuleMatches: z.boolean().optional(),
   hour12: z.boolean().optional(),
   theme: z.enum(['system', 'light', 'dark']).optional(),
+  regionConfirmed: z.boolean().optional(),
 });
 
 export type UserSettingsInput = z.infer<typeof userSettingsInputSchema>;

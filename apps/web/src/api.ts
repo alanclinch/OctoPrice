@@ -168,6 +168,9 @@ export const api = {
   deleteRule: (id: string) => request<void>(`/rules/${id}`, { method: 'DELETE' }),
 
   pushKey: () => request<{ publicKey: string | null; configured: boolean }>('/push/key'),
+  /** Whether this device's subscription belongs to the signed-in person. */
+  pushStatus: (subscription: PushSubscriptionJSON) =>
+    request<{ registered: boolean }>('/push/status', { method: 'POST', body: json(subscription) }),
   subscribePush: (subscription: PushSubscriptionJSON) =>
     request<{ id: string }>('/push/subscribe', { method: 'POST', body: json(subscription) }),
   unsubscribePush: (subscription: PushSubscriptionJSON) =>
