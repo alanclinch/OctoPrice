@@ -41,9 +41,10 @@ implementation is genuinely blocked.
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
 - **Current branch:** `codex/forecast-baseline`
-- **Source control:** implementation commit `6441a82`, pending Claude review
+- **Source control:** Claude review of `6441a82` addressed by `70593e8` on
+  `codex/forecast-baseline`; pending Claude re-review
 - **Build status:** passing — `npm run verify`
-- **Test status:** passing — 321 tests across 13 files
+- **Test status:** passing — 324 tests across 13 files
 - **Deployed:** `https://octoprice.alanclinch.workers.dev` on Cloudflare
   Workers, with D1 in WEUR and a five-minute Cron Trigger
 - **Git remote:** public GitHub repository at
@@ -92,8 +93,106 @@ GitHub remote or a real device:
 
 ## Open Review Findings
 
-No unresolved findings are recorded. Claude should review `6441a82` and add
-any actionable findings here rather than sending them through Alan.
+### Forecast baseline review of `6441a82` — addressed by Codex, 2026-08-27
+
+Reviewed on branch `codex/forecast-baseline`. `npm run verify` passes and
+`npm test` reports 321 tests across 13 files, as claimed. Alert dispatch, the
+rules engine, cheapest windows and notification text were checked by grep and
+genuinely never see a forecast: `buildBaselineForecast` is referenced only by
+`/api/overview`, and `packages/core` rules/windows/notifications contain no
+reference to it. The accuracy claim reproduces exactly — running
+`docs/research/backtest-seasonal-baseline.mjs` against live Octopus data gives
+MAE 3.8158p, and the honest reporting of zero negative-price skill (93 actual
+negatives, 9 predicted, no overlap) is a credit to the work.
+
+All four findings were accepted and resolved. The retained review text below
+records why the changes were necessary; the current evidence and files are in
+the resolution summary after it.
+
+**1. Resolved (was blocking) — the forecast costs ~620 ms of CPU on `/api/overview`, against
+a 10 ms Workers Free budget.** `apps/server/src/api/handler.ts:284` awaits
+`buildBaselineForecast` on the endpoint every screen of the app depends on.
+Measured on this machine with 28 days of two regions (1,344 periods each) and
+96 targets, which is the steady state the code is designed for:
+
+    JSON.parse of 2,688 stored rows           0.84 ms
+    fitRegionalPriceTransform                 6.36 ms
+    forecastSeasonalPrices (96 targets)     616.87 ms
+
+The cause is in `packages/core/src/forecast.ts`: `forecastSeasonalPrices`
+re-scans the whole history inside the `targets.flatMap`, and the filter calls
+`londonMinutesOfDay` and `londonDateOf` on every history row for every target.
+Both go through `Intl.DateTimeFormat.formatToParts`, measured at 4.2 us per
+call, so 96 x 1,344 x ~2 = about 258,000 Intl formats. `fitRegionalPriceTransform`
+on its own already spends 6.4 ms of the 10 ms.
+
+Machine speed is not the issue at 62x over budget: this will be terminated
+with an exceeded-CPU error in production and take the main data endpoint with
+it. The fix is cheap — bucket the history once by `(isWeekend, minutesOfDay)`
+in a single O(n) pass (1,344 Intl calls rather than 258,048) and look each
+target up in the map. Please add a bench or a test asserting the work is
+linear in history length, so this cannot regress silently.
+
+**2. Resolved (was high) — a forecast failure takes down the whole overview response.**
+`buildBaselineForecast` at `apps/server/src/api/handler.ts:284` is awaited
+with no `try`/`catch`, and nothing wraps route dispatch in `handleApiRequest`.
+Any D1 error inside those three `getPrices` calls turns the endpoint that
+serves current price, next price, today, tomorrow and settings into a 500. The
+stated constraint is that forecasting must not weaken confirmed prices, so the
+forecast should be caught and degraded to `periods: []` with a reason, never
+propagated. Relatedly, it runs *after* the existing `Promise.all` rather than
+inside it, adding a needless serial round-trip.
+
+**3. Resolved (was medium) — no kill switch, unlike every other forecasting feature.** The
+input archive is gated behind `FORECAST_ARCHIVE_ENABLED`. The baseline, which
+is user-visible and explicitly experimental, ships on with no environment
+flag, so the only way to withdraw it in production is a redeploy. Given
+finding 1 that matters. Suggest a `FORECAST_BASELINE_ENABLED` defaulting off
+until the CPU work lands.
+
+**4. Resolved (was low) — the back-test measures a shorter lead time than the app ever uses,
+and the displayed range is right about half the time.**
+`backtest-seasonal-baseline.mjs` sets `predictionTime` to one millisecond
+before the target day's own midnight, so history ends the night before the day
+being scored. `buildBaselineForecast` instead ends history at
+`startOfLondonDay(today)` and forecasts `today+1` and `today+2`, a lead time
+one to two days longer. Scoring the shipped configuration over the same window:
+
+    as shipped, tomorrow            n=2592  MAE 4.053p  range coverage 47.0%
+    as shipped, day after tomorrow  n=2592  MAE 3.889p  range coverage 47.0%
+
+So the honest headline figure is about 4.0p, not 3.82p. The gap is small and
+the conclusion is unchanged, but `docs/forecasting.md` and the handoff should
+quote the configuration that ships. Two smaller points in the same area:
+
+- Today's prices are already confirmed and stored by the time this runs, yet
+  the history window stops at the start of today and throws them away.
+  Including them is worth about 0.1p (tomorrow: 3.957p) and costs nothing.
+- The UI labels the P20-P80 band `X-Y recent range`, which is properly
+  descriptive rather than a fabricated confidence interval — but it contains
+  the actual price only 47-49% of the time, and a reader will take a range as
+  a bracket. Consider saying what it is, e.g. "middle of recent prices".
+
+Also noted, not worth blocking on: the back-test only ever exercises the
+identity transform (`fitRegionalPriceTransform(all, all, true)`), so the
+regional path that every non-London user takes is unmeasured; the
+`Experimental estimates from here` separator row in `PriceTable.tsx` repeats
+if confirmed and forecast periods ever interleave across a publication gap;
+and `valueExcVat` is derived by dividing by a hard-coded 1.05.
+
+**Resolution summary.** `prepareForecastHistory` now classifies the sorted
+history once, with DST-aware settlement-slot tests, and shares that pass with
+the transform and all targets. The new benchmark measures 4.01 ms median for
+1,344 periods and 96 targets; doubling history takes 1.70×, and a unit test
+prevents the target loop from reading raw history again. Forecast reads now
+run concurrently with the other overview reads and degrade to `periods: []`,
+reason `failed`, if anything throws; the integration test proves the endpoint
+still returns HTTP 200. `FORECAST_BASELINE_ENABLED` defaults off, production
+opts in explicitly, and disabling it also stops backfill. Today's official
+prices are included. The corrected live back-test measures 3.82p MAE tomorrow
+and 3.99p the following day over 2,736 periods per horizon. The P20–P80 label
+now says “middle of recent prices”; the separator is emitted once; and the
+made-up ex-VAT forecast field was removed.
 
 ### Forecast input archive post-removal review — addressed in `6441a82`
 
@@ -306,7 +405,7 @@ so neither agent re-raises them.
    subscription, or have failed. The ready message now speaks only about
    prices and leaves alerts to the alerts card, which reports actual state.
 
-## Status: baseline implemented, awaiting Claude review
+## Status: Claude's baseline review addressed; ready for re-review
 
 Alan resumed forecasting development on 2026-08-27 with Codex as implementer
 and Claude as reviewer. The existing application remains deployed and stable;
@@ -318,18 +417,20 @@ status page all work in production, and notifications have been verified
 arriving on a real device across a real publication cycle.
 
 **Forecasting now has an experimental user-visible baseline.** It is a rough
-data-based estimate, not a precision claim: measured MAE is 3.82p/kWh and it
-does not predict negative-price events reliably. Those limits are why it is
-labelled throughout and cannot drive alerts or cheapest-window advice.
+data-based estimate, not a precision claim: measured MAE is 3.82p/kWh for
+tomorrow and 3.99p/kWh for the following day, and it does not predict
+negative-price events reliably. Those limits are why it is labelled
+throughout and cannot drive alerts or cheapest-window advice.
 
 ## Currently In Progress
 
 - **Review-ready branch:** `codex/forecast-baseline`
-- **Implementation commit:** `6441a82` (`Add experimental Agile price baseline`)
-- **Owner: Codex. Reviewer: Claude.** Claude should inspect that commit and
-  put its verdict and any findings directly under Open Review Findings.
+- **Review-fix commit:** `70593e8` (`Fix forecast review findings`), on top of
+  implementation commit `6441a82`.
+- **Owner: Codex. Reviewer: Claude.** Claude should re-review `70593e8` and put
+  its verdict and any findings directly under Open Review Findings.
 - Not merged, migrated or deployed. Production remains the stable `main`.
-- `npm run verify` passes: format, lint, type-check, **321 tests**, core/server
+- `npm run verify` passes: format, lint, type-check, **324 tests**, core/server
   builds and PWA/service-worker build.
 - Local browser verification covered first-run setup, the continuous table,
   confirmed-to-estimate boundary, estimate labels/ranges and phone-oriented
@@ -349,15 +450,15 @@ derived peak/off-peak fits that must hold R² >= 0.9999. Missing inputs or a
 failed fit produce no forecast. API requests use D1 only.
 
 The UI merges estimates after confirmed prices, marks the boundary, labels
-every row, shows a descriptive recent range and outlines chart bars. Current,
+every row, shows the middle of recent prices and outlines chart bars. Current,
 next, status, alerts, rules and cheapest windows still use confirmed prices
 only. Confirmed timestamps suppress estimates before the response is returned.
 
 The reproducible back-test (`docs/research/backtest-seasonal-baseline.mjs`)
-scores 2,736 periods: MAE 3.82p, median error 2.53p, p90 error 9.73p, recent
-range coverage 49.2%, below-10p precision/recall about 55%, negative-price
-precision/recall 0%. Exact-weekday matching was measured and rejected as
-worse (4.25p MAE).
+scores 2,736 periods per shipped horizon: tomorrow MAE 3.82p and following-day
+MAE 3.99p. Middle-of-recent-prices coverage is 49.2% and 46.9% respectively;
+negative-price recall remains 0%. Exact-weekday matching was measured and
+rejected as worse (4.25p MAE).
 
 AgilePredict (MIT, actively maintained) was read properly, not just
 summarised: it predicts a day-ahead wholesale series and converts per region
@@ -589,6 +690,23 @@ bundle is 87 kB gzipped, which matters for a phone-first PWA.
 been larger and harder to bend to the negative-price presentation.
 
 ## Recent Agent Handoffs
+
+### 2026-08-27 — Codex, Claude review fixes
+
+**Work completed:** accepted all four findings against `6441a82`. Forecast CPU
+is now linear and benchmarked at 4.01 ms median for the 28-day/96-target shape;
+forecast errors degrade without affecting the overview; reads are concurrent;
+`FORECAST_BASELINE_ENABLED` gates display and backfill; today's confirmed
+prices feed the estimate; both shipped horizons are back-tested; range wording,
+separator repetition and the fabricated ex-VAT field are fixed.
+
+**Verification:** `npm run verify` passed (324 tests). The CPU regression
+benchmark measured a 1.70× runtime increase when history doubled. The live,
+fixed-range Octopus back-test measured 3.82p tomorrow MAE and 3.99p
+following-day MAE over 2,736 periods each. Review-fix commit `70593e8` is ready
+on `codex/forecast-baseline`.
+
+**Outstanding:** Claude re-review. Do not merge or deploy before approval.
 
 ### 2026-08-27 — Codex, experimental forecast baseline
 
