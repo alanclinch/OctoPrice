@@ -175,10 +175,30 @@ Tested from this repository on 2026-08-27.
 | Elexon BMRS | `/balancing/pricing/market-index` | Half-hourly market index price — **training/history only, see 1.2** |
 | NESO | `datastore_search` (resource `db6c038f…`) | Embedded wind and solar forecast, 14 days |
 | Open-Meteo | `/v1/forecast` | Wind speed at 100m, shortwave radiation, temperature, 3+ days |
+| Carbon Intensity (National Grid) | `/intensity/{from}/fw48h` | National carbon intensity forecast, 48h |
+| Carbon Intensity (National Grid) | `/regional/intensity/{from}/fw48h/regionid/{id}` | **Forecast generation mix by fuel, 48h, per DNO region** |
 | Octopus | existing client | Confirmed Agile prices and history, all regions |
 
 All returned JSON over plain HTTPS with no authentication, which means all of
 them are reachable from a Worker with no secret management.
+
+**The Carbon Intensity API deserves separate mention.** It was found by looking
+at what a shipped app credits (see section 5), not by searching, and it is
+arguably the most useful source on the list:
+
+- It forecasts **48 hours ahead**, which is most of the target horizon.
+- It gives **generation mix by fuel** — gas, wind, solar, nuclear, imports,
+  biomass — rather than raw inputs. Gas share matters because gas usually sets
+  the marginal GB price, so this is close to being a price driver already.
+- Its regions are **DNO regions** (`regionid` 2 returns "SP Distribution /
+  South Scotland"), the same structure Agile uses.
+- It is National Grid's own modelled forecast, meaning the demand, wind and
+  solar forecasting has already been done and reconciled by someone with
+  better data than us.
+
+The caveat matches NESO's: the response carries no issue time, so **vintages
+cannot be retrieved after the fact** and it must be archived live from the
+start (section 3a).
 
 ### Requires registration
 
@@ -472,10 +492,10 @@ Confirmed and forecast prices must never be confusable. Proposed treatment:
 When Octopus publishes, the confirmed price supersedes the forecast for that
 settlement period — but the forecast is retained for validation.
 
-### A shipped example, and what it gets wrong
+### A shipped example: Octopus Watch
 
-A third-party Agile app (screenshot supplied by the project owner, 2026-08-27)
-forecasts 48 hours ahead and presents it like this:
+**Octopus Watch** (Android, by Smarthound; screenshots supplied by the project
+owner, 2026-08-27) forecasts 48 hours ahead and presents it like this:
 
 - Forecast rows sit **inline in the same list** as confirmed rows, in
   chronological order.
@@ -509,6 +529,39 @@ than a point where one exists, mark the confirmed/forecast boundary explicitly
 in the list, and treat the price-band colour as something a forecast has to
 earn rather than inherit.
 
+**Its detail view shows carbon intensity and generation mix, not uncertainty.**
+Tapping a period opens gCO2/kWh and a fuel-mix breakdown, credited to the
+Carbon Intensity API. So the answer to "what do users expect behind a forecast
+row" is, in current practice, *context rather than error bars* — no app in
+this space appears to publish a range. Showing one would be a differentiator,
+but it is unvalidated by market practice and should not be assumed to be what
+people want.
+
+### The best idea in it: separate showing from deciding
+
+Its settings split predictions into three switches:
+
+| Setting | Default |
+| ------- | ------- |
+| Show Predicted Rates | **on** |
+| Always Show Agile Predictions (even on another tariff) | **on** |
+| **Use Predictions for Slots** — "use predicted rates to find the slot with lowest cost" | **off** |
+
+That third one is the insight. Displaying a forecast and *acting* on it are
+different risks, and it defaults to the conservative answer: show the
+prediction, but do not let it drive the cheapest-window recommendation unless
+the user opts in.
+
+This is the direct mitigation for the cheap-window regret problem in section
+4.8 — a bad forecast feeding the window calculator turns a wrong number into
+wrong advice, which is worse. **Adopt this.** Forecast display and
+forecast-driven recommendations should be separate settings, and the
+recommendation one should be off until the measured accuracy justifies
+turning it on by default.
+
+Its disclaimer is also worth copying in substance: predictions are
+continuously updated, are estimates, and come without warranty.
+
 ---
 
 ## 6. What this does not yet answer
@@ -521,7 +574,10 @@ Honest gaps, to be closed before implementation:
 - **No baseline error figure exists.** Until the seasonal-naive baseline is
   back-tested, "useful" is undefined and there is nothing to judge a model
   against.
-- **No licensed gas price source has been found.**
+- **No licensed gas price source has been found.** The Carbon Intensity
+  generation mix gives gas *share*, which may be a usable substitute for gas
+  *price* as a marginal-cost signal, but that is a hypothesis to test rather
+  than a solved problem.
 - **How far ahead the fundamentals carry** — whether 72 hours is achievable at
   useful accuracy, or whether it degrades to little better than seasonal-naive
   after 48 — is unknown and should be measured, not assumed.
@@ -537,17 +593,21 @@ worth continuing from:
 These are ordered so that nothing waits on an unknown, and each step is
 worth doing even if the next never happens.
 
-1. **Start collecting NESO observations now.** It is the one source with no
-   retrievable vintage (section 3a), so every day without an archive is a day
-   that can never be back-tested. Nothing else depends on this starting first,
-   which is exactly why it should.
+1. **Start archiving the vintage-less sources now** — NESO *and* the Carbon
+   Intensity forecast (section 3a). Neither can be reconstructed after the
+   fact, so every day without an archive is a day that can never be
+   back-tested. Nothing else depends on this starting first, which is exactly
+   why it should.
 2. **Implement the regional coefficient fitting** from 1.1, with its health
    check. Independently useful, low risk, and ships on its own.
 3. **Back-test the seasonal-naive baseline and publish its error.** Until this
    number exists, "useful" is undefined and no model can be judged.
 4. **Add the fundamentals model** and compare against the baseline by
    walk-forward validation on identical periods, using the decision metrics in
-   section 6 rather than MAE alone.
+   section 4.8 rather than MAE alone. Start with the Carbon Intensity
+   generation-mix forecast: it covers 48 hours, is already reconciled by
+   National Grid, and gas share is close to a price driver in its own right.
+   It may well carry most of the signal that raw wind and demand feeds would.
 5. **Then** storage of live forecasts, UI, notifications, accuracy reporting.
 
 **ENTSO-E is an experiment that runs alongside, not a dependency.** It is
