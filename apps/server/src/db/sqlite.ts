@@ -28,7 +28,13 @@ import type {
   UserSettingsInput,
 } from '@octoprice/core';
 import { FALLBACK_AGILE_PRODUCT_CODE } from '@octoprice/core';
-import type { NewSubscription, NewUser, NotificationLogInput, Store } from './store.ts';
+import type {
+  NewForecastInput,
+  NewSubscription,
+  NewUser,
+  NotificationLogInput,
+  Store,
+} from './store.ts';
 
 /**
  * Schema migrations, read from the same `migrations/*.sql` files that
@@ -596,6 +602,49 @@ export class SqliteStore implements Store {
         userId,
       );
     return this.getSettings(userId);
+  }
+
+  // --- Forecasting input archive -------------------------------------------
+
+  appendForecastInputs(rows: readonly NewForecastInput[]): number {
+    if (rows.length === 0) return 0;
+    const statement = this.db.prepare(
+      `INSERT INTO forecast_inputs
+         (id, source, target_start, issued_at, collected_at, payload)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    );
+    this.db.exec('BEGIN');
+    try {
+      for (const row of rows) {
+        statement.run(
+          randomUUID(),
+          row.source,
+          row.targetStart,
+          row.issuedAt,
+          row.collectedAt,
+          JSON.stringify(row.payload),
+        );
+      }
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
+    return rows.length;
+  }
+
+  lastForecastInputAt(source: string): string | null {
+    const row = this.db
+      .prepare(
+        'SELECT collected_at FROM forecast_inputs WHERE source = ? ORDER BY collected_at DESC LIMIT 1',
+      )
+      .get(source) as { collected_at: string } | undefined;
+    return row?.collected_at ?? null;
+  }
+
+  countForecastInputs(): number {
+    const row = this.db.prepare('SELECT COUNT(*) AS n FROM forecast_inputs').get() as { n: number };
+    return row.n;
   }
 
   // --- Worker state --------------------------------------------------------

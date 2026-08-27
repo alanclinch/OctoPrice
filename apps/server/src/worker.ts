@@ -12,6 +12,7 @@ import { WebPushSender } from './notifications/webpush.ts';
 import { AlertDispatcher } from './alerts/dispatcher.ts';
 import { PricePoller } from './scheduler/poller.ts';
 import { handleApiRequest } from './api/handler.ts';
+import { runArchive } from './forecast/archive.ts';
 
 interface Env {
   DB: D1Database;
@@ -26,6 +27,7 @@ interface Env {
   VAPID_PUBLIC_KEY?: string;
   VAPID_PRIVATE_KEY?: string;
   VAPID_SUBJECT?: string;
+  FORECAST_ARCHIVE_ENABLED?: string;
   OCTOPRICE_COMMIT?: string;
 }
 
@@ -58,6 +60,7 @@ function configFor(env: Env): AppConfig {
     POLL_START: env.POLL_START ?? '16:05',
     POLL_INTERVAL_MINUTES: env.POLL_INTERVAL_MINUTES ?? '5',
     POLL_CUTOFF: env.POLL_CUTOFF ?? '22:15',
+    FORECAST_ARCHIVE_ENABLED: env.FORECAST_ARCHIVE_ENABLED ?? 'true',
   };
 
   for (const key of [
@@ -181,16 +184,32 @@ export default {
   },
 
   async scheduled(_controller: ScheduledController, env: Env, context: ExecutionContext) {
-    const { poller } = await getRuntime(env);
+    const { poller, store, logger, config } = await getRuntime(env);
 
-    // Two jobs on every invocation, deliberately different in cost.
+    // Three jobs on every invocation, deliberately different in cost.
     //
     // `runScheduled` talks to Octopus, but only inside the publication window;
     // outside it the poll plan makes it a no-op, so the cron can safely run
     // all day. `checkUpcoming` reads stored prices only and never touches the
     // network, which is what lets "starting soon" alerts fire at any hour.
-    context.waitUntil(
-      Promise.all([poller.runScheduled(), poller.checkUpcoming()]).then(() => undefined),
-    );
+    //
+    // The archive is separate from both, on its own much slower cadence, and
+    // is the only one that may fail without consequence. It is deliberately
+    // last and deliberately isolated: nothing about confirmed prices or
+    // notifications depends on it, and a grid feed being down must not be
+    // able to affect them.
+    const jobs: Promise<unknown>[] = [poller.runScheduled(), poller.checkUpcoming()];
+
+    if (config.forecastArchiveEnabled) {
+      jobs.push(
+        runArchive({
+          store,
+          logger,
+          intervalMinutes: config.forecastArchiveIntervalMinutes,
+        }),
+      );
+    }
+
+    context.waitUntil(Promise.all(jobs).then(() => undefined));
   },
 } satisfies ExportedHandler<Env>;

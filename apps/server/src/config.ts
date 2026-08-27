@@ -43,6 +43,17 @@ const envSchema = z.object({
 
   /** Directory of built PWA assets to serve. Empty disables static serving. */
   WEB_DIST_PATH: z.string().default('../web/dist'),
+
+  /**
+   * Collect forecasting inputs that cannot be retrieved later. Costs a few
+   * hundred database rows a day and changes nothing a user sees; the reason
+   * to run it now is that the archive cannot be backfilled.
+   */
+  FORECAST_ARCHIVE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
+  FORECAST_ARCHIVE_INTERVAL_MINUTES: z.coerce.number().int().min(30).max(1440).default(180),
 });
 
 export interface VapidConfig {
@@ -72,6 +83,8 @@ export interface AppConfig {
   };
   enableScheduler: boolean;
   webDistPath: string;
+  forecastArchiveEnabled: boolean;
+  forecastArchiveIntervalMinutes: number;
   userId: string;
 }
 
@@ -126,6 +139,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     },
     enableScheduler: e.ENABLE_SCHEDULER,
     webDistPath: e.WEB_DIST_PATH,
+    forecastArchiveEnabled: e.FORECAST_ARCHIVE_ENABLED,
+    forecastArchiveIntervalMinutes: e.FORECAST_ARCHIVE_INTERVAL_MINUTES,
     userId: DEFAULT_USER_ID,
   };
 }

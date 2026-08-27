@@ -45,6 +45,24 @@ docs/                architecture, octopus-api, notifications, deployment
 deploy/cloudflare/   Example named-tunnel configuration; never credentials
 ```
 
+## Forecasting
+
+Predicted prices are a *proposed* enhancement, designed in
+`docs/forecasting.md` and not implemented. Two findings from that research
+bind any future work:
+
+- Agile regions are exact linear transforms of one another once peak
+  (16:00-19:00 local) and off-peak are separated - R^2 of 1.000000 over 1441
+  periods. Forecast one reference region and map the rest; never model regions
+  separately, and never hard-code the coefficients.
+- Elexon's MID dataset is *not* the wholesale series Agile derives from. It is
+  fine for history and training, useless as the input.
+
+Forecasting must never be able to break confirmed prices. It runs in its own
+cron branch, and a run with missing inputs produces no forecast rather than a
+worse one. A forecast must never be displayable as though it were an official
+Octopus price.
+
 ## Build and test commands
 
 ```bash

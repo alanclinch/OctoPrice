@@ -55,6 +55,17 @@ export interface NewUser {
   tokenHash: string;
 }
 
+export interface NewForecastInput {
+  source: string;
+  /** Settlement period the observation is about, ISO 8601 UTC. */
+  targetStart: string;
+  /** The source's own publish time, or null when it does not provide one. */
+  issuedAt: string | null;
+  collectedAt: string;
+  /** Source-shaped values, stored as JSON. */
+  payload: Record<string, number | string>;
+}
+
 export interface Store {
   // --- Users -------------------------------------------------------------
 
@@ -131,6 +142,18 @@ export interface Store {
    */
   listAllSettings(): StoreResult<UserSettings[]>;
   updateSettings(userId: string, input: UserSettingsInput): StoreResult<UserSettings>;
+
+  // --- Forecasting input archive -----------------------------------------
+
+  /**
+   * Appends collected observations. Insert-only by design: a later collection
+   * of the same period is a new row, because the difference between the two
+   * is the revision a back-test must not be allowed to see.
+   */
+  appendForecastInputs(rows: readonly NewForecastInput[]): StoreResult<number>;
+  /** When a source was last collected, for staleness reporting. */
+  lastForecastInputAt(source: string): StoreResult<string | null>;
+  countForecastInputs(): StoreResult<number>;
 
   // --- Worker state ------------------------------------------------------
 

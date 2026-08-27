@@ -23,7 +23,7 @@ original conversation.
 - **Current branch:** `main`
 - **Source control:** clean `main`, synced to `origin/main`
 - **Build status:** passing — `npm run verify`
-- **Test status:** passing — 281 tests across 10 files
+- **Test status:** passing — 298 tests across 11 files
 - **Deployed:** `https://octoprice.alanclinch.workers.dev` on Cloudflare
   Workers, with D1 in WEUR and a five-minute Cron Trigger
 - **Git remote:** public GitHub repository at
@@ -72,9 +72,92 @@ GitHub remote or a real device:
 
 ## Open Review Findings
 
-None outstanding. Codex raised four on 2026-08-27 against `fb6615d` and
-`ed1fc65`; all are resolved, in `main`, and deployed. Kept here briefly with
-their outcomes so neither agent re-raises them.
+### Further forecasting research review — addressed
+
+Codex raised four more on 2026-08-27 against `4f118e1`–`5f58370`. All four
+valid; two were claims I had made without checking. Codex re-reviewed the
+answers in `3011529`, reran the revised sizing experiment, and found no further
+actionable issue. Nothing outstanding.
+
+1. **P1 — Cron does not escape the CPU limit.** *Confirmed against Cloudflare's
+   docs, and my escape hatch was wrong.* Workers Free gives a Cron Trigger the
+   same **10 ms** as an HTTP request; only the Paid plan gets 30 s, or 15 min
+   at intervals of an hour or more. "Precompute on cron" therefore protects
+   request latency and nothing else. The real choice is to stay inside the
+   small-model envelope or generate forecasts outside Cloudflare — GitHub
+   Actions, already proposed for training, with the Worker ingesting immutable
+   results.
+2. **P1 — Carbon Intensity terms.** *Read and documented.* CC BY 4.0 plus
+   terms that matter: must not conceal the application's identity (so send a
+   descriptive User-Agent — the Worker currently sends none), rate limited with
+   blocking for heavy callers, must not substantially replace NESO's core
+   experience, no implied endorsement, word mark and logo need written
+   approval, and the service may be withdrawn without notice. Now a table in
+   `docs/forecasting.md` section 3, to be settled before collection starts.
+   This is the second time I have used a source before checking its terms.
+3. **P2 — regional carbon mix is not a regional price signal.** *Accepted; it
+   contradicted my own finding 1.1.* Agile's regional differences are a fixed
+   retail transform of one GB series, so there is no regional price signal for
+   regional carbon data to supply. The matching DNO geography is a trap. Use
+   the **national** mix as a candidate feature; regional mix is user context
+   only. Also noted: gas *share* is not a substitute for gas *price*, since
+   the same share means different things at different gas costs.
+4. **P2 — the CPU figures were a sizing experiment reported as a benchmark.**
+   *Accepted and fixed.* Codex's rerun differed by ~55%, which was fair: the
+   script was unseeded and reported a single mean. It is now seeded, reports
+   median and p95 over 15 repeats, and records runtime and hardware. Even
+   seeded, the large cases swing 50%+ between runs (GC under multi-megabyte
+   structures) while small cases are stable — so the document now says to read
+   the verdict column, not the milliseconds. Free-tier feasibility is only
+   settled by a deployed Worker reporting its own CPU time.
+
+### Forecasting research review — addressed
+
+Codex raised six design gates on 2026-08-27 against `docs/forecasting.md`.
+All six were valid; four are now answered with measurement rather than
+agreement, and two are corrections to the document. Nothing outstanding.
+
+1. **P1 — input vintage / leakage.** *Answered, and it matters.* Tested which
+   sources can be asked what they said at the time: Elexon exposes vintages via
+   `/history?publishTime=` and `/datasets?publishDateTimeFrom=`, Open-Meteo
+   via `historical-forecast-api`. **NESO does not** — its fields carry no
+   issue time — so a live NESO archive must start before any NESO feature is
+   trusted in a back-test. That is now step 1 of the plan, ahead of everything
+   else, because every day without it is a day that can never be reconstructed.
+   Recorded as section 3a.
+2. **P1 — a fitted regional value must never be shown as confirmed.**
+   *Accepted, and stated as a constraint.* The transform is exact to 0.01p,
+   which is exactly what makes it tempting to misuse. Confirmed prices come
+   from the Octopus API for that region and nowhere else.
+3. **P2 — Worker CPU unproven.** *Measured, and the concern was justified.*
+   `docs/research/bench-inference.mjs` over 144 periods: linear 0.010 ms,
+   100 trees 0.79 ms, 300 trees 2.73 ms, but 500 trees depth 8 costs 12.1 ms
+   and 1000 trees 29.7 ms — over a 10 ms budget. Tiers 1–2 are comfortable; a
+   full-size ensemble is not, and AgilePredict runs three. If a large model is
+   ever needed, forecasts must be precomputed on cron and the request path
+   only read D1. Artefacts to be versioned and integrity-checked, not fetched
+   as mutable data.
+4. **P2 — decision metrics, not just MAE.** *Accepted; section 4.8 added.*
+   Cheap-window regret, event precision/recall, pinball loss, and interval
+   coverage. The calibration point is the sharpest one: a P10–P90 output is not
+   an 80% interval until observed coverage says so, and the earlier draft
+   implied quantiles give a trustworthy interval for free.
+5. **P2 — ENTSO-E is an experiment, not the dependency.** *Accepted; the plan
+   was reordered.* Calling it "the single biggest open question" overstated it.
+   Even a good result mainly helps the same-day horizon and does not touch the
+   48–72 hour problem. The baseline and the input archive unblock everything
+   and proceed without it.
+6. **P2 — make the findings reproducible.** *Done.* `docs/research/` now holds
+   `fit-regional-coefficients.mjs` and `bench-inference.mjs`, each recording
+   product codes, date ranges, VAT treatment, alignment and regression method.
+   The regional script warns if the relationship stops being exact, so it
+   doubles as the methodology-change detector.
+
+### Earlier application review — resolved
+
+Codex raised four findings on 2026-08-27 against `fb6615d` and `ed1fc65`; all
+are resolved, in `main`, and deployed. Kept here briefly with their outcomes
+so neither agent re-raises them.
 
 1. **P1 — existing users could remain on an unconfirmed default region.**
    *Resolved: no defect in this installation.* The concern is sound in general
@@ -106,7 +189,60 @@ their outcomes so neither agent re-raises them.
 ## Currently In Progress
 
 - Nothing is half-finished. `main` is deployed and verified live.
-- Nothing awaiting implementation.
+- Forecasting: the **input archive is built** (`docs/forecasting.md` section
+  8) and is the only forecasting code that exists. It produces no forecasts
+  and changes nothing a user sees. Everything else remains design.
+  Next: regional coefficient fitting, then the seasonal-naive baseline with
+  its error published.
+
+## Forecasting
+
+Stages 1-4 are recorded in `docs/forecasting.md`, and stage 5's first piece
+- the input archive - is built and running. It collects the two sources that
+cannot supply history (Carbon Intensity and NESO), insert-only so vintages are
+never overwritten, bounded to the forecast horizon, and isolated so it cannot
+affect confirmed prices. It produces no forecasts.
+
+A practical note for whoever continues: the CPU constraint from section 4.6
+showed up immediately. Parse and shape of the collected payloads was 2.5 ms of
+the 10 ms Worker budget until the NESO request was narrowed from 700 records
+to 200, which halved it with no loss of usable coverage. Expect to keep
+measuring this rather than assuming.
+
+AgilePredict (MIT, actively maintained) was read properly, not just
+summarised: it predicts a day-ahead wholesale series and converts per region
+with hardcoded `(multiplier, peak_adder)` config, which is the same shape as
+finding 1 below. That architecture is prior art, not a new idea here.
+
+Two findings bind whatever gets built:
+
+- **Regions are exact linear transforms of one another** once peak and
+  off-peak are separated. R^2 of 1.000000 over 1441 periods, worst error
+  0.009p, holding through negative prices and a 65p spike. Forecast one
+  reference region and map the rest. The contribution over AgilePredict is
+  narrower than it first looked: not the conversion idea, but *deriving* the
+  coefficients from published prices instead of hardcoding them — exact rather
+  than rounded, self-updating, and the fit quality doubles as a detector for a
+  methodology change. AgilePredict's hardcoded factors are 2020-era and April
+  2026 brought a flat −3.5p/kWh change, which is the fragility to avoid.
+- **Elexon MID is not the Agile input.** R^2 of only 0.70 against Agile. It is
+  the within-day market index; Agile comes from the EPEX half-hourly
+  day-ahead auction that clears at 15:45, fifteen minutes before Octopus
+  publishes. Fine for history, useless as the forward input.
+
+The immediate open questions are the honest baseline accuracy and collecting
+unrevised vintages from sources that cannot provide history. ENTSO-E remains a
+parallel experiment for improving the short same-day horizon; it is not a
+dependency for the 48–72-hour fundamentals forecast.
+
+Verified working with no API key: Elexon (day-ahead demand, wind forecast,
+generation outturn, daily surplus, market index), NESO (embedded wind and
+solar, 14 days), Open-Meteo. All reachable from a Worker with no secrets.
+
+Recommended order, from `docs/forecasting.md` section 7: begin the live input
+archive, fit and monitor regional forecast coefficients, then back-test a
+seasonal-naive baseline and *publish its error* before judging any model
+against it. Test ENTSO-E alongside those steps rather than blocking them.
 
 ## Next Recommended Work
 
