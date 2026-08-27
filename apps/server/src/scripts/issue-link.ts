@@ -18,7 +18,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { rmSync, writeFileSync } from 'node:fs';
 
 const OUTPUT_FILE = '.octoprice-link.txt';
 
@@ -58,11 +58,31 @@ async function main(): Promise<void> {
     db.close();
     process.stdout.write(`Issued a link in ${sqlitePath}.\n`);
   } else {
-    const args = ['wrangler', 'd1', 'execute', 'octoprice', local ? '--local' : '--remote'];
-    args.push('--command', sql, '--yes');
+    // The statement goes through a file rather than --command. Passing SQL as
+    // an argument means the shell has to quote a string containing spaces and
+    // quote marks, which silently mangles it on Windows.
+    const sqlFile = '.octoprice-issue-link.sql';
+    writeFileSync(sqlFile, sql, 'utf8');
 
     process.stdout.write(`Issuing a link against the ${local ? 'local' : 'remote'} database...\n`);
-    execFileSync('npx', args, { stdio: 'inherit', shell: process.platform === 'win32' });
+    try {
+      execFileSync(
+        'npx',
+        [
+          'wrangler',
+          'd1',
+          'execute',
+          'octoprice',
+          local ? '--local' : '--remote',
+          '--file',
+          sqlFile,
+          '--yes',
+        ],
+        { stdio: 'inherit', shell: process.platform === 'win32' },
+      );
+    } finally {
+      rmSync(sqlFile, { force: true });
+    }
   }
 
   const link = siteUrl ? `${siteUrl.replace(/\/$/, '')}/?invite=${token}` : `/?invite=${token}`;

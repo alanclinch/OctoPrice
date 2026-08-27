@@ -40,3 +40,4 @@ coverage/
 .idea/
 .DS_Store
 Thumbs.db
+.octoprice-issue-link.sql
