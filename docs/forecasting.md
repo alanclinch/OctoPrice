@@ -918,5 +918,5 @@ concurrently with the other overview reads and any forecast exception degrades
 to no estimates while confirmed prices still return normally.
 
 `FORECAST_BASELINE_ENABLED` is the independent kill switch. It defaults off
-for local and unspecified environments; production opts in in `wrangler.jsonc`.
-Turning it off also stops the historical backfill job.
+and remains off for the first production deployment while end-to-end Worker
+CPU is measured. Turning it off also stops the historical backfill job.

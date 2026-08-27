@@ -41,8 +41,8 @@ implementation is genuinely blocked.
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
 - **Current branch:** `codex/forecast-baseline`
-- **Source control:** Claude review of `6441a82` addressed by `70593e8` on
-  `codex/forecast-baseline`; pending Claude re-review
+- **Source control:** Claude approved `70593e8` in `39b48a1`; release
+  preparation is in progress on `codex/forecast-baseline`
 - **Build status:** passing — `npm run verify`
 - **Test status:** passing — 324 tests across 13 files
 - **Deployed:** `https://octoprice.alanclinch.workers.dev` on Cloudflare
