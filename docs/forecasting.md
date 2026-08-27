@@ -705,8 +705,57 @@ a few hundred database rows a day.
 | `neso_embedded` | 144 | Embedded wind and solar forecast and capacity |
 
 Verified against the live APIs. Roughly 240 rows a run and, at the default
-three-hour interval, about 1,900 rows a day — comfortably inside D1's free
-allowance of 100,000 writes a day.
+three-hour interval, about 1,900 rows a day.
+
+**Storage, measured rather than guessed.** Production rows average **235
+bytes**, so the archive grows about **0.43 MB a day**, or ~157 MB a year of
+payload before index overhead — realistically 300–400 MB a year with the two
+indexes. A **free D1 database is capped at 500 MB** (the 5 GB figure is the
+per-*account* total, which an earlier draft confused). So the archive cannot
+be kept indefinitely, and describing it as comfortably free long-term was
+wrong.
+
+Retention is therefore explicit: observations about periods older than
+`FORECAST_ARCHIVE_RETENTION_DAYS` (default **180**) are pruned after a
+successful collection — never after a failed one, so a broken archive does not
+spend its invocation deleting history it is no longer replacing. At 180 days
+that is roughly 80 MB of payload, which fits alongside the price data.
+
+Anything wanting a longer history needs an export to R2 or elsewhere first.
+That is not built.
+
+### Corrected after review
+
+Five findings from a review of the first version. Recorded because three of
+them were only visible against the live API or the deployed table, not in a
+passing test suite.
+
+1. **NESO periods were all collapsed onto midnight.** `DATE_GMT` is the *day*
+   (`2026-08-27T00:00:00`); the half-hour lives in `TIME_GMT` (`15:30`).
+   Reading the date alone stamped all 48 periods of a day with the same
+   instant, and the deployed table showed 144 rows across just 3 distinct
+   periods. **The test fixture caused this**: it invented a full timestamp in
+   `DATE_GMT`, a shape the API never produces, so the collector passed. The
+   fixture now uses the real shape. There was a second bug underneath:
+   `DATE_GMT` carries no timezone, so `Date.parse` read it in the runtime's
+   zone — the same code produced 23:00Z locally and 00:00Z in the Worker.
+   Components are now assembled with `Date.UTC`. The affected rows were
+   deleted from production; they could not be repaired because the settlement
+   period was not stored either, and it now is.
+2. **The archive was not actually isolated from price polling.** All three
+   jobs were handed to `Promise.all`, which starts them together — so calling
+   the archive "deliberately last" in a comment was simply false, and they
+   shared one 10 ms CPU allowance. `runScheduledJobs` now awaits the core work
+   before the archive begins, with a test asserting the order.
+3. **One succeeding source suppressed retries for a failing one.** A single
+   shared last-run marker meant that if Carbon Intensity worked and NESO
+   failed, NESO waited the full three hours rather than being retried — losing
+   vintages that cannot be recovered. Sources are now scheduled and retried
+   independently.
+4. **The Worker ignored the configured interval.** `FORECAST_ARCHIVE_INTERVAL_MINUTES`
+   existed in the config schema but was never threaded through the Worker's
+   `Env`, so production always used the default. Fixed, along with retention.
+5. **Growth was understated and unbounded.** See below.
 
 ### Design points worth keeping
 

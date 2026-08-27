@@ -154,6 +154,11 @@ export interface Store {
   /** When a source was last collected, for staleness reporting. */
   lastForecastInputAt(source: string): StoreResult<string | null>;
   countForecastInputs(): StoreResult<number>;
+  /**
+   * Deletes observations about periods older than `before`. A free D1
+   * database is capped at 500 MB, so the archive cannot grow indefinitely.
+   */
+  pruneForecastInputsBefore(before: Date): StoreResult<number>;
 
   // --- Worker state ------------------------------------------------------
 

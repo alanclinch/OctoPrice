@@ -14,11 +14,13 @@ import {
   archiveStatus,
   isDue,
   runArchive,
+  runScheduledJobs,
 } from '../src/forecast/archive.ts';
 import {
   COLLECTOR_USER_AGENT,
   collectCarbonIntensity,
   collectNesoEmbedded,
+  nesoTargetStart,
 } from '../src/forecast/collectors.ts';
 import { silentLogger } from './helpers.ts';
 
@@ -53,15 +55,27 @@ function mixBody(periods: number, base: Date = NOW) {
   };
 }
 
+/**
+ * NESO's real shape: `DATE_GMT` is the *day*, with a midnight time and no
+ * timezone, and the half-hour lives separately in `TIME_GMT`.
+ *
+ * An earlier fixture invented a full timestamp in `DATE_GMT`. That is why a
+ * collector reading `DATE_GMT` alone passed its tests and then collapsed
+ * every period of a day onto midnight in production.
+ */
 function nesoBody(records: number, base: Date = NOW) {
   return {
     result: {
-      records: Array.from({ length: records }, (_, index) => ({
-        DATE_GMT: new Date(base.getTime() + index * 30 * 60 * 1000).toISOString(),
-        SETTLEMENT_PERIOD: (index % 48) + 1,
-        EMBEDDED_WIND_FORECAST: 1000 + index,
-        EMBEDDED_SOLAR_FORECAST: 500,
-      })),
+      records: Array.from({ length: records }, (_, index) => {
+        const at = new Date(base.getTime() + index * 30 * 60 * 1000);
+        return {
+          DATE_GMT: `${at.toISOString().slice(0, 10)}T00:00:00`,
+          TIME_GMT: at.toISOString().slice(11, 16),
+          SETTLEMENT_PERIOD: (index % 48) + 1,
+          EMBEDDED_WIND_FORECAST: 1000 + index,
+          EMBEDDED_SOLAR_FORECAST: 500,
+        };
+      }),
     },
   };
 }
@@ -307,7 +321,7 @@ describe('it cannot break anything else', () => {
           neso: nesoBody(2),
         }),
       }),
-    ).resolves.toMatchObject({ reason: 'failed' });
+    ).resolves.toMatchObject({ stored: 0 });
   });
 
   it('leaves the price tables untouched', async () => {
@@ -325,5 +339,196 @@ describe('it cannot break anything else', () => {
     expect(store.countPrices()).toBe(0);
     // And nothing has claimed a pricing day as retrieved.
     expect(store.getState('retrieved_date:E-1R-AGILE-24-10-01-C:2026-08-28')).toBeNull();
+  });
+});
+
+describe('NESO settlement period timestamps', () => {
+  it('combines the date and the time, rather than reading the date alone', () => {
+    // The bug this exists for: DATE_GMT is the day, TIME_GMT is the half-hour.
+    expect(nesoTargetStart('2026-08-27T00:00:00', '15:30')).toBe('2026-08-27T15:30:00.000Z');
+    expect(nesoTargetStart('2026-08-27T00:00:00', '00:00')).toBe('2026-08-27T00:00:00.000Z');
+  });
+
+  it('treats the fields as UTC whatever the runtime timezone is', () => {
+    // DATE_GMT carries no offset, so Date.parse read it in the *local* zone:
+    // the same code produced 23:00Z on a BST workstation and 00:00Z in the
+    // Worker. The field is named GMT and is now treated as such everywhere.
+    expect(nesoTargetStart('2026-06-15T00:00:00', '12:00')).toBe('2026-06-15T12:00:00.000Z');
+    expect(nesoTargetStart('2026-01-15T00:00:00', '12:00')).toBe('2026-01-15T12:00:00.000Z');
+  });
+
+  it('rolls hour 24 into the following day', () => {
+    expect(nesoTargetStart('2026-08-27T00:00:00', '24:00')).toBe('2026-08-28T00:00:00.000Z');
+  });
+
+  it('rejects a record it cannot place, rather than putting it at midnight', () => {
+    // A missing row is recoverable. A row at the wrong instant is not.
+    expect(nesoTargetStart('2026-08-27T00:00:00', undefined)).toBeNull();
+    expect(nesoTargetStart('2026-08-27T00:00:00', 'nonsense')).toBeNull();
+    expect(nesoTargetStart(undefined, '15:30')).toBeNull();
+    expect(nesoTargetStart('not-a-date', '15:30')).toBeNull();
+  });
+
+  it('gives every collected period its own instant', async () => {
+    const rows = await collectNesoEmbedded({
+      logger: silentLogger(),
+      now: () => NOW,
+      fetchFn: fakeFetch({ neso: nesoBody(48) }),
+    });
+
+    const distinct = new Set(rows.map((row) => row.targetStart));
+    expect(rows.length).toBeGreaterThan(1);
+    expect(distinct.size).toBe(rows.length);
+  });
+
+  it('keeps the settlement period, so a stored row can be checked later', async () => {
+    const rows = await collectNesoEmbedded({
+      logger: silentLogger(),
+      now: () => NOW,
+      fetchFn: fakeFetch({ neso: nesoBody(4) }),
+    });
+    expect(rows[0]?.payload.settlementPeriod).toBeTypeOf('number');
+  });
+});
+
+describe('per-source scheduling and retry', () => {
+  let store: SqliteStore;
+
+  beforeEach(() => {
+    store = makeStore();
+  });
+
+  afterEach(() => {
+    store.close();
+  });
+
+  it('retries a failed source on the next invocation, even when another succeeded', async () => {
+    // The bug: a single shared "last run" marker meant one succeeding source
+    // suppressed retries for a failing one for the whole interval, losing
+    // vintages that cannot be recovered.
+    await runArchive({
+      store,
+      logger: silentLogger(),
+      now: () => NOW,
+      fetchFn: fakeFetch({
+        '/intensity/': intensityBody(4),
+        '/generation/': mixBody(4),
+        neso: new Error('down'),
+      }),
+    });
+
+    expect(await store.lastForecastInputAt('neso_embedded')).toBeNull();
+
+    // One minute later, well inside the interval, NESO is retried.
+    const soon = new Date(NOW.getTime() + 60 * 1000);
+    const result = await runArchive({
+      store,
+      logger: silentLogger(),
+      now: () => soon,
+      fetchFn: fakeFetch({
+        '/intensity/': intensityBody(4, soon),
+        '/generation/': mixBody(4, soon),
+        neso: nesoBody(4, soon),
+      }),
+    });
+
+    const neso = result.perSource.find((entry) => entry.source === 'neso_embedded');
+    const carbon = result.perSource.find((entry) => entry.source === 'carbon_intensity');
+
+    expect(neso?.stored).toBeGreaterThan(0);
+    // ...while the source that already succeeded is left alone.
+    expect(carbon?.ran).toBe(false);
+    expect(carbon?.reason).toBe('not due');
+  });
+});
+
+describe('retention', () => {
+  let store: SqliteStore;
+
+  const ancient = (at: Date) => ({
+    source: 'carbon_intensity',
+    targetStart: at.toISOString(),
+    issuedAt: null,
+    collectedAt: at.toISOString(),
+    payload: { intensityForecast: 100 },
+  });
+
+  beforeEach(() => {
+    store = makeStore();
+  });
+
+  afterEach(() => {
+    store.close();
+  });
+
+  it('removes observations older than the retention window', async () => {
+    store.appendForecastInputs([ancient(new Date(NOW.getTime() - 200 * 24 * 3600 * 1000))]);
+    expect(store.countForecastInputs()).toBe(1);
+
+    const result = await runArchive({
+      store,
+      logger: silentLogger(),
+      now: () => NOW,
+      retentionDays: 180,
+      fetchFn: fakeFetch({
+        '/intensity/': intensityBody(4),
+        '/generation/': mixBody(4),
+        neso: nesoBody(4),
+      }),
+    });
+
+    expect(result.pruned).toBe(1);
+  });
+
+  it('does not prune when nothing was stored', async () => {
+    store.appendForecastInputs([ancient(new Date(NOW.getTime() - 200 * 24 * 3600 * 1000))]);
+
+    // A failing archive must not spend its invocation deleting history it is
+    // no longer replacing.
+    const result = await runArchive({
+      store,
+      logger: silentLogger(),
+      now: () => NOW,
+      retentionDays: 180,
+      fetchFn: fakeFetch({
+        '/intensity/': new Error('down'),
+        '/generation/': new Error('down'),
+        neso: new Error('down'),
+      }),
+    });
+
+    expect(result.pruned).toBe(0);
+    expect(store.countForecastInputs()).toBe(1);
+  });
+});
+
+describe('scheduled job ordering', () => {
+  it('finishes the core work before the archive starts', async () => {
+    // Handing all three to Promise.all starts them together and makes them
+    // compete for one 10 ms CPU allowance, whatever the comment above says.
+    const order: string[] = [];
+    await runScheduledJobs({
+      core: async () => {
+        order.push('core:start');
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        order.push('core:end');
+      },
+      archive: async () => {
+        order.push('archive:start');
+      },
+    });
+
+    expect(order).toEqual(['core:start', 'core:end', 'archive:start']);
+  });
+
+  it('skips the archive entirely when it is not enabled', async () => {
+    const order: string[] = [];
+    await runScheduledJobs({
+      core: async () => {
+        order.push('core');
+      },
+      archive: undefined,
+    });
+    expect(order).toEqual(['core']);
   });
 });

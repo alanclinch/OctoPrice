@@ -181,6 +181,42 @@ export async function collectCarbonIntensity(options: CollectorOptions): Promise
 /** NESO's 14-day embedded wind and solar forecast. */
 const NESO_EMBEDDED_RESOURCE = 'db6c038f-98af-4570-ab60-24d71ebd0ae5';
 
+/**
+ * Builds the settlement period instant from NESO's two fields.
+ *
+ * `DATE_GMT` is the *day* only - every half-hour of 27 August arrives as
+ * `2026-08-27T00:00:00` - and the half-hour lives in `TIME_GMT` as `15:30`.
+ * Reading the date alone collapses all 48 periods onto midnight, which is
+ * exactly what an earlier version did, and the resulting rows cannot be
+ * joined to a price period or repaired afterwards.
+ *
+ * The components are assembled with `Date.UTC` rather than parsed as a
+ * string. `DATE_GMT` carries no timezone, so `Date.parse` would read it in
+ * the *runtime's* zone: the same code produced 23:00Z on a BST workstation
+ * and 00:00Z in the Worker. The field is named GMT, so it is treated as UTC
+ * everywhere.
+ *
+ * A record with no usable time is rejected rather than placed at midnight.
+ * A missing row is recoverable; a row at the wrong instant is not.
+ */
+export function nesoTargetStart(dateGmt: unknown, timeGmt: unknown): string | null {
+  if (typeof dateGmt !== 'string' || typeof timeGmt !== 'string') return null;
+
+  const date = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateGmt);
+  const time = /^(\d{1,2}):(\d{2})/.exec(timeGmt);
+  if (!date || !time) return null;
+
+  const hour = Number(time[1]);
+  const minute = Number(time[2]);
+  if (hour > 24 || minute > 59) return null;
+
+  // Date.UTC rolls hour 24 into the next day, which is how some feeds spell
+  // the final period.
+  return new Date(
+    Date.UTC(Number(date[1]), Number(date[2]) - 1, Number(date[3]), hour, minute),
+  ).toISOString();
+}
+
 interface NesoRecord {
   DATE_GMT?: unknown;
   TIME_GMT?: unknown;
@@ -213,10 +249,18 @@ export async function collectNesoEmbedded(
 
   const collected: CollectedInput[] = [];
   for (const record of body.result?.records ?? []) {
-    const targetStart = toIso(record.DATE_GMT);
+    const targetStart = nesoTargetStart(record.DATE_GMT, record.TIME_GMT);
     if (!targetStart) continue;
 
     const payload: Record<string, number | string> = {};
+    // Kept so a stored row can be checked against its own settlement period
+    // later, rather than being trusted blind.
+    if (typeof record.SETTLEMENT_PERIOD === 'number') {
+      payload.settlementPeriod = record.SETTLEMENT_PERIOD;
+    } else if (typeof record.SETTLEMENT_PERIOD === 'string') {
+      const parsed = Number(record.SETTLEMENT_PERIOD);
+      if (Number.isFinite(parsed)) payload.settlementPeriod = parsed;
+    }
     const numbers: [string, unknown][] = [
       ['embeddedWind', record.EMBEDDED_WIND_FORECAST],
       ['embeddedSolar', record.EMBEDDED_SOLAR_FORECAST],

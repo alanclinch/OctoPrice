@@ -647,6 +647,13 @@ export class SqliteStore implements Store {
     return row.n;
   }
 
+  pruneForecastInputsBefore(before: Date): number {
+    const result = this.db
+      .prepare('DELETE FROM forecast_inputs WHERE target_start < ?')
+      .run(before.toISOString());
+    return Number(result.changes);
+  }
+
   // --- Worker state --------------------------------------------------------
 
   getState(key: string): string | null {

@@ -570,6 +570,14 @@ export class D1Store implements Store {
     return row?.n ?? 0;
   }
 
+  async pruneForecastInputsBefore(before: Date): Promise<number> {
+    const result = await this.database
+      .prepare('DELETE FROM forecast_inputs WHERE target_start < ?')
+      .bind(before.toISOString())
+      .run();
+    return result.meta.changes ?? 0;
+  }
+
   async getState(key: string): Promise<string | null> {
     const row = await this.database
       .prepare('SELECT value FROM app_state WHERE key = ?')

@@ -54,6 +54,12 @@ const envSchema = z.object({
     .default('true')
     .transform((v) => v === 'true'),
   FORECAST_ARCHIVE_INTERVAL_MINUTES: z.coerce.number().int().min(30).max(1440).default(180),
+  /**
+   * How long to keep archived observations. Measured at ~235 bytes a row and
+   * ~1,900 rows a day, so 180 days is roughly 80 MB of payload before index
+   * overhead - which fits a 500 MB free D1 database alongside prices.
+   */
+  FORECAST_ARCHIVE_RETENTION_DAYS: z.coerce.number().int().min(7).max(3650).default(180),
 });
 
 export interface VapidConfig {
@@ -85,6 +91,7 @@ export interface AppConfig {
   webDistPath: string;
   forecastArchiveEnabled: boolean;
   forecastArchiveIntervalMinutes: number;
+  forecastArchiveRetentionDays: number;
   userId: string;
 }
 
@@ -141,6 +148,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     webDistPath: e.WEB_DIST_PATH,
     forecastArchiveEnabled: e.FORECAST_ARCHIVE_ENABLED,
     forecastArchiveIntervalMinutes: e.FORECAST_ARCHIVE_INTERVAL_MINUTES,
+    forecastArchiveRetentionDays: e.FORECAST_ARCHIVE_RETENTION_DAYS,
     userId: DEFAULT_USER_ID,
   };
 }

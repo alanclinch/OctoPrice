@@ -12,7 +12,7 @@ import { WebPushSender } from './notifications/webpush.ts';
 import { AlertDispatcher } from './alerts/dispatcher.ts';
 import { PricePoller } from './scheduler/poller.ts';
 import { handleApiRequest } from './api/handler.ts';
-import { runArchive } from './forecast/archive.ts';
+import { runArchive, runScheduledJobs } from './forecast/archive.ts';
 
 interface Env {
   DB: D1Database;
@@ -28,6 +28,8 @@ interface Env {
   VAPID_PRIVATE_KEY?: string;
   VAPID_SUBJECT?: string;
   FORECAST_ARCHIVE_ENABLED?: string;
+  FORECAST_ARCHIVE_INTERVAL_MINUTES?: string;
+  FORECAST_ARCHIVE_RETENTION_DAYS?: string;
   OCTOPRICE_COMMIT?: string;
 }
 
@@ -62,6 +64,15 @@ function configFor(env: Env): AppConfig {
     POLL_CUTOFF: env.POLL_CUTOFF ?? '22:15',
     FORECAST_ARCHIVE_ENABLED: env.FORECAST_ARCHIVE_ENABLED ?? 'true',
   };
+
+  // Optional overrides are only set when present, so the schema default
+  // applies otherwise rather than being silently overwritten with undefined.
+  if (env.FORECAST_ARCHIVE_INTERVAL_MINUTES) {
+    values.FORECAST_ARCHIVE_INTERVAL_MINUTES = env.FORECAST_ARCHIVE_INTERVAL_MINUTES;
+  }
+  if (env.FORECAST_ARCHIVE_RETENTION_DAYS) {
+    values.FORECAST_ARCHIVE_RETENTION_DAYS = env.FORECAST_ARCHIVE_RETENTION_DAYS;
+  }
 
   for (const key of [
     'OCTOPUS_PRODUCT_CODE',
@@ -186,30 +197,30 @@ export default {
   async scheduled(_controller: ScheduledController, env: Env, context: ExecutionContext) {
     const { poller, store, logger, config } = await getRuntime(env);
 
-    // Three jobs on every invocation, deliberately different in cost.
+    // The core work first, and only then the optional archive.
     //
     // `runScheduled` talks to Octopus, but only inside the publication window;
     // outside it the poll plan makes it a no-op, so the cron can safely run
     // all day. `checkUpcoming` reads stored prices only and never touches the
     // network, which is what lets "starting soon" alerts fire at any hour.
     //
-    // The archive is separate from both, on its own much slower cadence, and
-    // is the only one that may fail without consequence. It is deliberately
-    // last and deliberately isolated: nothing about confirmed prices or
-    // notifications depends on it, and a grid feed being down must not be
-    // able to affect them.
-    const jobs: Promise<unknown>[] = [poller.runScheduled(), poller.checkUpcoming()];
-
-    if (config.forecastArchiveEnabled) {
-      jobs.push(
-        runArchive({
-          store,
-          logger,
-          intervalMinutes: config.forecastArchiveIntervalMinutes,
-        }),
-      );
-    }
-
-    context.waitUntil(Promise.all(jobs).then(() => undefined));
+    // These two finish *before* the archive begins. Handing all three to
+    // Promise.all - as an earlier version did - starts them together and
+    // makes them compete for the same 10 ms CPU allowance, whatever the
+    // comment above them claims.
+    context.waitUntil(
+      runScheduledJobs({
+        core: () => Promise.all([poller.runScheduled(), poller.checkUpcoming()]),
+        archive: config.forecastArchiveEnabled
+          ? () =>
+              runArchive({
+                store,
+                logger,
+                intervalMinutes: config.forecastArchiveIntervalMinutes,
+                retentionDays: config.forecastArchiveRetentionDays,
+              })
+          : undefined,
+      }),
+    );
   },
 } satisfies ExportedHandler<Env>;
