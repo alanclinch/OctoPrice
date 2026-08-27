@@ -20,8 +20,12 @@
       "migrations_dir": "migrations",
     },
   ],
+  // Every five minutes, all day. "Starting soon" alerts have to be able to
+  // fire at any hour, and they read stored prices only. Octopus itself is
+  // still contacted only inside the Europe/London publication window, because
+  // the poll plan makes the price check a no-op outside it.
   "triggers": {
-    "crons": ["*/5 15-22 * * *"],
+    "crons": ["*/5 * * * *"],
   },
   "vars": {
     "DEFAULT_REGION": "C",

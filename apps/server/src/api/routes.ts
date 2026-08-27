@@ -176,12 +176,13 @@ export function createApiRoutes(deps: ApiDependencies): FastifyPluginAsync {
 
       try {
         const result = await priceService.refresh(date);
-        if (result.complete && poller) {
+        if (result.publishable && poller) {
           await poller.checkAndDispatch(date);
         }
         return {
           date,
           complete: result.complete,
+          publishable: result.publishable,
           periodCount: result.periods.length,
           missingCount: result.missingCount,
         };

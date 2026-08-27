@@ -257,10 +257,11 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
       const date = parsed.data.date ?? addDays(londonDateOf(now), 1);
       try {
         const result = await priceService.refresh(date);
-        if (result.complete) await runtime.dispatcher.dispatchForDay(date, result.periods);
+        if (result.publishable) await runtime.dispatcher.dispatchForDay(date, result.periods);
         return json({
           date,
           complete: result.complete,
+          publishable: result.publishable,
           periodCount: result.periods.length,
           missingCount: result.missingCount,
         });
@@ -360,19 +361,16 @@ export default {
   },
 
   async scheduled(_controller: ScheduledController, env: Env, context: ExecutionContext) {
-    const { poller, priceService, logger } = await getRuntime(env);
-    const backfillToday = async (): Promise<void> => {
-      const today = londonDateOf(new Date());
-      if (await priceService.isRetrieved(today)) return;
-      try {
-        await priceService.refresh(today);
-      } catch (error) {
-        logger.error('Current-day price backfill failed', {
-          date: today,
-          ...describeError(error),
-        });
-      }
-    };
-    context.waitUntil(Promise.all([backfillToday(), poller.runScheduled()]).then(() => undefined));
+    const { poller } = await getRuntime(env);
+
+    // Two jobs on every invocation, deliberately different in cost.
+    //
+    // `runScheduled` talks to Octopus, but only inside the publication window;
+    // outside it the poll plan makes it a no-op, so the cron can safely run
+    // all day. `checkUpcoming` reads stored prices only and never touches the
+    // network, which is what lets "starting soon" alerts fire at any hour.
+    context.waitUntil(
+      Promise.all([poller.runScheduled(), poller.checkUpcoming()]).then(() => undefined),
+    );
   },
 } satisfies ExportedHandler<Env>;

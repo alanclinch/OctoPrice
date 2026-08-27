@@ -123,6 +123,56 @@ export function buildRuleMatchNotification(options: {
   };
 }
 
+/**
+ * Key for a "starting soon" alert.
+ *
+ * Unlike a rule match, the run length is deliberately *not* part of the key.
+ * A stretch is announced once as it begins; if later data extends it, that is
+ * not a reason to interrupt someone a second time about the same stretch.
+ */
+export function upcomingMatchDedupeKey(userId: string, match: RuleMatch): string {
+  return `${userId}:upcoming:${match.ruleId}:${match.pricingDate}:${match.startUtc}`;
+}
+
+/**
+ * Builds the alert sent shortly before a matching stretch begins.
+ *
+ * The daily and rule-match notifications are advance notice, sent when prices
+ * are published. This is the one that arrives in time to actually do
+ * something: put the washing on, start the car charging.
+ */
+export function buildUpcomingMatchNotification(options: {
+  userId: string;
+  rule: AlertRule;
+  match: RuleMatch;
+  now: Date;
+  timeFormat?: TimeFormatOptions;
+}): NotificationPayload {
+  const { rule, match, now, timeFormat } = options;
+  const from = formatLondonTime(new Date(match.startUtc), timeFormat);
+  const to = formatLondonTime(new Date(match.endUtc), timeFormat);
+  const minutesAway = Math.round((Date.parse(match.startUtc) - now.getTime()) / 60000);
+
+  const lead =
+    minutesAway <= 0
+      ? 'Starting now'
+      : `Starting in ${minutesAway} minute${minutesAway === 1 ? '' : 's'}`;
+
+  const body = [
+    `${lead}: ${from} to ${to} (${formatDuration(match.durationMinutes)})`,
+    `Average ${formatPence(match.averagePence)}/kWh, low of ${formatPence(match.minPence)}/kWh`,
+  ].join('\n');
+
+  return {
+    type: 'rule_upcoming',
+    dedupeKey: upcomingMatchDedupeKey(options.userId, match),
+    title: rule.name,
+    body,
+    url: `/?date=${match.pricingDate}`,
+    ruleId: rule.id,
+  };
+}
+
 /** Builds the notification sent by the "test notification" button. */
 export function buildTestNotification(userId: string, now: Date): NotificationPayload {
   return {

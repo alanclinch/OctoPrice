@@ -52,13 +52,48 @@ many periods should this day have"; nothing hard-codes 48.
 ### Publication detection, not a fixed schedule
 
 Octopus usually publishes next-day prices around 16:00 but may take until
-22:00, and can publish a day *partially*. The poller therefore asks "is this
-day complete?" rather than "has 16:05 happened?". A day counts as published
-only when every expected period is present, contiguous, and spans local
-midnight to local midnight.
+22:00, and publishes a day *in parts*. The poller therefore asks about the
+data rather than the clock.
 
-This has been observed in practice: a day can sit at 46 of 48 periods for a
-while before the rest arrives.
+Two separate questions are asked, and conflating them caused a production
+outage in which no notification was ever sent:
+
+- **`complete`** — every expected period present, contiguous, spanning local
+  midnight to local midnight. This governs what the interface claims: the
+  "46 of 48" label, the chart, the cheapest-window calculation.
+- **`publishable`** — an unbroken run from local midnight covering at least
+  22 hours. This governs notification.
+
+The distinction exists because an Octopus batch covers a day only up to about
+23:00 local; the final period or two arrive later, usually with the following
+day's batch. A day therefore does not become complete until roughly 24 hours
+after it was published. Gating notification on completeness meant the daily
+summary and every price alert were silently never sent.
+
+The threshold is 22 hours rather than "expected minus two periods" because
+only BST has been observed. If the Octopus cutoff is a fixed UTC time rather
+than a fixed local time, a GMT day would arrive two periods shorter again;
+22 hours holds under either reading.
+
+A day that is publishable but not complete keeps being re-fetched while the
+poller is awake, so it fills in by itself. Re-running the alerts each time is
+safe because dedupe keys suppress anything already sent.
+
+### Alerts come in two flavours
+
+Publication alerts are *advance notice*: when tomorrow's prices land, the app
+says what the day looks like and which stretches match your rules. Useful for
+planning, useless for acting.
+
+"Starting soon" alerts are the other half: roughly fifteen minutes before a
+matching stretch begins, sent so there is time to put the washing on. These
+are checked every five minutes, all day, and read only stored prices — they
+never touch Octopus, which is what makes running them that often free.
+
+Their dedupe keys differ deliberately. A rule-match key includes the run
+length, so a stretch that genuinely grows is re-announced. A starting-soon key
+does not: a stretch is announced once as it begins, and nobody needs
+interrupting twice about the same one.
 
 ### Rule matches are runs, not periods
 

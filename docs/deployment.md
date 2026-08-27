@@ -86,10 +86,16 @@ Non-secret production values live under `vars` in `wrangler.jsonc`:
 - `POLL_START`, `POLL_INTERVAL_MINUTES`, and `POLL_CUTOFF`
 - `LOG_LEVEL`
 
-The Cron Trigger runs every five minutes from 15:00 through 22:59 UTC. The
-application converts to Europe/London and performs a no-op outside the local
-polling window. This deliberately covers both GMT and BST without editing the
-cron seasonally.
+The Cron Trigger runs every five minutes, all day. Each invocation does two
+things of very different cost:
+
+- **Price polling**, which contacts Octopus. The application converts to
+  Europe/London and makes this a no-op outside the local publication window,
+  so the round-the-clock cron does not mean round-the-clock API traffic. This
+  covers both GMT and BST without editing the cron seasonally.
+- **Starting-soon alerts**, which read D1 only and never leave the Worker.
+  These have to be able to fire at any hour, which is why the cron is no
+  longer restricted to the afternoon.
 
 ## Local Cloudflare runtime
 

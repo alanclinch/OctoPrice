@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   cheapestPeriods,
   dedupePeriods,
+  describeDayCoverage,
   findNextPeriod,
   findPeriodAt,
   groupByLondonDay,
   isDayComplete,
+  isDayPublishable,
   missingPeriodStarts,
   periodsForLondonDay,
   remainingPeriods,
@@ -123,6 +125,97 @@ describe('completeness', () => {
     const missing = missingPeriodStarts(partial, NORMAL_DAY);
     expect(missing).toHaveLength(2);
     expect(missing[0]).toBe('2026-01-15T23:00:00.000Z');
+  });
+});
+
+describe('publication coverage', () => {
+  // The real-world shape that broke production: Octopus publishes the day up
+  // to about 23:00 local and delivers the last hour later, so a BST day sits
+  // at 46 of 48 periods for hours. Requiring completeness before notifying
+  // meant nothing was ever sent.
+  const OCTOPUS_SHAPED_DAY = makeDay(
+    NORMAL_DAY,
+    Array.from({ length: 46 }, () => 12),
+  );
+
+  it('treats the real 46-of-48 publication shape as publishable', () => {
+    const coverage = describeDayCoverage(OCTOPUS_SHAPED_DAY, NORMAL_DAY);
+    expect(coverage.complete).toBe(false);
+    expect(coverage.publishable).toBe(true);
+    expect(coverage.leadingPeriodCount).toBe(46);
+  });
+
+  it('reports how far the unbroken run from midnight reaches', () => {
+    const coverage = describeDayCoverage(OCTOPUS_SHAPED_DAY, NORMAL_DAY);
+    // 46 periods from midnight is 23:00 UTC on a GMT day.
+    expect(coverage.coveredUntil).toBe('2026-01-15T23:00:00.000Z');
+  });
+
+  it('still reports a complete day as complete and publishable', () => {
+    const coverage = describeDayCoverage(makeFlatDay(NORMAL_DAY), NORMAL_DAY);
+    expect(coverage.complete).toBe(true);
+    expect(coverage.publishable).toBe(true);
+    expect(coverage.coveredUntil).toBe('2026-01-16T00:00:00.000Z');
+  });
+
+  it('is not publishable when too little of the day has arrived', () => {
+    const partial = makeDay(
+      NORMAL_DAY,
+      Array.from({ length: 30 }, () => 12),
+    );
+    expect(isDayPublishable(partial, NORMAL_DAY)).toBe(false);
+  });
+
+  it('counts only the run starting at local midnight', () => {
+    // Plenty of periods, but the day does not start at midnight, so nothing
+    // is covered and a late-arriving block cannot masquerade as a full day.
+    const missingFirst = makeFlatDay(NORMAL_DAY).slice(1);
+    const coverage = describeDayCoverage(missingFirst, NORMAL_DAY);
+    expect(coverage.periodCount).toBe(47);
+    expect(coverage.leadingPeriodCount).toBe(0);
+    expect(coverage.coveredUntil).toBeNull();
+    expect(coverage.publishable).toBe(false);
+  });
+
+  it('stops counting at a hole in the middle', () => {
+    const gapped = makeFlatDay(NORMAL_DAY).filter((_, index) => index !== 40);
+    const coverage = describeDayCoverage(gapped, NORMAL_DAY);
+    expect(coverage.periodCount).toBe(47);
+    expect(coverage.leadingPeriodCount).toBe(40);
+    // 40 periods is 20 hours, short of the 22-hour bar.
+    expect(coverage.publishable).toBe(false);
+  });
+
+  it('is publishable on the 46-period short day once all of it arrives', () => {
+    const coverage = describeDayCoverage(makeFlatDay(SHORT_DAY), SHORT_DAY);
+    expect(coverage.expectedPeriodCount).toBe(46);
+    expect(coverage.complete).toBe(true);
+    expect(coverage.publishable).toBe(true);
+  });
+
+  it('never demands more periods than a short day contains', () => {
+    // 44 periods would be 22 hours on a normal day; on the 23-hour day it is
+    // still short, but the threshold must not exceed the day's own length.
+    const coverage = describeDayCoverage(makeFlatDay(LONG_DAY), LONG_DAY);
+    expect(coverage.expectedPeriodCount).toBe(50);
+    expect(coverage.publishable).toBe(true);
+  });
+
+  it('handles the long day published in the same partial shape', () => {
+    const partialLong = makeDay(
+      LONG_DAY,
+      Array.from({ length: 48 }, () => 12),
+    );
+    const coverage = describeDayCoverage(partialLong, LONG_DAY);
+    expect(coverage.complete).toBe(false);
+    expect(coverage.publishable).toBe(true);
+  });
+
+  it('reports nothing covered for an empty day', () => {
+    const coverage = describeDayCoverage([], NORMAL_DAY);
+    expect(coverage.leadingPeriodCount).toBe(0);
+    expect(coverage.publishable).toBe(false);
+    expect(coverage.coveredUntil).toBeNull();
   });
 });
 

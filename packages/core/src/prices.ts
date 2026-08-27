@@ -103,7 +103,10 @@ export function splitIntoContiguousRuns<T extends PricePeriod>(periods: readonly
  *
  * A day is complete when it has the expected number of periods (46, 48 or 50
  * depending on daylight saving), they are contiguous, and they span local
- * midnight to local midnight. Partial data must never be treated as published.
+ * midnight to local midnight.
+ *
+ * This governs what the interface claims about a day. It is deliberately
+ * *not* the notification trigger - see `describeDayCoverage` for why.
  */
 export function isDayComplete(periods: readonly PricePeriod[], date: PricingDate): boolean {
   const dayPeriods = periodsForLondonDay(periods, date);
@@ -117,6 +120,94 @@ export function isDayComplete(periods: readonly PricePeriod[], date: PricingDate
   if (endMs(last) !== endOfLondonDay(date).getTime()) return false;
 
   return splitIntoContiguousRuns(dayPeriods).length === 1;
+}
+
+/**
+ * The minimum unbroken coverage, in hours from local midnight, before a day is
+ * worth telling the user about.
+ *
+ * Octopus does not publish a whole local day in one go. A batch arrives
+ * covering the day from local midnight up to roughly 23:00 local, and the
+ * final period or two land later, with the following day's batch. Requiring a
+ * *complete* day before notifying therefore means never notifying at all.
+ *
+ * 22 hours is the safe floor. During BST the observed batch leaves 23 hours
+ * (46 of 48 periods). Only one season has been observed, so it is not yet
+ * known whether the cutoff is a fixed UTC time or a fixed local time; those
+ * differ under GMT, where a fixed 22:00 UTC cutoff would leave exactly 22
+ * hours. This threshold holds under either, which is why it is not expressed
+ * as "expected minus two periods".
+ */
+export const MINIMUM_PUBLISHED_HOURS = 22;
+
+export interface DayCoverage {
+  date: PricingDate;
+  /** Periods held for the day, however scattered. */
+  periodCount: number;
+  expectedPeriodCount: number;
+  /** Every expected period is present and contiguous. */
+  complete: boolean;
+  /** Length of the unbroken run starting at local midnight, in periods. */
+  leadingPeriodCount: number;
+  /**
+   * Exclusive end of that unbroken run, ISO 8601 UTC, or null when the day
+   * does not start at local midnight. Anything at or beyond this instant is
+   * still to come, so a rule match touching it may yet grow.
+   */
+  coveredUntil: string | null;
+  /** Enough of the day has arrived to notify on it. */
+  publishable: boolean;
+}
+
+/**
+ * Describes how much of a day has actually arrived.
+ *
+ * Only the run starting at local midnight counts. A day with a hole in it is
+ * covered up to the hole and no further, so a gap can never be mistaken for
+ * progress.
+ */
+export function describeDayCoverage(
+  periods: readonly PricePeriod[],
+  date: PricingDate,
+  minimumHours: number = MINIMUM_PUBLISHED_HOURS,
+): DayCoverage {
+  const dayPeriods = periodsForLondonDay(periods, date);
+  const expected = expectedPeriodCount(date);
+  const dayStart = startOfLondonDay(date).getTime();
+
+  const runs = splitIntoContiguousRuns(dayPeriods);
+  const leadingRun = runs[0];
+  const startsAtMidnight =
+    leadingRun !== undefined && startMs(leadingRun[0] as PricePeriod) === dayStart;
+  const leading = startsAtMidnight ? (leadingRun as PricePeriod[]) : [];
+  const leadingPeriodCount = leading.length;
+  const lastOfLeading = leading[leadingPeriodCount - 1];
+
+  return {
+    date,
+    periodCount: dayPeriods.length,
+    expectedPeriodCount: expected,
+    complete: isDayComplete(dayPeriods, date),
+    leadingPeriodCount,
+    coveredUntil: lastOfLeading ? lastOfLeading.validTo : null,
+    // A short day may legitimately hold fewer periods than the threshold
+    // implies, so never demand more than the day actually has.
+    publishable: leadingPeriodCount >= Math.min(minimumHours * 2, expected),
+  };
+}
+
+/**
+ * Whether enough of a day has arrived to notify on it.
+ *
+ * This is deliberately weaker than `isDayComplete`, which stays strict and
+ * still governs what the interface claims about a day.
+ */
+export function isDayPublishable(
+  periods: readonly PricePeriod[],
+  date: PricingDate,
+  minimumHours: number = MINIMUM_PUBLISHED_HOURS,
+): boolean {
+  return describeDayCoverage(periods, date, minimumHours).publishable;
 }
 
 /** Lists the period starts a day is missing, oldest-first. */

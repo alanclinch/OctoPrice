@@ -123,6 +123,55 @@ describe('consecutive periods', () => {
   });
 });
 
+describe('withholding matches at the edge of incomplete data', () => {
+  // A run touching the end of what has arrived will usually grow when the
+  // rest of the day lands. Growing changes its dedupe key, which would mean a
+  // second, near-identical notification about the same stretch.
+  const day = makeDayWith(DAY, { 44: 5, 45: 5 }, 20);
+  const partial = day.slice(0, 46);
+  const coveredUntil = partial[45]?.validTo as string;
+
+  it('withholds a match that ends exactly at the edge', () => {
+    const matches = evaluateRule(makeRule({ thresholdPence: 7 }), partial, DAY, {
+      settledUntil: coveredUntil,
+    });
+    expect(matches).toEqual([]);
+  });
+
+  it('still reports a match that ends before the edge', () => {
+    const settled = makeDayWith(DAY, { 10: 5, 11: 5 }, 20).slice(0, 46);
+    const matches = evaluateRule(makeRule({ thresholdPence: 7 }), settled, DAY, {
+      settledUntil: settled[45]?.validTo as string,
+    });
+    expect(matches).toHaveLength(1);
+    expect(matches[0]?.periodCount).toBe(2);
+  });
+
+  it('reports the edge match once the day is complete', () => {
+    // settledUntil of null is what the dispatcher passes for a complete day.
+    const matches = evaluateRule(makeRule({ thresholdPence: 7 }), day, DAY, {
+      settledUntil: null,
+    });
+    expect(matches).toHaveLength(1);
+    expect(matches[0]?.periodCount).toBe(2);
+  });
+
+  it('withholds nothing when no edge is given', () => {
+    expect(evaluateRule(makeRule({ thresholdPence: 7 }), partial, DAY)).toHaveLength(1);
+  });
+
+  it('applies the edge rule across every rule in a set', () => {
+    const cheap = makeRule({ id: 'cheap', thresholdPence: 7 });
+    const dear = makeRule({ id: 'dear', operator: 'gte', thresholdPence: 20 });
+    const matches = evaluateRules([cheap, dear], partial, DAY, {
+      settledUntil: coveredUntil,
+    });
+    // The cheap run sits on the edge and is withheld; the expensive run ends
+    // before it and is reported.
+    expect(matches.map((m) => m.ruleId)).toEqual(['dear']);
+  });
+});
+
 describe('time restrictions', () => {
   it('ignores qualifying periods outside the window', () => {
     // Period 4 is 02:00, period 30 is 15:00.
