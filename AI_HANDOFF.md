@@ -61,11 +61,9 @@ GitHub remote or a real device:
 
 ## Currently In Progress
 
-The `codex/ux-fixes` release is verified locally and awaits production
-deployment. It replaces separate Today/Tomorrow screens with one chronological
-timeline, defaults to remaining prices with the current slot first, adds
-first-run region setup and installation guidance, backfills after a region
-change, and prevents/cleans duplicate default rules.
+No implementation work is half-finished. The first-run and chronological
+timeline release is deployed and verified live. The production migration
+removed the duplicated defaults, leaving exactly three rules.
 
 ## Next Recommended Work
 
@@ -204,8 +202,12 @@ in the local Cloudflare runtime at a mobile viewport: the table opened on the
 current slot, toggling Remaining only changed 31 rows to 46, onboarding and
 install guidance rendered correctly, and no new browser errors appeared.
 
-**Outstanding:** apply migration 0002, deploy the CI-passing main revision and
-repeat the live checks.
+**Live verification:** Southern Scotland is named in the header; the install
+action is present; the current 08:00–08:30 slot appeared first; toggling
+Remaining only changed the table from 30 rows to all 46; Settings showed
+exactly three default rules; no browser errors appeared.
+
+**Outstanding:** install on a real phone and confirm Web Push delivery.
 
 ### 2026-08-26 — Codex, Cloudflare-native deployment
 
