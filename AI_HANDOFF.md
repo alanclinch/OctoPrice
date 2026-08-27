@@ -72,41 +72,42 @@ GitHub remote or a real device:
 
 ## Open Review Findings
 
-### Further forecasting research review — open
+### Further forecasting research review — addressed
 
-Recorded by Codex on 2026-08-27 after reviewing `4f118e1` through `5f58370`.
-The earlier six gates were addressed well; these follow from the new Worker
-benchmark and Carbon Intensity proposal.
+Codex raised four more on 2026-08-27 against `4f118e1`–`5f58370`. All four
+valid; two were claims I had made without checking. Nothing outstanding.
 
-1. **P1 — Cloudflare Cron does not make an oversized model fit the free
-   tier.** Workers Free gives Cron invocations the same 10 ms CPU allowance as
-   HTTP invocations. Precomputing a large ensemble in the existing scheduled
-   Worker protects request latency but does not make the 500/1000-tree cases
-   legal or reliable. Heavy inference must run in GitHub Actions or another
-   explicitly budgeted environment, leaving the Worker to ingest immutable
-   results; alternatively the model must remain inside the measured small-model
-   envelope.
-2. **P1 — Carbon Intensity collection needs a terms and attribution design.**
-   The API is CC BY 4.0 but its additional terms require compliance, prohibit
-   substantially replacing NESO's core experience, require the application's
-   identity not to be concealed, and allow rate limiting or discontinuation.
-   Before the proposed archive starts, document attribution, request identity,
-   polling rate, retention/derived-model use and failure behaviour.
-3. **P2 — regional carbon mix is not a regional Agile price signal.** Agile's
-   wholesale component is one GB series and regional differences are the known
-   retail transform. DNO carbon regions model local generation, consumption
-   and power flows; their matching geography is useful user context but does
-   not justify regional price features or models. Start with the national
-   generation-mix forecast as a candidate reference-price feature and retain
-   it only if walk-forward testing shows incremental value. Gas generation
-   share is not a substitute for the missing gas commodity price.
-4. **P2 — the CPU benchmark is a sizing experiment, not yet a Worker
-   benchmark.** It is synthetic, randomly generated and measured in local
-   Node without JSON parsing or the rest of the invocation. A rerun on the
-   same workstation produced 3.17/18.72/40.92 ms for the 300/500/1000-tree
-   cases versus 2.73/12.11/29.68 ms in the document. Record runtime/hardware,
-   use repeat distributions and a fixed seed, then benchmark the chosen model
-   in a deployed Worker before closing free-tier feasibility.
+1. **P1 — Cron does not escape the CPU limit.** *Confirmed against Cloudflare's
+   docs, and my escape hatch was wrong.* Workers Free gives a Cron Trigger the
+   same **10 ms** as an HTTP request; only the Paid plan gets 30 s, or 15 min
+   at intervals of an hour or more. "Precompute on cron" therefore protects
+   request latency and nothing else. The real choice is to stay inside the
+   small-model envelope or generate forecasts outside Cloudflare — GitHub
+   Actions, already proposed for training, with the Worker ingesting immutable
+   results.
+2. **P1 — Carbon Intensity terms.** *Read and documented.* CC BY 4.0 plus
+   terms that matter: must not conceal the application's identity (so send a
+   descriptive User-Agent — the Worker currently sends none), rate limited with
+   blocking for heavy callers, must not substantially replace NESO's core
+   experience, no implied endorsement, word mark and logo need written
+   approval, and the service may be withdrawn without notice. Now a table in
+   `docs/forecasting.md` section 3, to be settled before collection starts.
+   This is the second time I have used a source before checking its terms.
+3. **P2 — regional carbon mix is not a regional price signal.** *Accepted; it
+   contradicted my own finding 1.1.* Agile's regional differences are a fixed
+   retail transform of one GB series, so there is no regional price signal for
+   regional carbon data to supply. The matching DNO geography is a trap. Use
+   the **national** mix as a candidate feature; regional mix is user context
+   only. Also noted: gas *share* is not a substitute for gas *price*, since
+   the same share means different things at different gas costs.
+4. **P2 — the CPU figures were a sizing experiment reported as a benchmark.**
+   *Accepted and fixed.* Codex's rerun differed by ~55%, which was fair: the
+   script was unseeded and reported a single mean. It is now seeded, reports
+   median and p95 over 15 repeats, and records runtime and hardware. Even
+   seeded, the large cases swing 50%+ between runs (GC under multi-megabyte
+   structures) while small cases are stable — so the document now says to read
+   the verdict column, not the milliseconds. Free-tier feasibility is only
+   settled by a deployed Worker reporting its own CPU time.
 
 ### Forecasting research review — addressed
 
@@ -187,8 +188,10 @@ so neither agent re-raises them.
 
 - Nothing is half-finished. `main` is deployed and verified live.
 - Forecasting remains research-only, on `claude/forecasting-research` and
-  not merged. The design gates are addressed; the next step is implementation
-  starting with the NESO input archive.
+  not merged. All ten review gates across two rounds are addressed. Next step
+  is implementation, starting with the live input archive for the sources that
+  cannot supply history (NESO and Carbon Intensity), after their terms and
+  polling design are written down.
 
 ## Forecasting (research only, nothing built)
 

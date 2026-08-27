@@ -191,7 +191,8 @@ arguably the most useful source on the list:
   biomass — rather than raw inputs. Gas share matters because gas usually sets
   the marginal GB price, so this is close to being a price driver already.
 - Its regions are **DNO regions** (`regionid` 2 returns "SP Distribution /
-  South Scotland"), the same structure Agile uses.
+  South Scotland"), the same structure Agile uses — though see the warning
+  below, because that resemblance is misleading for pricing.
 - It is National Grid's own modelled forecast, meaning the demand, wind and
   solar forecasting has already been done and reconciled by someone with
   better data than us.
@@ -199,6 +200,39 @@ arguably the most useful source on the list:
 The caveat matches NESO's: the response carries no issue time, so **vintages
 cannot be retrieved after the fact** and it must be archived live from the
 start (section 3a).
+
+**Use the national mix, not the regional mix, as a price feature.** The
+matching geography is a trap. Finding 1.1 shows Agile's regional differences
+are a fixed retail transform of one GB-wide series — so there is no regional
+*price* signal to find, and regional carbon data cannot supply one. DNO carbon
+regions model local generation, consumption and power flows, which is a
+different question. Regional mix is good **user context** ("your electricity
+is mostly wind right now"); it is not a pricing input, and treating it as one
+would reintroduce the per-region modelling that 1.1 makes unnecessary.
+
+Note also that **gas generation share is not a substitute for the gas
+commodity price**. A high gas share when gas is cheap and a high gas share
+when gas is expensive are very different price environments, and the share
+alone cannot distinguish them. It is a useful feature; it does not close the
+gap left by having no licensed gas price source.
+
+### Terms of use, which must be designed for before collection starts
+
+The API is CC BY 4.0, with additional terms that carry real obligations. From
+the published terms:
+
+| Obligation | What it means here |
+| ---------- | ------------------ |
+| CC BY 4.0 attribution | Credit National Energy System Operator wherever the data or anything derived from it is shown. Octopus Watch's footer is a reasonable model. |
+| "Conceal your identity or your application's identity" is prohibited | Send a descriptive `User-Agent` identifying this application and a contact. The Worker currently sends none. |
+| Rate limited; may block heavy callers | Poll at a documented, modest rate. Archiving needs roughly one call per region per run, not continuous polling. |
+| Must not "substantially replace the core user experience" of NESO's sites or the API | We use it as a forecasting feature and as optional context inside a price app. Do not build a carbon-intensity product on it. |
+| Must not imply endorsement | Attribution must read as credit, not partnership. Their word mark and logo need prior written approval — so use plain text. |
+| May be changed, suspended or discontinued without notice, as-is, no warranty | Section 4.7 already requires graceful degradation; this makes it contractual as well as sensible. |
+
+Retention of collected observations for model training is compatible with
+CC BY provided attribution travels with anything published from it. These
+decisions should be written down before the archive starts, not after.
 
 ### Requires registration
 
@@ -405,20 +439,29 @@ to a change in model.
 ### Measured inference cost
 
 Workers Free allows **10 ms of CPU per invocation**. An earlier draft asserted
-inference "runs in microseconds" without measuring it. Forecasting 144 periods
-(72 hours) with 12 features, via `docs/research/bench-inference.mjs`:
+inference "runs in microseconds" without measuring it, then quoted single
+figures from an unseeded run that did not reproduce. What follows is a
+*sizing experiment*, not a benchmark: `docs/research/bench-inference.mjs`,
+seeded, 15 repeats, forecasting 144 periods with 12 features.
 
-| Model | CPU | Share of budget |
-| ----- | --- | --------------- |
-| Linear | 0.010 ms | 0.1% |
-| 100 trees, depth 6 (0.5 MB) | 0.790 ms | 7.9% |
-| 300 trees, depth 6 (1.6 MB) | 2.734 ms | 27.3% |
-| 500 trees, depth 8 (10.7 MB) | 12.113 ms | **121%** |
-| 1000 trees, depth 8 (21.4 MB) | 29.676 ms | **297%** |
+| Model | Median | p95 | Verdict |
+| ----- | ------ | --- | ------- |
+| Linear | 0.01 ms | 0.01 ms | fits |
+| 100 trees, depth 6 (0.5 MB) | ~0.9 ms | ~1.1 ms | fits |
+| 300 trees, depth 6 (1.6 MB) | ~2.9 ms | ~3.5 ms | fits |
+| 500 trees, depth 8 (10.7 MB) | 13–17 ms | 14–25 ms | **over budget** |
+| 1000 trees, depth 8 (21.4 MB) | 30–51 ms | 33–68 ms | **over budget** |
 
-Measured in Node, not a Worker — same engine, different isolate — and
+The ranges are deliberate. The small cases are stable run to run; the large
+ones swing by 50% or more, almost certainly garbage collection under
+multi-megabyte structures. **Read the verdict column, not the milliseconds.**
+Measured in local Node, not a Worker — same engine, different isolate — and
 excluding model parsing, D1 round trips and response building, which also
-count against the 10 ms. Treat it as an order of magnitude.
+count against the same 10 ms.
+
+Free-tier feasibility is only *settled* by measuring the chosen model in a
+deployed Worker, which reports its own CPU time. This experiment narrows the
+search space; it does not close the question.
 
 The conclusion is firm enough to act on: **tiers 1 and 2 are comfortable, and
 a full-size ensemble is not.** AgilePredict runs *three* such models together;
@@ -427,9 +470,21 @@ is capped at roughly a few hundred shallow trees, and model *size* binds as
 tightly as CPU — a multi-megabyte artefact parsed per invocation would
 dominate everything in the table.
 
-If a larger model ever proves necessary, forecasts must be precomputed on the
-cron schedule and stored, with the request path only reading D1. That is
-probably the better design anyway.
+**Precomputing on cron does not help.** An earlier draft offered that as the
+escape hatch for a larger model. It is wrong: on the Workers Free plan a Cron
+Trigger gets the *same* 10 ms CPU allowance as an HTTP request.
+
+| Plan | HTTP | Cron Trigger |
+| ---- | ---- | ------------ |
+| Free | 10 ms | **10 ms** |
+| Paid | 30 s default, 5 min max | 30 s (< 1 h interval), 15 min (≥ 1 h) |
+
+Moving work to the scheduled handler protects request latency and nothing
+else. So the real choice is: **keep the model inside the small-model envelope
+above, or generate forecasts outside Cloudflare entirely.** GitHub Actions is
+already proposed for training and has real CPU; extending it to *produce* the
+forecasts and having the Worker ingest immutable results is the honest design
+for anything larger. The Worker then only reads D1, which it can do easily.
 
 ### 4.7 Failure handling
 
