@@ -53,6 +53,9 @@ Octopus publication cycles.
 
 ### Fixed
 
+- The current-price card now shows the next price inline, and the secondary
+  availability, cheapest-window and chart panels are condensed into one
+  optional card that remembers which tool was left open.
 - Changing region now immediately backfills current and next-day prices for
   the selected area.
 - Default alert rules are claimed atomically during first-run setup, and the

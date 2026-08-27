@@ -1,15 +1,22 @@
 /** One chronological price timeline spanning every published day. */
 
 import { useMemo, useState } from 'react';
-import { findCheapestWindow, londonDateOf, type PeriodRun } from '@octoprice/core';
+import { findCheapestWindow, type PeriodRun } from '@octoprice/core';
 import type { Overview } from '../api.ts';
-import { bandClass, clock, duration, longDate, pence, type DisplayOptions } from '../format.ts';
+import { bandClass, clock, duration, pence, type DisplayOptions } from '../format.ts';
 import { NowCard } from './NowCard.tsx';
 import { PriceChart } from './PriceChart.tsx';
 import { PriceTable } from './PriceTable.tsx';
 import type { JSX } from 'react';
 
 const WINDOW_CHOICES = [60, 120, 180, 240] as const;
+const PRICE_TOOL_STORAGE_KEY = 'octoprice-open-price-tool';
+type PriceTool = 'window' | 'timeline';
+
+function storedPriceTool(): PriceTool | null {
+  const stored = window.localStorage.getItem(PRICE_TOOL_STORAGE_KEY);
+  return stored === 'window' || stored === 'timeline' ? stored : null;
+}
 
 interface PricesViewProps {
   overview: Overview;
@@ -20,6 +27,7 @@ interface PricesViewProps {
 export function PricesView({ overview, now, display }: PricesViewProps): JSX.Element {
   const [remainingOnly, setRemainingOnly] = useState(true);
   const [windowMinutes, setWindowMinutes] = useState<number>(180);
+  const [openTool, setOpenTool] = useState<PriceTool | null>(storedPriceTool);
   const allPeriods = useMemo(
     () =>
       [...overview.today.periods, ...overview.tomorrow.periods].sort(
@@ -31,40 +39,64 @@ export function PricesView({ overview, now, display }: PricesViewProps): JSX.Ele
     ? allPeriods.filter((period) => Date.parse(period.validTo) > now.getTime())
     : allPeriods;
   const cheapestWindow: PeriodRun | null = findCheapestWindow(visiblePeriods, windowMinutes);
-  const lastPeriod = visiblePeriods.at(-1);
   const tomorrowStatus = overview.tomorrow.complete
-    ? "Tomorrow's prices are complete"
+    ? "Tomorrow's prices complete"
     : overview.tomorrow.periods.length > 0
-      ? `Tomorrow: ${overview.tomorrow.periods.length} of ${overview.tomorrow.expectedPeriodCount} prices published`
-      : "Tomorrow's prices have not been published yet";
+      ? `Tomorrow ${overview.tomorrow.periods.length}/${overview.tomorrow.expectedPeriodCount} published`
+      : 'Tomorrow not published';
+
+  function toggleTool(tool: PriceTool): void {
+    const nextTool = openTool === tool ? null : tool;
+    setOpenTool(nextTool);
+    if (nextTool) {
+      window.localStorage.setItem(PRICE_TOOL_STORAGE_KEY, nextTool);
+    } else {
+      window.localStorage.removeItem(PRICE_TOOL_STORAGE_KEY);
+    }
+  }
 
   return (
     <>
       <NowCard current={overview.current} next={overview.next} display={display} />
 
-      <div className="card">
-        <div className="section-heading">
-          <div>
-            <h2>Available prices</h2>
-            <p className="section-title">{tomorrowStatus}</p>
-          </div>
+      <div className="card price-tools-card">
+        <div className="price-availability">
+          <span>{tomorrowStatus}</span>
           <span className={`pill ${overview.tomorrow.complete ? 'ready' : 'waiting'}`}>
             {overview.tomorrow.complete
               ? 'Complete'
               : `${overview.tomorrow.periods.length}/${overview.tomorrow.expectedPeriodCount}`}
           </span>
         </div>
-        <p className="muted small" style={{ marginBottom: 0 }}>
-          {lastPeriod
-            ? `${visiblePeriods.length} half-hour prices shown, through ${longDate(londonDateOf(new Date(lastPeriod.validFrom)))} at ${clock(lastPeriod.validTo, display)}.`
-            : 'No remaining prices are stored yet. OctoPrice will check again automatically.'}
-        </p>
-      </div>
+        <div className="price-tool-buttons" aria-label="Optional price tools">
+          <button
+            type="button"
+            className={`price-tool-toggle${openTool === 'window' ? ' active' : ''}`}
+            aria-expanded={openTool === 'window'}
+            onClick={() => toggleTool('window')}
+            disabled={visiblePeriods.length === 0}
+          >
+            <span>Cheapest window</span>
+            <span className="disclosure" aria-hidden="true">
+              {openTool === 'window' ? '−' : '+'}
+            </span>
+          </button>
+          <button
+            type="button"
+            className={`price-tool-toggle${openTool === 'timeline' ? ' active' : ''}`}
+            aria-expanded={openTool === 'timeline'}
+            onClick={() => toggleTool('timeline')}
+            disabled={visiblePeriods.length === 0}
+          >
+            <span>Price timeline</span>
+            <span className="disclosure" aria-hidden="true">
+              {openTool === 'timeline' ? '−' : '+'}
+            </span>
+          </button>
+        </div>
 
-      {visiblePeriods.length > 0 && (
-        <>
-          <div className="card">
-            <h2>Cheapest continuous window</h2>
+        {openTool === 'window' && visiblePeriods.length > 0 && (
+          <div className="price-tool-content">
             <div className="field-row window-choices">
               {WINDOW_CHOICES.map((minutes) => (
                 <button
@@ -98,13 +130,14 @@ export function PricesView({ overview, now, display }: PricesViewProps): JSX.Ele
               </p>
             )}
           </div>
+        )}
 
-          <div className="card">
-            <h2>Price timeline</h2>
+        {openTool === 'timeline' && visiblePeriods.length > 0 && (
+          <div className="price-tool-content">
             <PriceChart periods={visiblePeriods} now={now} display={display} />
           </div>
-        </>
-      )}
+        )}
+      </div>
 
       <div className="card">
         <div className="section-heading table-heading">

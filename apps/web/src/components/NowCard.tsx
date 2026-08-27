@@ -27,22 +27,26 @@ export function NowCard({ current, next, display }: NowCardProps): JSX.Element {
             {pence(current.valueIncVat, 2)}
             <span className="unit">/kWh</span>
           </div>
-          <div className="now-meta">Until {clock(current.validTo, display)}</div>
+          <div className="now-meta now-price-change">
+            <span>Until {clock(current.validTo, display)}</span>
+            {next && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span>
+                  then{' '}
+                  <strong className={bandClass(next.valueIncVat)}>
+                    {pence(next.valueIncVat, 2)}
+                  </strong>
+                </span>
+              </>
+            )}
+          </div>
         </>
       ) : (
         <>
           <div className="now-price muted">--</div>
           <div className="now-meta">No price stored for right now.</div>
         </>
-      )}
-
-      {next && (
-        <div className="next-row">
-          <span className="label">Next, {clock(next.validFrom, display)}</span>
-          <span className={`value ${bandClass(next.valueIncVat)}`}>
-            {pence(next.valueIncVat, 2)}
-          </span>
-        </div>
       )}
     </div>
   );

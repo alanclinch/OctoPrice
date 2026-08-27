@@ -294,12 +294,10 @@ The main screen should be extremely simple.
 
 > **NOW**
 > ### 12.4p/kWh
-> Valid until 17:30.
+> Until 17:30 · then 18.9p
 
-**Next price**:
-
-> **17:30**
-> 18.9p/kWh
+The following price is shown inline in its price-band colour rather than in a
+second row.
 
 **Published range** — one chronological timeline spanning today and tomorrow,
 with the current period first by default. Show the exact count when tomorrow
@@ -308,6 +306,10 @@ is only partially published rather than repeating a vague waiting message.
 First use must ask for the user's electricity area before showing prices. The
 header should name the area as well as the underlying region code and provide
 an obvious PWA installation action.
+
+Tomorrow's publication state, the cheapest continuous window and the price
+chart share one compact secondary card. The window and chart are collapsed by
+default, expand in place, and remember whether the user left either tool open.
 
 ---
 
@@ -324,7 +326,8 @@ Display half-hourly prices visually. The chart should:
 - Allow tapping a bar/point to see the exact price.
 
 Do not overcomplicate the visual design. The chart should remain easy to
-understand on a phone.
+understand on a phone. It is an optional expansion on the dashboard; the
+half-hour price table remains the main detailed view.
 
 ---
 
