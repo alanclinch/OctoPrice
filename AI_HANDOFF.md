@@ -274,10 +274,34 @@ so neither agent re-raises them.
    subscription, or have failed. The ready message now speaks only about
    prices and leaves alerts to the alerts card, which reports actual state.
 
+## Status: parked, deliberately
+
+The owner stopped development on 2026-08-27 to live with the app for a while.
+Nothing is half-finished. `main` is deployed, CI is green, and every branch
+has been merged and deleted.
+
+**The app is done and doing its job.** Confirmed prices, the daily publication
+summary, price-alert rules, starting-soon alerts, per-person access and the
+status page all work in production, and notifications have been verified
+arriving on a real device across a real publication cycle.
+
+**Forecasting is research plus one small piece.** `docs/forecasting.md` holds
+the design; the input archive collects the Carbon Intensity forecast and
+nothing else. It produces no forecasts and costs a few hundred rows a day, so
+it can be left running indefinitely - which is the point. If the idea is
+picked up later, there will be history waiting.
+
+Before resuming forecasting, read `docs/forecasting.md` section 7 for the
+order, and note the pattern that cost the most time: several conclusions were
+written down without being checked against a live response, and the reviews
+that followed were mostly correcting those. Verify first.
+
 ## Currently In Progress
 
 - Nothing is half-finished. `main` is deployed and verified live.
-- Forecasting: the **input archive is built** (`docs/forecasting.md` section
+- Nothing. Development is paused; see above.
+
+- Forecasting reference: the **input archive is built** (`docs/forecasting.md` section
   8) and is the only forecasting code that exists. It produces no forecasts
   and changes nothing a user sees. It now collects **Carbon Intensity only**;
   NESO was removed because its own archives are better in every respect.
