@@ -114,22 +114,33 @@ Stages 1-4 of the forecasting feature request are done and recorded in
 `docs/forecasting.md`: prior art, data sources, proposed architecture and
 free-tier feasibility. No forecasting code exists.
 
+AgilePredict (MIT, actively maintained) was read properly, not just
+summarised: it predicts a day-ahead wholesale series and converts per region
+with hardcoded `(multiplier, peak_adder)` config, which is the same shape as
+finding 1 below. That architecture is prior art, not a new idea here.
+
 Two findings bind whatever gets built:
 
 - **Regions are exact linear transforms of one another** once peak and
   off-peak are separated. R^2 of 1.000000 over 1441 periods, worst error
   0.009p, holding through negative prices and a 65p spike. Forecast one
-  reference region and map the rest. This also removes any need to hard-code
-  Octopus's formula: the coefficients come from published prices, and the fit
-  quality doubles as a detector for a methodology change.
+  reference region and map the rest. The contribution over AgilePredict is
+  narrower than it first looked: not the conversion idea, but *deriving* the
+  coefficients from published prices instead of hardcoding them — exact rather
+  than rounded, self-updating, and the fit quality doubles as a detector for a
+  methodology change. AgilePredict's hardcoded factors are 2020-era and April
+  2026 brought a flat −3.5p/kWh change, which is the fragility to avoid.
 - **Elexon MID is not the Agile input.** R^2 of only 0.70 against Agile. It is
   the within-day market index; Agile comes from the EPEX half-hourly
   day-ahead auction that clears at 15:45, fifteen minutes before Octopus
   publishes. Fine for history, useless as the forward input.
 
 Biggest open question: ENTSO-E needs a registration token and has not been
-tested. Whether GB day-ahead prices are available at a useful time is the
-single thing most likely to decide whether good 24h forecasting is achievable.
+tested. Whether GB day-ahead prices are available there, complete and timely,
+is the single thing most likely to decide whether good 24h forecasting is
+achievable — note AgilePredict takes GB day-ahead from Nord Pool (licence
+restricted, and hourly not half-hourly) and uses ENTSO-E only for French
+nuclear.
 
 Verified working with no API key: Elexon (day-ahead demand, wind forecast,
 generation outturn, daily surplus, market index), NESO (embedded wind and

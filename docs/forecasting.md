@@ -45,9 +45,10 @@ and K another — so there are fewer distinct pricing groups than regions.
 problem. Forecast **one reference region** and map it to the other thirteen
 with two coefficient pairs each. No per-region model, no per-region error.
 
-This is also a better answer to "do not hard-code pricing formulas" than
-citing a published formula: the coefficients are *derived from Octopus's own
-published prices*, refitted periodically, and the fit quality is itself a
+AgilePredict reaches the same conclusion (see section 2) — this is not a novel
+architecture. What the measurement adds is that the coefficients can be
+*derived from Octopus's own published prices* rather than hardcoded: exact
+rather than rounded, self-updating, and with a fit statistic that acts as a
 health check. If Octopus changes its methodology, R² collapses and we know.
 
 ### 1.2 Elexon's market index price is not the Agile input
@@ -79,33 +80,65 @@ fundamentals. Do not build on MID.
 
 ## 2. Prior art: AgilePredict
 
-<https://github.com/fboundy/agile_predict> is the reference implementation and
-is considerably more ambitious than what is proposed here.
+<https://github.com/fboundy/agile_predict> — **MIT licensed**, Python/Django,
+actively maintained (last push 2026-08-27). MIT means its code may be reused
+with attribution, which `DESIGN.md` section 22 requires checking before any
+reuse.
 
 - **Data:** Elexon (nuclear availability, demand), NESO (wind, solar, embedded
-  generation, operating margin), ENTSO-E (French nuclear, as an interconnector
-  signal), Open-Meteo (UK and French weather with ensemble perturbations),
-  Nord Pool (GB day-ahead), Yahoo Finance (TTF gas futures), Octopus (actuals).
+  wind and demand, daily operating margin reserve), ENTSO-E (French nuclear as
+  an interconnector signal — *not* GB prices), Open-Meteo (UK and French
+  weather, forecast plus ensemble), Nord Pool (**GB60 hourly day-ahead
+  prices**), Yahoo Finance (TTF gas futures), Octopus (Agile actuals).
 - **Models:** a three-model ensemble — CatBoost, LightGBM and ExtraTrees —
-  trained on a rolling 90-day window, with training samples weighted by linear
-  z-score so spikes and negative prices are prioritised.
-- **Features:** a fixed base set (generation mix, demand, margin surplus,
-  calendar flags) plus experimental features evaluated every 14 days by
-  walk-forward cross-validation, weighted 3× for horizons under three days.
-- **Horizon:** up to 14 days, all regions A–P.
-- **Explainability:** per-slot SHAP contributions in £/MWh.
+  on a rolling 90-day window of half-hourly data, with samples weighted by
+  linear z-score so spikes and negative prices are prioritised.
+- **Features:** a fixed base (UK generation mix, demand, NESO operating margin
+  reserve surplus, calendar flags) plus an experimentally selected optional set
+  (currently French wind and radiation).
+- **Uncertainty:** intervals derived empirically from holdout residuals binned
+  by horizon, *and* from Open-Meteo ensemble weather perturbations.
+- **Explainability:** SHAP contributions per half-hour slot, surfaced in the UI
+  as "why this price?".
+- **Horizon:** up to 14 days, all regions A–P plus a national aggregate.
 
-**What to take:** the data-source list, the emphasis on weighting extreme
-prices during training, and walk-forward validation as the honest way to
-measure a time-series model.
+### It already does the thing described in 1.1
 
-**What not to take:** the whole stack. It is a Python service with a
-substantial training pipeline. This application is a Cloudflare Worker with a
-D1 database and a hard preference for the free tier. Its per-region modelling
-is also unnecessary given finding 1.1 — the regional variation it models is
-arithmetic.
+This is worth stating plainly because an earlier draft of this document got it
+wrong. AgilePredict does **not** model each region separately. It predicts a
+single day-ahead wholesale series and converts to each region with a linear
+`(multiplier, peak_adder)` pair, peak being 16:00–19:00 local — the same shape
+as finding 1.1, arrived at independently.
 
----
+Its coefficients live in `config/settings.py` as hardcoded configuration,
+rounded to two decimal places, in £/MWh units:
+
+| Region | multiplier | peak adder |
+| ------ | ---------- | ---------- |
+| A      | 0.21       | 13         |
+| B      | 0.20       | 14         |
+| C      | 0.20       | 12         |
+| D      | 0.22       | 13         |
+| E      | 0.21       | 11         |
+
+So the architectural contribution of 1.1 is **not** the idea of converting
+rather than modelling — that is prior art. It is two narrower things:
+
+1. **Deriving the coefficients from Octopus's published prices instead of
+   hardcoding them**, which is exact rather than rounded, updates itself, and
+   yields a fit statistic that detects a methodology change. Hardcoded factors
+   are precisely the fragility to avoid: the values above correspond to the
+   2020-era formula, and April 2026 brought a flat −3.5p/kWh change to Agile.
+2. **Mapping Agile-to-Agile** rather than wholesale-to-Agile, which means a
+   reference region's *confirmed* prices can drive the other thirteen without
+   any wholesale price at all.
+
+**What else to take:** weighting extreme observations during training, and
+deriving intervals from weather ensembles as well as historical residuals.
+
+**What not to take:** the stack. It is a Django service with a Python training
+pipeline, deployed on fly.io. This application is a Cloudflare Worker with D1
+and a hard preference for the free tier.
 
 ## 3. Data sources
 
@@ -129,16 +162,21 @@ them are reachable from a Worker with no secret management.
 
 ### Requires registration
 
-- **ENTSO-E Transparency Platform** — GB day-ahead prices, cross-border flows,
-  French nuclear availability. Free but needs an API token, which would be a
-  Worker secret. This is the most valuable unverified source, because it is
-  the closest thing to the actual wholesale input (see 1.2).
+- **ENTSO-E Transparency Platform** — publishes GB day-ahead prices,
+  cross-border flows and French nuclear availability. Free but needs an API
+  token, which would be a Worker secret. Still the most valuable unverified
+  source, but note that AgilePredict uses ENTSO-E only for *French nuclear*
+  and takes GB day-ahead from Nord Pool instead. Whether ENTSO-E's GB
+  day-ahead series is complete and timely enough to replace a licence-
+  restricted feed is exactly what needs testing.
 
 ### Investigated and rejected or deferred
 
-- **Nord Pool** — publishes GB day-ahead prices, but redistribution is
-  licence-restricted. Not appropriate for a public deployment without
-  checking terms. AgilePredict's use of it does not make it licensed for ours.
+- **Nord Pool** — GB60 hourly day-ahead prices, and what AgilePredict
+  actually uses for the GB forward price. Redistribution is licence-restricted,
+  so it is not appropriate for a public deployment without checking terms;
+  AgilePredict being MIT does not license the *data*. Note the series is
+  hourly, while Agile is set from a half-hourly auction.
 - **Yahoo Finance (TTF gas futures)** — AgilePredict uses it; it is not a
   licensed data feed and scraping it is fragile. Gas prices matter because gas
   usually sets the marginal GB price, so this is worth revisiting with a
@@ -219,6 +257,12 @@ options, in preference order:
 2. **Empirical error bands.** Once enough forecast/actual pairs exist, derive
    intervals from the model's own historical error at that horizon and that
    time of day.
+3. **Propagated weather uncertainty.** Open-Meteo publishes ensemble members;
+   running the model over several of them gives a spread that reflects how
+   uncertain *this particular forecast* is, rather than how uncertain forecasts
+   have been on average. AgilePredict combines this with (2), and the
+   combination is better than either — (2) alone cannot tell a calm settled
+   week from a volatile one.
 
 Both need history before they can say anything, which is why the storage and
 validation work comes before any accuracy claim. Until then the UI should show
