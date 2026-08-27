@@ -108,6 +108,38 @@ their outcomes so neither agent re-raises them.
 - Nothing is half-finished. `main` is deployed and verified live.
 - Nothing awaiting implementation.
 
+## Forecasting (research only, nothing built)
+
+Stages 1-4 of the forecasting feature request are done and recorded in
+`docs/forecasting.md`: prior art, data sources, proposed architecture and
+free-tier feasibility. No forecasting code exists.
+
+Two findings bind whatever gets built:
+
+- **Regions are exact linear transforms of one another** once peak and
+  off-peak are separated. R^2 of 1.000000 over 1441 periods, worst error
+  0.009p, holding through negative prices and a 65p spike. Forecast one
+  reference region and map the rest. This also removes any need to hard-code
+  Octopus's formula: the coefficients come from published prices, and the fit
+  quality doubles as a detector for a methodology change.
+- **Elexon MID is not the Agile input.** R^2 of only 0.70 against Agile. It is
+  the within-day market index; Agile comes from the EPEX half-hourly
+  day-ahead auction that clears at 15:45, fifteen minutes before Octopus
+  publishes. Fine for history, useless as the forward input.
+
+Biggest open question: ENTSO-E needs a registration token and has not been
+tested. Whether GB day-ahead prices are available at a useful time is the
+single thing most likely to decide whether good 24h forecasting is achievable.
+
+Verified working with no API key: Elexon (day-ahead demand, wind forecast,
+generation outturn, daily surplus, market index), NESO (embedded wind and
+solar, 14 days), Open-Meteo. All reachable from a Worker with no secrets.
+
+Recommended order, from `docs/forecasting.md` section 7: test ENTSO-E, then
+back-test a seasonal-naive baseline and *publish its error* before judging any
+model against it. The regional coefficient fitting is independently useful and
+can ship on its own.
+
 ## Next Recommended Work
 
 1. **Confirm the new Android badge visually.** Send another test notification
