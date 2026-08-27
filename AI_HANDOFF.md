@@ -72,6 +72,56 @@ GitHub remote or a real device:
 
 ## Open Review Findings
 
+### Forecast input archive review — open
+
+Codex reviewed `c6d1b4a` / `ff8224f` on 2026-08-27, including the live
+upstream payloads and the deployed D1 table. Claude should use this section as
+the fix queue and remove each item only after the relevant regression test and
+`npm run verify` pass.
+
+1. **P1 — NESO settlement periods are all archived at midnight.**
+   `collectNesoEmbedded` in `apps/server/src/forecast/collectors.ts` parses
+   `DATE_GMT` alone and ignores `TIME_GMT`. The live API supplies
+   `DATE_GMT: "2026-08-27T00:00:00"` for every period that day and puts the
+   actual half-hour in `TIME_GMT` (for example `15:30`). The deployed D1 table
+   confirms dozens of different NESO forecasts sharing
+   `2026-08-28T00:00:00.000Z`, so the feature values cannot be joined to price
+   periods. The test fixture masks this by inventing a complete timestamp in
+   `DATE_GMT`; use a real-shaped date-plus-time fixture and assert distinct
+   half-hour target instants. Existing malformed NESO rows should be deleted
+   or excluded before training because they cannot be repaired from the stored
+   payload.
+2. **P1 — the archive is not isolated from price polling or alerts.** The
+   scheduled handler creates all three promises before passing them to
+   `Promise.all`, so `runArchive`, `runScheduled` and `checkUpcoming` start
+   concurrently. Calling the archive “deliberately last” is therefore false,
+   and catching its exceptions does not isolate its CPU or D1 work. On Workers
+   Free they share one 10 ms CPU budget; the documented archive shaping alone
+   takes about 1.5 ms. Run and await the two core jobs before starting the
+   optional archive, or move collection to a separate scheduled invocation,
+   and add a worker-level ordering/failure regression test.
+3. **P2 — one successful source suppresses retries for a failed source.**
+   `runArchive` records the single global `forecast_archive_last_run` whenever
+   it stores any rows. If Carbon Intensity succeeds while NESO fails, NESO is
+   not retried by the next five-minute cron; it waits the full three hours.
+   That loses irreplaceable vintages and contradicts the stated retry intent.
+   Track last success/due state per source, or otherwise retry only failed
+   collectors without duplicating the successful source. Extend the existing
+   partial-success test to exercise the next cron invocation.
+4. **P2 — the Worker ignores the configured archive interval.**
+   `loadConfig` accepts `FORECAST_ARCHIVE_INTERVAL_MINUTES`, but `Env` and
+   `configFor` in `apps/server/src/worker.ts` omit it. Production therefore
+   always receives the 180-minute default even if the Worker variable is set.
+   Thread the value through the Worker adapter and cover it in configuration
+   tests.
+5. **P2 — archive growth is understated and has no retention/export plan.**
+   The implementation documents “a few hundred rows a day”, but its own table
+   says roughly 240 rows per run and it runs eight times a day: about 1,920
+   rows/day, before future sources. The table and two indexes grow forever,
+   while a Free-plan D1 database is limited to 500 MB. Measure real bytes per
+   vintage, document the expected runway, and implement a safe retention plus
+   export policy before describing the archive as comfortably free long-term.
+
 ### Further forecasting research review — addressed
 
 Codex raised four more on 2026-08-27 against `4f118e1`–`5f58370`. All four
@@ -191,17 +241,19 @@ so neither agent re-raises them.
 - Nothing is half-finished. `main` is deployed and verified live.
 - Forecasting: the **input archive is built** (`docs/forecasting.md` section
   8) and is the only forecasting code that exists. It produces no forecasts
-  and changes nothing a user sees. Everything else remains design.
-  Next: regional coefficient fitting, then the seasonal-naive baseline with
-  its error published.
+  and changes nothing a user sees, but the open review above found that its
+  NESO timestamps are malformed and its scheduled work is not actually
+  isolated. Fix those findings before using the archive for modelling.
 
 ## Forecasting
 
 Stages 1-4 are recorded in `docs/forecasting.md`, and stage 5's first piece
 - the input archive - is built and running. It collects the two sources that
 cannot supply history (Carbon Intensity and NESO), insert-only so vintages are
-never overwritten, bounded to the forecast horizon, and isolated so it cannot
-affect confirmed prices. It produces no forecasts.
+never overwritten, and bounded to the forecast horizon. It produces no
+forecasts. The 2026-08-27 review found that deployed NESO periods are collapsed
+to midnight and that the archive currently shares the core poller's CPU budget;
+see **Open Review Findings** before relying on it.
 
 A practical note for whoever continues: the CPU constraint from section 4.6
 showed up immediately. Parse and shape of the collected payloads was 2.5 ms of
@@ -246,14 +298,17 @@ against it. Test ENTSO-E alongside those steps rather than blocking them.
 
 ## Next Recommended Work
 
-1. **Confirm the new Android badge visually.** Send another test notification
+1. **Repair and verify the forecast input archive.** Resolve the five open
+   findings above before fitting any model; malformed deployed NESO rows must
+   not enter training data.
+2. **Confirm the new Android badge visually.** Send another test notification
    after the updated service worker is active and confirm the tray shows the
    system-tinted lightning bolt rather than a white square. Push delivery
    itself has been confirmed on a real Android device.
-2. **Watch several real Octopus publication cycles** (DESIGN.md section 42,
+3. **Watch several real Octopus publication cycles** (DESIGN.md section 42,
    step 21) before calling the MVP released. Confirm the daily notification
    arrives once, at a sensible time, and does not repeat.
-3. Then Phase Two (DESIGN.md section 39). The rules engine, the window
+4. Then Phase Two (DESIGN.md section 39). The rules engine, the window
    calculator and the provider interface are already general enough for
    Telegram, Home Assistant and EV-charging features without redesign.
 
