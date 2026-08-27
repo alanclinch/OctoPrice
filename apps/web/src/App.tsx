@@ -9,6 +9,7 @@ import {
   type UserSettings,
 } from '@octoprice/core';
 import { api, ApiError, type Overview, type SessionUser } from './api.ts';
+import { claimAccessToken } from './claim.ts';
 import { PricesView } from './components/PricesView.tsx';
 import { SettingsView } from './components/SettingsView.tsx';
 import { StatusView } from './components/StatusView.tsx';
@@ -19,7 +20,7 @@ import type { JSX } from 'react';
 type Tab = 'prices' | 'settings' | 'people' | 'status';
 
 /** Whether this device is signed in, and if not, why not. */
-type AuthState = 'checking' | 'signed-in' | 'no-link' | 'bad-link';
+type AuthState = 'checking' | 'signed-in' | 'no-link' | 'bad-link' | 'claim-failed';
 
 interface InstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -104,23 +105,35 @@ function RegionSetup({ initialRegion, onConfirm }: RegionSetupProps): JSX.Elemen
 /**
  * Signs the device in when it arrives via an invite link.
  *
- * The token is removed from the address bar immediately afterwards so it does
- * not linger in history, bookmarks or a shared screenshot. The session lives
- * in an HttpOnly cookie from then on.
+ * The token is only removed from the address bar once the outcome is
+ * definitive. On the first load after a deployment the service worker takes
+ * control and reloads the page, which aborts whatever request is in flight;
+ * keeping the token means that reload simply tries again instead of stranding
+ * someone with a link that can never be used.
  */
 async function claimFromUrl(): Promise<AuthState | null> {
   const url = new URL(window.location.href);
   const token = url.searchParams.get('invite');
   if (!token) return null;
 
-  url.searchParams.delete('invite');
-  window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+  const forgetToken = (): void => {
+    url.searchParams.delete('invite');
+    window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+  };
 
-  try {
-    await api.claim(token);
-    return 'signed-in';
-  } catch {
-    return 'bad-link';
+  const outcome = await claimAccessToken(token, { claim: (value) => api.claim(value) });
+
+  switch (outcome.kind) {
+    case 'claimed':
+      forgetToken();
+      return 'signed-in';
+    case 'rejected':
+      // It will never work, so there is no reason to keep it in the URL.
+      forgetToken();
+      return 'bad-link';
+    default:
+      // Keep the token: refreshing retries the claim.
+      return 'claim-failed';
   }
 }
 
@@ -171,8 +184,8 @@ export function App(): JSX.Element {
     void (async () => {
       const claimed = await claimFromUrl();
       if (cancelled) return;
-      if (claimed === 'bad-link') {
-        setAuth('bad-link');
+      if (claimed === 'bad-link' || claimed === 'claim-failed') {
+        setAuth(claimed);
         setLoading(false);
         return;
       }
@@ -250,8 +263,14 @@ export function App(): JSX.Element {
   if (auth === 'checking' || (loading && !overview)) {
     return <p className="centre">Loading prices…</p>;
   }
-  if (auth === 'no-link' || auth === 'bad-link') {
-    return <SignedOut reason={auth === 'bad-link' ? 'invalid' : 'missing'} />;
+  if (auth === 'no-link' || auth === 'bad-link' || auth === 'claim-failed') {
+    return (
+      <SignedOut
+        reason={
+          auth === 'bad-link' ? 'invalid' : auth === 'claim-failed' ? 'unreachable' : 'missing'
+        }
+      />
+    );
   }
   if (!overview) return <p className="error">{error ?? 'Could not load OctoPrice.'}</p>;
   const regionCode = isRegionCode(overview.settings.region) ? overview.settings.region : 'C';

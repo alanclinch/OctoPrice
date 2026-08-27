@@ -7,7 +7,26 @@
 
 import type { JSX } from 'react';
 
-export function SignedOut({ reason }: { reason: 'missing' | 'invalid' }): JSX.Element {
+export function SignedOut({
+  reason,
+}: {
+  reason: 'missing' | 'invalid' | 'unreachable';
+}): JSX.Element {
+  if (reason === 'unreachable') {
+    return (
+      <div className="card" style={{ marginTop: 32 }}>
+        <h2>OctoPrice</h2>
+        <p>Could not reach the server to sign you in.</p>
+        <p className="muted small">
+          Your link is still good. Pull down to refresh, or open it again in a moment.
+        </p>
+        <button type="button" className="btn primary" onClick={() => window.location.reload()}>
+          Try again
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="card" style={{ marginTop: 32 }}>
       <h2>OctoPrice</h2>
