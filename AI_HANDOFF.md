@@ -72,6 +72,30 @@ GitHub remote or a real device:
 
 ## Open Review Findings
 
+### Forecast input archive post-removal review — open
+
+Codex reviewed `ea68f40` on 2026-08-27. The code changes resolve the three
+previous findings: the NESO collector is gone, the retained timestamp helper
+subtracts the 30-minute period, the public-vintage research script runs
+successfully, and migration 0006 gives retention an indexed plan. Two P2
+follow-ups remain.
+
+1. **P2 — invalid NESO rows are cleaned only in this one deployment.** The
+   handoff records a manual production deletion, but no migration removes
+   `source = 'neso_embedded'`. Any other installation that ran either flawed
+   collector keeps midnight-collapsed or 30-minute-late rows for up to 180
+   days, where a future training export can mistake them for valid data. Add a
+   new idempotent migration deleting all archived NESO rows; the official NESO
+   archives make those local copies unnecessary in every installation.
+2. **P2 — `docs/forecasting.md` still describes the removed collector.** Its
+   section 8 says NESO cannot supply history, retains the old 240-row/run and
+   1,900-row/day sizing, says both stored sources lack issue times, discusses
+   trimming NESO to 72 hours and its CPU cost, and keeps a NESO horizon as a
+   current limitation. These statements contradict the corrected section 3a
+   and the code. Re-measure Carbon-only row size and replace the obsolete
+   sizing, retention runway, design points and limitation rather than merely
+   saying the old figures were halved.
+
 ### Forecast input archive re-review — addressed
 
 Codex re-reviewed `5b9cd5f` against the live NESO feed *and* NESO's official
@@ -183,14 +207,12 @@ Codex raised six design gates on 2026-08-27 against `docs/forecasting.md`.
 All six were valid; four are now answered with measurement rather than
 agreement, and two are corrections to the document. Nothing outstanding.
 
-1. **P1 — input vintage / leakage.** *Answered, and it matters.* Tested which
-   sources can be asked what they said at the time: Elexon exposes vintages via
-   `/history?publishTime=` and `/datasets?publishDateTimeFrom=`, Open-Meteo
-   via `historical-forecast-api`. **NESO does not** — its fields carry no
-   issue time — so a live NESO archive must start before any NESO feature is
-   trusted in a back-test. That is now step 1 of the plan, ahead of everything
-   else, because every day without it is a day that can never be reconstructed.
-   Recorded as section 3a.
+1. **P1 — input vintage / leakage.** *Superseded by later live-data review.*
+   Elexon and Open-Meteo expose forecast history. The initial review wrongly
+   concluded that NESO did not because it inspected only the rolling feed;
+   annual NESO archives do carry `Forecast_Datetime`. Only Carbon Intensity
+   currently requires local live collection. See the newer archive reviews
+   above and `docs/forecasting.md` section 3a.
 2. **P1 — a fitted regional value must never be shown as confirmed.**
    *Accepted, and stated as a constraint.* The transform is exact to 0.01p,
    which is exactly what makes it tempting to misuse. Confirmed prices come
@@ -263,19 +285,16 @@ so neither agent re-raises them.
 ## Forecasting
 
 Stages 1-4 are recorded in `docs/forecasting.md`, and stage 5's first piece
-- the input archive - is built and running. It collects the two sources that
-cannot supply history (Carbon Intensity and NESO), insert-only so vintages are
-never overwritten, and bounded to the forecast horizon. It produces no
-forecasts. Carbon Intensity data collected before 2026-08-27 15:30 is sound;
-All NESO rows were deleted — both the midnight-collapsed and the 30-minute-late
-ones — and NESO is no longer collected. Its forecast vintages come from the
-official annual archives instead, which carry a real issue time.
+- the input archive - is built and running. It collects Carbon Intensity
+insert-only because that forecast cannot be reconstructed later. It produces
+no forecasts. NESO is no longer collected; its official annual archives carry
+real issue times and support historical back-filling. This deployment's two
+sets of malformed NESO rows were manually deleted, but the open finding above
+requires a migration so every installation receives the same cleanup.
 
-A practical note for whoever continues: the CPU constraint from section 4.6
-showed up immediately. Parse and shape of the collected payloads was 2.5 ms of
-the 10 ms Worker budget until the NESO request was narrowed from 700 records
-to 200, which halved it with no loss of usable coverage. Expect to keep
-measuring this rather than assuming.
+A practical note for whoever continues: the old CPU and storage measurements
+included the now-removed NESO collector. Re-measure the Carbon-only archive
+before using those figures for capacity decisions.
 
 AgilePredict (MIT, actively maintained) was read properly, not just
 summarised: it predicts a day-ahead wholesale series and converts per region
@@ -298,19 +317,19 @@ Two findings bind whatever gets built:
   day-ahead auction that clears at 15:45, fifteen minutes before Octopus
   publishes. Fine for history, useless as the forward input.
 
-The immediate open questions are the honest baseline accuracy and collecting
-unrevised vintages from sources that cannot provide history. ENTSO-E remains a
-parallel experiment for improving the short same-day horizon; it is not a
-dependency for the 48–72-hour fundamentals forecast.
+The immediate open questions are honest baseline accuracy and allowing the
+Carbon Intensity archive to accumulate. ENTSO-E remains a parallel experiment
+for improving the short same-day horizon; it is not a dependency for the
+48–72-hour fundamentals forecast.
 
 Verified working with no API key: Elexon (day-ahead demand, wind forecast,
 generation outturn, daily surplus, market index), NESO (embedded wind and
 solar, 14 days), Open-Meteo. All reachable from a Worker with no secrets.
 
-Recommended order, from `docs/forecasting.md` section 7: begin the live input
-archive, fit and monitor regional forecast coefficients, then back-test a
-seasonal-naive baseline and *publish its error* before judging any model
-against it. Test ENTSO-E alongside those steps rather than blocking them.
+Recommended order, from `docs/forecasting.md` section 7: let the live Carbon
+archive accumulate, fit and monitor regional forecast coefficients, then
+back-test a seasonal-naive baseline and *publish its error* before judging any
+model against it. Test ENTSO-E alongside those steps rather than blocking them.
 
 ## Next Recommended Work
 
