@@ -103,7 +103,7 @@ export function StatusView({ now, user }: StatusViewProps): JSX.Element {
 
         <p className="muted small" style={{ marginBottom: 0 }}>
           {tomorrowReady
-            ? 'Everything you need is here. Tomorrow’s prices arrived and any alerts have been sent.'
+            ? 'Tomorrow’s prices have arrived. Anything matching your rules is listed under Prices.'
             : `Octopus usually publishes tomorrow’s prices from about ${status.publicationWindow.start}, and is allowed until ${status.publicationWindow.cutoff}. You will be notified as soon as they land.`}
         </p>
 

@@ -340,18 +340,35 @@ export class D1Store implements Store {
     return result.results.map(toSubscription);
   }
 
+  /**
+   * Registers a device for a person, taking the device away from anyone else.
+   *
+   * Uniqueness is per (person, subscription), so the same browser endpoint can
+   * otherwise sit against two people at once - which happens when a device
+   * changes hands and the browser fails to release its old subscription. Both
+   * rows then look valid and the device receives both people's alerts. A
+   * device belongs to whoever registered it last.
+   */
   async addSubscription(subscription: NewSubscription): Promise<NotificationSubscription> {
     const now = new Date().toISOString();
     const id = randomUUID();
-    await this.database
-      .prepare(
-        `INSERT INTO notification_subscriptions
-           (id, user_id, provider, subscription_data, enabled, created_at)
-         VALUES (?, ?, ?, ?, 1, ?)
-         ON CONFLICT (user_id, subscription_data) DO UPDATE SET enabled = 1`,
-      )
-      .bind(id, subscription.userId, subscription.provider, subscription.subscriptionData, now)
-      .run();
+
+    // Batched so the endpoint can never be attached to two people at once.
+    await this.database.batch([
+      this.database
+        .prepare(
+          'DELETE FROM notification_subscriptions WHERE subscription_data = ? AND user_id != ?',
+        )
+        .bind(subscription.subscriptionData, subscription.userId),
+      this.database
+        .prepare(
+          `INSERT INTO notification_subscriptions
+             (id, user_id, provider, subscription_data, enabled, created_at)
+           VALUES (?, ?, ?, ?, 1, ?)
+           ON CONFLICT (user_id, subscription_data) DO UPDATE SET enabled = 1`,
+        )
+        .bind(id, subscription.userId, subscription.provider, subscription.subscriptionData, now),
+    ]);
     const row = await this.database
       .prepare(
         'SELECT * FROM notification_subscriptions WHERE user_id = ? AND subscription_data = ?',

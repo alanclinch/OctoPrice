@@ -23,7 +23,7 @@ original conversation.
 - **Current branch:** `main`
 - **Source control:** clean `main`, synced to `origin/main`
 - **Build status:** passing — `npm run verify`
-- **Test status:** passing — 278 tests across 10 files
+- **Test status:** passing — 281 tests across 10 files
 - **Deployed:** `https://octoprice.alanclinch.workers.dev` on Cloudflare
   Workers, with D1 in WEUR and a five-minute Cron Trigger
 - **Git remote:** public GitHub repository at
@@ -72,47 +72,52 @@ GitHub remote or a real device:
 
 ## Open Review Findings
 
-Recorded by Codex on 2026-08-27 after reviewing `fb6615d` and `ed1fc65`.
-These are findings, not completed work; no agent is currently assigned.
+None outstanding. Codex raised four on 2026-08-27 against `fb6615d` and
+`ed1fc65`; all are resolved, in `main`, and deployed. Kept here briefly with
+their outcomes so neither agent re-raises them.
 
-1. **P1 — existing users can remain on an unconfirmed default region.**
-   `migrations/0004_region_confirmed.sql` sets `region_confirmed = 1` for every
-   existing settings row. The previous browser-local flag could make a second
-   user skip region selection, which means an existing row does not prove that
-   person chose the stored region. Prefer a one-time prompt for existing users
-   unless confirmation can be inferred reliably.
-2. **P1 — one browser push endpoint can belong to two people.** Subscription
-   uniqueness is `(user_id, subscription_data)`. If browser unsubscribe fails
-   during an account change, enabling push for the new person reuses the valid
-   endpoint while the old person's row remains enabled, so both people's
-   alerts can reach that device. Registration should atomically transfer an
-   endpoint away from any previous owner, with a regression test.
-3. **P2 — reopening your own invite link disables working notifications.**
-   `claimFromUrl()` releases the device subscription after every successful
-   claim, even when the claimed user is already signed in on that device.
-   Release it only when the previous and claimed identities differ.
-4. **P2 — the status page claims alerts were sent without evidence.**
-   `tomorrow.ready` describes price coverage only. Alerts may be disabled,
-   lack a subscription or have failed, so the ready message must not say that
-   alerts have been sent unless delivery state proves it.
+1. **P1 — existing users could remain on an unconfirmed default region.**
+   *Resolved: no defect in this installation.* The concern is sound in general
+   — an existing settings row does not prove somebody chose their region — but
+   the data settles it. Exactly one user existed when
+   `migrations/0004_region_confirmed.sql` ran (the owner), and their region is
+   `N` while the default is `C`. A row that differs from the default *is*
+   evidence of a deliberate choice, so the blanket `region_confirmed = 1` set
+   the right value and nobody was left silently on a default. Prompting again
+   would have been a needless prompt. Going forward the flag is set by the API
+   whenever a region is chosen, so the ambiguity cannot recur.
+2. **P1 — one browser endpoint could belong to two people.** *Fixed.*
+   Uniqueness was per `(user_id, subscription_data)`, so a device whose
+   browser failed to release its old subscription could be registered by a
+   second person while the first person's row stayed enabled — and both
+   people's alerts reached that phone. Registration now removes the endpoint
+   from any other person in the same transaction (batched on D1): a device
+   belongs to whoever registered it last. Three regression tests.
+3. **P2 — reopening your own link disabled working notifications.** *Fixed.*
+   The device subscription was released after *every* successful claim. It is
+   now released only when the previously signed-in person differs from the
+   one just claimed, so reopening your own link from a bookmark or the file it
+   arrived in leaves notifications alone.
+4. **P2 — the status page claimed alerts had been sent.** *Fixed.* Price
+   coverage cannot prove delivery: alerts may be switched off, have no
+   subscription, or have failed. The ready message now speaks only about
+   prices and leaves alerts to the alerts card, which reports actual state.
 
 ## Currently In Progress
 
 - Nothing is half-finished. `main` is deployed and verified live.
-- The review findings above are awaiting implementation.
+- Nothing awaiting implementation.
 
 ## Next Recommended Work
 
-1. Resolve the open review findings in severity order, adding regression tests
-   for the migration and both account-switch push cases.
-2. **Confirm the new Android badge visually.** Send another test notification
+1. **Confirm the new Android badge visually.** Send another test notification
    after the updated service worker is active and confirm the tray shows the
    system-tinted lightning bolt rather than a white square. Push delivery
    itself has been confirmed on a real Android device.
-3. **Watch several real Octopus publication cycles** (DESIGN.md section 42,
+2. **Watch several real Octopus publication cycles** (DESIGN.md section 42,
    step 21) before calling the MVP released. Confirm the daily notification
    arrives once, at a sensible time, and does not repeat.
-4. Then Phase Two (DESIGN.md section 39). The rules engine, the window
+3. Then Phase Two (DESIGN.md section 39). The rules engine, the window
    calculator and the provider interface are already general enough for
    Telegram, Home Assistant and EV-charging features without redesign.
 

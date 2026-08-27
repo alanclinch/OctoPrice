@@ -418,17 +418,39 @@ export class SqliteStore implements Store {
     return rows.map(toSubscription);
   }
 
+  /**
+   * Registers a device for a person, taking the device away from anyone else.
+   *
+   * Uniqueness is per (person, subscription), so the same browser endpoint can
+   * otherwise sit against two people at once - which happens when a device
+   * changes hands and the browser fails to release its old subscription. Both
+   * rows then look valid and the device receives both people's alerts. A
+   * device belongs to whoever registered it last.
+   */
   addSubscription(subscription: NewSubscription): NotificationSubscription {
     const now = new Date().toISOString();
     const id = randomUUID();
-    this.db
-      .prepare(
-        `INSERT INTO notification_subscriptions
+
+    this.db.exec('BEGIN');
+    try {
+      this.db
+        .prepare(
+          'DELETE FROM notification_subscriptions WHERE subscription_data = ? AND user_id != ?',
+        )
+        .run(subscription.subscriptionData, subscription.userId);
+      this.db
+        .prepare(
+          `INSERT INTO notification_subscriptions
            (id, user_id, provider, subscription_data, enabled, created_at)
          VALUES (?, ?, ?, ?, 1, ?)
          ON CONFLICT (user_id, subscription_data) DO UPDATE SET enabled = 1`,
-      )
-      .run(id, subscription.userId, subscription.provider, subscription.subscriptionData, now);
+        )
+        .run(id, subscription.userId, subscription.provider, subscription.subscriptionData, now);
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
 
     const row = this.db
       .prepare(

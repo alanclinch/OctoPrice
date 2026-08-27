@@ -21,9 +21,14 @@ describe('claimAccessToken', () => {
     expect(claim).not.toHaveBeenCalled();
   });
 
-  it('claims a good token', async () => {
-    const claim = vi.fn().mockResolvedValue({});
-    expect(await claimAccessToken('good', { claim, delay: noDelay })).toEqual({ kind: 'claimed' });
+  it('claims a good token and reports who was claimed', async () => {
+    const claim = vi.fn().mockResolvedValue({ user: { id: 'mum' } });
+    expect(await claimAccessToken('good', { claim, delay: noDelay })).toEqual({
+      kind: 'claimed',
+      // The caller compares this with whoever was signed in before, so it can
+      // tell a device changing hands from someone reopening their own link.
+      userId: 'mum',
+    });
     expect(claim).toHaveBeenCalledWith('good');
   });
 
@@ -39,9 +44,12 @@ describe('claimAccessToken', () => {
     const claim = vi
       .fn()
       .mockRejectedValueOnce(new ApiError('Could not reach the OctoPrice server', 0))
-      .mockResolvedValue({});
+      .mockResolvedValue({ user: { id: 'owner' } });
 
-    expect(await claimAccessToken('good', { claim, delay: noDelay })).toEqual({ kind: 'claimed' });
+    expect(await claimAccessToken('good', { claim, delay: noDelay })).toEqual({
+      kind: 'claimed',
+      userId: 'owner',
+    });
     expect(claim).toHaveBeenCalledTimes(2);
   });
 

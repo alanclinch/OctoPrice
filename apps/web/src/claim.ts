@@ -22,7 +22,7 @@ export type ClaimOutcome =
   /** No invite token in the URL; nothing to do. */
   | { kind: 'absent' }
   /** Signed in. The token may now be forgotten. */
-  | { kind: 'claimed' }
+  | { kind: 'claimed'; userId: string }
   /** The server rejected the token. It will never work. */
   | { kind: 'rejected' }
   /** Could not reach the server. Keep the token and let the user retry. */
@@ -30,7 +30,7 @@ export type ClaimOutcome =
 
 export interface ClaimOptions {
   /** Performs the exchange. Injected so this is testable without a browser. */
-  claim: (token: string) => Promise<unknown>;
+  claim: (token: string) => Promise<{ user: { id: string } }>;
   /** Attempts before giving up, covering a reload racing the request. */
   attempts?: number;
   /** Injected in tests so retries do not actually wait. */
@@ -56,8 +56,8 @@ export async function claimAccessToken(
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     try {
-      await options.claim(token);
-      return { kind: 'claimed' };
+      const { user } = await options.claim(token);
+      return { kind: 'claimed', userId: user.id };
     } catch (error) {
       // A rejection is final: retrying a token the server does not know will
       // never start working, and saying "try again" would be a lie.

@@ -121,15 +121,23 @@ async function claimFromUrl(): Promise<AuthState | null> {
     window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
   };
 
+  // Who, if anyone, is already signed in on this device.
+  const previousUserId = await api
+    .session()
+    .then((result) => result.user.id)
+    .catch(() => null);
+
   const outcome = await claimAccessToken(token, { claim: (value) => api.claim(value) });
 
   switch (outcome.kind) {
     case 'claimed':
       forgetToken();
-      // Whoever used this device before may have left a push subscription
-      // behind. It belongs to them, so drop it rather than let their alerts
-      // keep arriving here.
-      await releaseDeviceSubscription();
+      // Only when the device has genuinely changed hands. Reopening your own
+      // link - from a bookmark, or the file it was sent in - must not turn
+      // your working notifications off.
+      if (previousUserId !== null && previousUserId !== outcome.userId) {
+        await releaseDeviceSubscription();
+      }
       return 'signed-in';
     case 'rejected':
       // It will never work, so there is no reason to keep it in the URL.

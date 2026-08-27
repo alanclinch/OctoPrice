@@ -468,3 +468,90 @@ describe('status page content', () => {
     expect(theirs.json().tariffCode).toContain('-M');
   });
 });
+
+describe('a device that changes hands', () => {
+  let context: TestContext;
+
+  beforeEach(async () => {
+    context = await createTestApp();
+  });
+
+  afterEach(async () => {
+    await context.built.close();
+  });
+
+  it('moves the device to whoever registered it last', async () => {
+    // The owner registers this browser.
+    await context.inject({
+      method: 'POST',
+      url: '/api/push/subscribe',
+      payload: PUSH_SUBSCRIPTION,
+    });
+    expect(
+      (await context.inject({ method: 'GET', url: '/api/push/subscriptions' })).json().count,
+    ).toBe(1);
+
+    // The device is handed over and the browser fails to release its old
+    // subscription, so the same endpoint is registered again by someone else.
+    const { id, token } = await context.invite('Mum');
+    await context.injectAnonymous({
+      method: 'POST',
+      url: '/api/push/subscribe',
+      headers: context.asUser(token),
+      payload: PUSH_SUBSCRIPTION,
+    });
+
+    // It must belong to exactly one of them, otherwise both people's alerts
+    // arrive on the same phone.
+    const owner = await context.inject({ method: 'GET', url: '/api/push/subscriptions' });
+    const mum = await context.injectAnonymous({
+      method: 'GET',
+      url: '/api/push/subscriptions',
+      headers: context.asUser(token),
+    });
+
+    expect(owner.json().count).toBe(0);
+    expect(mum.json().count).toBe(1);
+    expect((await context.built.store.listSubscriptions(id)).length).toBe(1);
+  });
+
+  it('does not deliver one person alerts through another person device', async () => {
+    await context.inject({
+      method: 'POST',
+      url: '/api/push/subscribe',
+      payload: PUSH_SUBSCRIPTION,
+    });
+
+    const { token } = await context.invite('Mum');
+    await context.injectAnonymous({
+      method: 'POST',
+      url: '/api/push/subscribe',
+      headers: context.asUser(token),
+      payload: PUSH_SUBSCRIPTION,
+    });
+
+    // The owner now has nowhere to send, which is correct: they no longer
+    // have that device.
+    context.sender.sent.length = 0;
+    const result = await context.built.priceService.refresh(TOMORROW, context.tariff);
+    await context.built.dispatcher.dispatchForDay(TOMORROW, result.periods, OWNER_ID);
+
+    expect(context.sender.sent).toHaveLength(0);
+  });
+
+  it('re-registering your own device changes nothing', async () => {
+    await context.inject({
+      method: 'POST',
+      url: '/api/push/subscribe',
+      payload: PUSH_SUBSCRIPTION,
+    });
+    await context.inject({
+      method: 'POST',
+      url: '/api/push/subscribe',
+      payload: PUSH_SUBSCRIPTION,
+    });
+
+    const owner = await context.inject({ method: 'GET', url: '/api/push/subscriptions' });
+    expect(owner.json().count).toBe(1);
+  });
+});
