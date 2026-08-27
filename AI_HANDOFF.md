@@ -93,6 +93,69 @@ GitHub remote or a real device:
 
 ## Open Review Findings
 
+### Re-review of `70593e8` — Claude, 2026-08-27
+
+All four findings from the `6441a82` review are fixed, and I verified each
+against measurement rather than reading the diff. `npm run verify` exits 0 with
+324 tests across 13 files.
+
+**1. CPU — fixed and independently confirmed.** `benchmark-seasonal-baseline.mjs`
+gives 3.55 ms median and 4.74 ms p95 for 1,344 periods and 96 targets, against
+the 617 ms I measured before, with a doubling ratio of 1.45. The Proxy-based
+test that throws if the target loop touches raw history is a good guard for the
+exact regression.
+
+The risky part of that fix is the arithmetic in `prepareForecastHistory` that
+replaced the per-row ICU lookup, so I checked it rather than trusting the unit
+test: comparing its `minutes` and `weekend` against `londonMinutesOfDay` and the
+ICU date for every half-hour from 2025-10-01 to 2026-11-01 gives **0 mismatches
+across 19,010 periods**, covering one 46-period day and two 50-period days, and
+0 mismatches again with multi-day gaps punched through the history so the
+running day cursor has to resynchronise. The 46/50 index offsets are correct.
+
+**2. Error isolation — fixed.** `safeBaselineForecast` degrades to
+`unavailableReason: 'failed'`, the forecast now joins the existing
+`Promise.all`, and the integration test proves the endpoint still returns 200.
+
+**3. Kill switch — fixed.** `FORECAST_BASELINE_ENABLED` defaults false and also
+gates the cron and startup backfill in both runtimes.
+
+**4. Lead time — fixed, and the fix improved the product.** The back-test now
+scores both horizons at the issue times the app actually uses, and moving
+`historyTo` to `endOfLondonDay(today)` means the shipped configuration really
+does match what is measured: 3.82p tomorrow, 3.99p the day after, over 2,736
+periods each. I reran it live and reproduced both. My earlier 4.05p figure
+described the old `startOfLondonDay` window and no longer applies. Wording,
+the repeated separator and the invented ex-VAT field are all dealt with.
+
+Nothing blocking remains. Three residual notes, none of which need to hold up a
+merge:
+
+- **The leakage guard moved out of `packages/core` and nothing tests it.**
+  `forecastSeasonalPrices` no longer filters history to `Date.parse(validTo) <=
+  now`; only targets are gated. Both current callers bound history themselves,
+  so there is no live defect, and including today's confirmed prices is the
+  right call. But the pure layer used to make a future-data leak structurally
+  impossible and now relies on callers getting it right. Worth either restoring
+  the filter over `preparedHistory` or documenting the contract on the option.
+
+- **~4 ms of a 10 ms budget, and production is opted in on deploy.**
+  `wrangler.jsonc` sets `FORECAST_BASELINE_ENABLED: "true"`, so the default-off
+  applies to local runs only. Only the forecast portion has been benchmarked;
+  the end-to-end CPU of `/api/overview` with auth, D1 deserialisation and JSON
+  serialisation on top has not been measured on a real Worker isolate. Suggest
+  deploying once with the flag false, measuring the whole request, then turning
+  it on — the margin is real but no longer generous.
+
+- **The scaling guard is a script, not CI.** `benchmark-seasonal-baseline.mjs`
+  throws above 3x, but `verify` does not run it, so only the Proxy unit test
+  actually blocks a regression.
+
+Still true from the first review and unchanged: the back-test only exercises the
+identity transform, so the regional path every non-London user takes remains
+unmeasured.
+
+
 ### Forecast baseline review of `6441a82` — addressed by Codex, 2026-08-27
 
 Reviewed on branch `codex/forecast-baseline`. `npm run verify` passes and
