@@ -19,7 +19,7 @@ export const DEFAULT_USER_ID = 'default';
 /** Rules created for a new installation. */
 export const DEFAULT_ALERT_RULES: readonly AlertRuleInput[] = [
   {
-    name: 'Negative prices',
+    name: 'Negative Prices',
     enabled: true,
     operator: 'lt',
     thresholdPence: 0,
@@ -29,7 +29,7 @@ export const DEFAULT_ALERT_RULES: readonly AlertRuleInput[] = [
     notify: true,
   },
   {
-    name: 'Cheap electricity',
+    name: 'Cheap Electricity',
     enabled: true,
     operator: 'lte',
     thresholdPence: 7,
@@ -39,7 +39,7 @@ export const DEFAULT_ALERT_RULES: readonly AlertRuleInput[] = [
     notify: true,
   },
   {
-    name: 'Two cheap hours',
+    name: 'Two Cheap Hours',
     enabled: true,
     operator: 'lte',
     thresholdPence: 7,

@@ -304,8 +304,8 @@ with the current period first by default. Show the exact count when tomorrow
 is only partially published rather than repeating a vague waiting message.
 
 First use must ask for the user's electricity area before showing prices. The
-header should name the area as well as the underlying region code and provide
-an obvious PWA installation action.
+header should name the area in plain language, without exposing its internal
+region code, and provide an obvious PWA installation action.
 
 Tomorrow's publication state, the cheapest continuous window and the price
 chart share one compact secondary card. The window and chart are collapsed by

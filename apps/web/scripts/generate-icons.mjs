@@ -4,7 +4,8 @@
  * Written as a script rather than committing opaque binaries by hand, so the
  * icons can be regenerated or restyled from one place. A tiny PNG encoder is
  * used instead of an image library: the artwork is a flat background and one
- * polygon, which is not worth a dependency.
+ * polygon, which is not worth a dependency. The notification badge is a
+ * separate transparent monochrome mark, as required by Android status bars.
  *
  * Run with: npm run generate:icons --workspace @octoprice/web
  */
@@ -156,6 +157,39 @@ function renderIcon(size, { maskable = false } = {}) {
   return encodePng(size, size, rgba);
 }
 
+/**
+ * Android uses only the alpha channel of notification badges and applies its
+ * own colour. A transparent bolt avoids the solid white square produced when
+ * a full launcher icon is supplied here.
+ */
+function renderBadge(size) {
+  const rgba = Buffer.alloc(size * size * 4);
+  const samples = 3;
+
+  for (let py = 0; py < size; py += 1) {
+    for (let px = 0; px < size; px += 1) {
+      let coverage = 0;
+      for (let sy = 0; sy < samples; sy += 1) {
+        for (let sx = 0; sx < samples; sx += 1) {
+          const x = (px + (sx + 0.5) / samples) / size;
+          const y = (py + (sy + 0.5) / samples) / size;
+          if (insidePolygon(BOLT_SHAPE, x, y)) coverage += 1;
+        }
+      }
+
+      const offset = (py * size + px) * 4;
+      // Android uses the alpha mask; black RGB keeps the source asset visible
+      // in ordinary image viewers without changing its rendered tray colour.
+      rgba[offset] = 0;
+      rgba[offset + 1] = 0;
+      rgba[offset + 2] = 0;
+      rgba[offset + 3] = Math.round((coverage / (samples * samples)) * 255);
+    }
+  }
+
+  return encodePng(size, size, rgba);
+}
+
 function svgIcon() {
   const points = BOLT_SHAPE.map(([x, y]) => `${(x * 512).toFixed(1)},${(y * 512).toFixed(1)}`).join(
     ' ',
@@ -175,7 +209,7 @@ const outputs = [
   ['icon-192.png', renderIcon(192)],
   ['icon-512.png', renderIcon(512)],
   ['icon-maskable-512.png', renderIcon(512, { maskable: true })],
-  ['badge-96.png', renderIcon(96, { maskable: true })],
+  ['badge-96.png', renderBadge(96)],
   ['icon.svg', Buffer.from(svgIcon(), 'utf8')],
 ];
 

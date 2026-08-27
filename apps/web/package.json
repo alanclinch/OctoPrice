@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Mobile-first Progressive Web App for Octopus Agile prices",
+  "author": "Alan Clinch",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

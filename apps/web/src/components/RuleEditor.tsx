@@ -20,6 +20,16 @@ const OPERATOR_LABELS: Record<ComparisonOperator, string> = {
 
 const DURATION_CHOICES = [30, 60, 90, 120, 180, 240, 360];
 
+const LEGACY_DEFAULT_RULE_NAMES: Readonly<Record<string, string>> = {
+  'Negative prices': 'Negative Prices',
+  'Cheap electricity': 'Cheap Electricity',
+  'Two cheap hours': 'Two Cheap Hours',
+};
+
+function displayRuleName(name: string): string {
+  return LEGACY_DEFAULT_RULE_NAMES[name] ?? name;
+}
+
 export interface RuleFormProps {
   initial?: AlertRule;
   onSave: (input: AlertRuleInput) => Promise<void>;
@@ -211,7 +221,7 @@ export function RuleList({ rules, onEdit, onDelete, onToggle }: RuleListProps): 
         <div key={rule.id} className={`rule${rule.enabled ? '' : ' disabled'}`}>
           <div className="toggle" style={{ borderBottom: 0, paddingTop: 0 }}>
             <span>
-              <span className="rule-name">{rule.name}</span>
+              <span className="rule-name">{displayRuleName(rule.name)}</span>
               <span className="rule-detail">{describeRule(rule)}</span>
               {rule.lastTriggeredAt && (
                 <span className="rule-detail">
@@ -223,7 +233,7 @@ export function RuleList({ rules, onEdit, onDelete, onToggle }: RuleListProps): 
             <input
               type="checkbox"
               checked={rule.enabled}
-              aria-label={`Enable ${rule.name}`}
+              aria-label={`Enable ${displayRuleName(rule.name)}`}
               onChange={(event) => onToggle(rule, event.target.checked)}
             />
           </div>

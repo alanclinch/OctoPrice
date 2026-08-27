@@ -53,6 +53,11 @@ Octopus publication cycles.
 
 ### Fixed
 
+- Removed the internal region code from the header, clarified when new prices
+  normally arrive, separated alert-rule titles from their conditions, and
+  replaced the solid Android notification square with a monochrome bolt.
+- Added a discreet Alan Clinch credit, source link and standard author
+  metadata.
 - The current-price card now shows the next price inline, and the secondary
   availability, cheapest-window and chart panels are condensed into one
   optional card that remembers which tool was left open.

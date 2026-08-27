@@ -310,7 +310,7 @@ describe('HTTP API', () => {
   it('lists the seeded default rules', async () => {
     const response = await context.app.inject({ method: 'GET', url: '/api/rules' });
     const names = response.json().rules.map((rule: { name: string }) => rule.name);
-    expect(names).toEqual(['Negative prices', 'Cheap electricity', 'Two cheap hours']);
+    expect(names).toEqual(['Negative Prices', 'Cheap Electricity', 'Two Cheap Hours']);
     expect(await context.built.store.setStateIfAbsent('rules_seeded', 'later')).toBe(false);
   });
 

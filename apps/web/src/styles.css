@@ -641,12 +641,28 @@ input[type='checkbox'] {
 }
 
 .rule .rule-name {
+  display: block;
   font-weight: 650;
 }
 
 .rule .rule-detail {
+  display: block;
   color: var(--text-muted);
   font-size: 0.86rem;
+  margin-top: 3px;
+}
+
+.app-footer {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  padding: 18px 0 4px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.app-footer a {
+  color: inherit;
 }
 
 /* --- Utility ------------------------------------------------------------ */

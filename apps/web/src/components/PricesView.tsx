@@ -40,10 +40,10 @@ export function PricesView({ overview, now, display }: PricesViewProps): JSX.Ele
     : allPeriods;
   const cheapestWindow: PeriodRun | null = findCheapestWindow(visiblePeriods, windowMinutes);
   const tomorrowStatus = overview.tomorrow.complete
-    ? "Tomorrow's prices complete"
+    ? "Tomorrow's prices are ready"
     : overview.tomorrow.periods.length > 0
-      ? `Tomorrow ${overview.tomorrow.periods.length}/${overview.tomorrow.expectedPeriodCount} published`
-      : 'Tomorrow not published';
+      ? "Tomorrow's prices are updating"
+      : 'Prices usually update around 4pm';
 
   function toggleTool(tool: PriceTool): void {
     const nextTool = openTool === tool ? null : tool;

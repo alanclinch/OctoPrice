@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Octopus Agile price monitoring and notification PWA",
+  "author": "Alan Clinch",
   "license": "MIT",
   "repository": {
     "type": "git",

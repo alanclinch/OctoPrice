@@ -205,9 +205,7 @@ export function App(): JSX.Element {
       <header className="app-header">
         <div>
           <h1>OctoPrice</h1>
-          <span className="region">
-            {region.area} · region {region.code}
-          </span>
+          <span className="region">{region.area}</span>
         </div>
         {showInstall && (
           <button type="button" className="btn compact" onClick={() => void install()}>
@@ -245,6 +243,14 @@ export function App(): JSX.Element {
         <SettingsView settings={overview.settings} onSettingsChange={onSettingsChange} />
       )}
       {tab === 'status' && <StatusView now={now} />}
+
+      <footer className="app-footer">
+        <span>Made by Alan Clinch</span>
+        <span aria-hidden="true">·</span>
+        <a href="https://github.com/alanclinch/OctoPrice" target="_blank" rel="noreferrer">
+          Source code
+        </a>
+      </footer>
     </>
   );
 }
