@@ -40,13 +40,15 @@ implementation is genuinely blocked.
 ## Current State
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
-- **Current branch:** `codex/forecast-baseline`
-- **Source control:** Claude approved `70593e8` in `39b48a1`; release
-  preparation is in progress on `codex/forecast-baseline`
+- **Current branch:** `main`
+- **Source control:** Claude approved `70593e8` in `39b48a1`; `main` was
+  fast-forwarded and pushed at `a6819f7`
 - **Build status:** passing — `npm run verify`
 - **Test status:** passing — 324 tests across 13 files
-- **Deployed:** `https://octoprice.alanclinch.workers.dev` on Cloudflare
-  Workers, with D1 in WEUR and a five-minute Cron Trigger
+- **Deployed:** `a6819f7` at `https://octoprice.alanclinch.workers.dev` on
+  Cloudflare Workers, with D1 in WEUR and a five-minute Cron Trigger.
+  Migration 0007 is applied; `FORECAST_BASELINE_ENABLED=false` for the staged
+  rollout described below.
 - **Git remote:** public GitHub repository at
   `https://github.com/alanclinch/OctoPrice`; `main` is pushed and GitHub CI
   has completed successfully
@@ -468,7 +470,7 @@ so neither agent re-raises them.
    subscription, or have failed. The ready message now speaks only about
    prices and leaves alerts to the alerts card, which reports actual state.
 
-## Status: Claude's baseline review addressed; ready for re-review
+## Status: approved and deployed behind the production kill switch
 
 Alan resumed forecasting development on 2026-08-27 with Codex as implementer
 and Claude as reviewer. The existing application remains deployed and stable;
@@ -487,17 +489,20 @@ throughout and cannot drive alerts or cheapest-window advice.
 
 ## Currently In Progress
 
-- **Review-ready branch:** `codex/forecast-baseline`
-- **Review-fix commit:** `70593e8` (`Fix forecast review findings`), on top of
-  implementation commit `6441a82`.
-- **Owner: Codex. Reviewer: Claude.** Claude should re-review `70593e8` and put
-  its verdict and any findings directly under Open Review Findings.
-- Not merged, migrated or deployed. Production remains the stable `main`.
-- `npm run verify` passes: format, lint, type-check, **324 tests**, core/server
-  builds and PWA/service-worker build.
-- Local browser verification covered first-run setup, the continuous table,
-  confirmed-to-estimate boundary, estimate labels/ranges and phone-oriented
-  layout with no console warnings or errors.
+- Claude's re-review found no blocking issue. The branch is merged, migration
+  0007 is applied and production version `fa8304af-2687-478b-b862-0e383e036639`
+  is healthy. Public `/api/health` and the app shell return 200.
+- The experimental baseline is deliberately **disabled in production** while
+  whole-request CPU is measured. Cloudflare's previous-24-hour metrics with it
+  off are P50 4.27 ms, P90 7.45 ms and P99 11.48 ms. The Free-plan HTTP limit
+  is 10 ms; adding the isolated ~4 ms forecast without route-level evidence
+  would risk confirmed-price requests.
+- The automation browser has no OctoPrice owner session. Do not rotate or
+  manufacture an access link merely to benchmark. The safe next measurement
+  needs Alan to open the signed-in app while Worker metrics/tail are observed,
+  or another existing authenticated test session.
+- `npm run verify` passes on merged `main`: format, lint, type-check, **324
+  tests**, core/server builds and PWA/service-worker build.
 
 ## Forecasting
 
@@ -560,11 +565,15 @@ model against it. Test ENTSO-E alongside those steps rather than blocking them.
 
 ## Next Recommended Work
 
-1. **Claude reviews `6441a82`.** Findings go under Open Review Findings in
-   this file. Codex fixes them on this branch; Alan does not relay messages.
-2. After approval, merge to `main`, apply migration 0007, deploy, and allow
+1. **Measure authenticated `/api/overview` CPU before enabling the baseline.**
+   Alan can open the signed-in app once while Codex observes Worker metrics or
+   a tail. Do not enable from the isolated 4 ms benchmark alone: production is
+   already P90 7.45 ms with the flag off.
+2. If route-level evidence fits the 10 ms Free-plan budget, set
+   `FORECAST_BASELINE_ENABLED=true`, verify, commit, push and deploy. Then allow
    roughly 2h20 for a region-C installation or 4h40 for a reference/other-
-   region pair to accumulate the 28-day backfill through five-minute cron.
+   region pair to accumulate the 28-day backfill through five-minute cron. If
+   it does not fit, move calculation off the overview path before enabling it.
 3. **Confirm the new Android badge visually.** Send another test notification
    after the updated service worker is active and confirm the tray shows the
    system-tinted lightning bolt rather than a white square. Push delivery
