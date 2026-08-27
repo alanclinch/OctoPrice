@@ -4,9 +4,8 @@
  * Runs the collectors on a slow schedule and writes what they return, without
  * ever replacing an earlier observation. This is the first piece of
  * forecasting to be built because it is the only one that gets worse by
- * waiting: NESO and the Carbon Intensity API cannot be asked what they said
- * last week, so any day not collected is a day that can never be used to
- * validate a model honestly.
+ * waiting: the Carbon Intensity API cannot be asked what it said last week,
+ * so any day not collected is a day that cannot be validated honestly.
  *
  * It produces no forecasts and changes nothing a user sees. That is
  * deliberate - it should be possible to run this for weeks, decide the
@@ -70,8 +69,8 @@ export interface ArchiveOptions {
   collectors?: readonly SourceCollector[];
   /**
    * Days of history to keep. A free D1 database is capped at 500 MB, and this
-   * archive measures ~235 bytes a row at ~1,900 rows a day, so it cannot be
-   * kept forever without a plan.
+   * Carbon-only archive measures 292.8 bytes of column payload at roughly 770
+   * rows a day, so it cannot be kept forever without a plan.
    */
   retentionDays?: number;
 }
@@ -209,6 +208,8 @@ export interface ScheduledJobs {
   core: () => Promise<unknown>;
   /** The optional archive. Skipped entirely when not enabled. */
   archive?: (() => Promise<unknown>) | undefined;
+  /** Optional forecast work, also isolated behind all confirmed-price work. */
+  forecast?: (() => Promise<unknown>) | undefined;
 }
 
 /**
@@ -222,6 +223,7 @@ export interface ScheduledJobs {
 export async function runScheduledJobs(jobs: ScheduledJobs): Promise<void> {
   await jobs.core();
   if (jobs.archive) await jobs.archive();
+  if (jobs.forecast) await jobs.forecast();
 }
 
 /** Freshness of the archive, for the status page. */

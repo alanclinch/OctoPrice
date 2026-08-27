@@ -7,12 +7,13 @@
  */
 
 import { Fragment } from 'react';
-import { londonDateOf, type PricePeriod } from '@octoprice/core';
+import { londonDateOf } from '@octoprice/core';
 import { bandClass, longDate, pence, periodRange, type DisplayOptions } from '../format.ts';
+import { isForecastPeriod, type TimelinePricePeriod } from './timeline.ts';
 import type { JSX } from 'react';
 
 export interface PriceTableProps {
-  periods: PricePeriod[];
+  periods: TimelinePricePeriod[];
   now: Date;
   display: DisplayOptions;
   /** Hide periods that have already finished. */
@@ -51,6 +52,9 @@ export function PriceTable({
           const date = londonDateOf(new Date(from));
           const previousDate =
             index > 0 ? londonDateOf(new Date(visible[index - 1]?.validFrom ?? from)) : null;
+          const forecast = isForecastPeriod(period);
+          const previous = visible[index - 1];
+          const beginsForecast = forecast && (!previous || !isForecastPeriod(previous));
 
           return (
             <Fragment key={period.validFrom}>
@@ -61,13 +65,30 @@ export function PriceTable({
                   </th>
                 </tr>
               )}
-              <tr className={isNow ? 'is-now' : isPast ? 'is-past' : undefined}>
+              {beginsForecast && (
+                <tr className="forecast-separator">
+                  <th colSpan={2} scope="rowgroup">
+                    Experimental estimates from here
+                  </th>
+                </tr>
+              )}
+              <tr
+                className={
+                  forecast ? 'is-forecast' : isNow ? 'is-now' : isPast ? 'is-past' : undefined
+                }
+              >
                 <td>
                   {periodRange(period, display)}
                   {isNow && <span className="muted small"> · now</span>}
+                  {forecast && <span className="forecast-label">Estimate</span>}
                 </td>
                 <td className={`numeric price ${bandClass(period.valueIncVat)}`}>
-                  {pence(period.valueIncVat, 2)}
+                  {forecast ? `~${pence(period.valueIncVat, 1)}` : pence(period.valueIncVat, 2)}
+                  {forecast && (
+                    <span className="forecast-range">
+                      {pence(period.lowerIncVat, 1)}–{pence(period.upperIncVat, 1)} recent range
+                    </span>
+                  )}
                 </td>
               </tr>
             </Fragment>

@@ -45,9 +45,8 @@ const envSchema = z.object({
   WEB_DIST_PATH: z.string().default('../web/dist'),
 
   /**
-   * Collect forecasting inputs that cannot be retrieved later. Costs a few
-   * hundred database rows a day and changes nothing a user sees; the reason
-   * to run it now is that the archive cannot be backfilled.
+   * Collect Carbon Intensity vintages that cannot be retrieved later. At the
+   * default cadence this is about 770 rows a day and changes nothing by itself.
    */
   FORECAST_ARCHIVE_ENABLED: z
     .enum(['true', 'false'])
@@ -55,9 +54,9 @@ const envSchema = z.object({
     .transform((v) => v === 'true'),
   FORECAST_ARCHIVE_INTERVAL_MINUTES: z.coerce.number().int().min(30).max(1440).default(180),
   /**
-   * How long to keep archived observations. Measured at ~235 bytes a row and
-   * ~1,900 rows a day, so 180 days is roughly 80 MB of payload before index
-   * overhead - which fits a 500 MB free D1 database alongside prices.
+   * How long to keep archived observations. Carbon-only production rows
+   * measured 292.8 bytes of column payload and 96-97 rows per run, so 180 days
+   * is roughly 41 MB before SQLite/index overhead.
    */
   FORECAST_ARCHIVE_RETENTION_DAYS: z.coerce.number().int().min(7).max(3650).default(180),
 });

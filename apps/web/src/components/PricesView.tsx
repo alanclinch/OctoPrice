@@ -35,10 +35,27 @@ export function PricesView({ overview, now, display }: PricesViewProps): JSX.Ele
       ),
     [overview.today.periods, overview.tomorrow.periods],
   );
-  const visiblePeriods = remainingOnly
+  const forecastPeriods = useMemo(() => {
+    const confirmedStarts = new Set(allPeriods.map((period) => period.validFrom));
+    return overview.forecast.periods.filter((period) => !confirmedStarts.has(period.validFrom));
+  }, [allPeriods, overview.forecast.periods]);
+  const timelinePeriods = useMemo(
+    () =>
+      [...allPeriods, ...forecastPeriods].sort(
+        (a, b) => Date.parse(a.validFrom) - Date.parse(b.validFrom),
+      ),
+    [allPeriods, forecastPeriods],
+  );
+  const visibleConfirmedPeriods = remainingOnly
     ? allPeriods.filter((period) => Date.parse(period.validTo) > now.getTime())
     : allPeriods;
-  const cheapestWindow: PeriodRun | null = findCheapestWindow(visiblePeriods, windowMinutes);
+  const visibleTimelinePeriods = remainingOnly
+    ? timelinePeriods.filter((period) => Date.parse(period.validTo) > now.getTime())
+    : timelinePeriods;
+  const cheapestWindow: PeriodRun | null = findCheapestWindow(
+    visibleConfirmedPeriods,
+    windowMinutes,
+  );
   const tomorrowStatus = overview.tomorrow.complete
     ? "Tomorrow's prices are ready"
     : overview.tomorrow.periods.length > 0
@@ -74,7 +91,7 @@ export function PricesView({ overview, now, display }: PricesViewProps): JSX.Ele
             className={`price-tool-toggle${openTool === 'window' ? ' active' : ''}`}
             aria-expanded={openTool === 'window'}
             onClick={() => toggleTool('window')}
-            disabled={visiblePeriods.length === 0}
+            disabled={visibleConfirmedPeriods.length === 0}
           >
             <span>Cheapest window</span>
             <span className="disclosure" aria-hidden="true">
@@ -86,7 +103,7 @@ export function PricesView({ overview, now, display }: PricesViewProps): JSX.Ele
             className={`price-tool-toggle${openTool === 'timeline' ? ' active' : ''}`}
             aria-expanded={openTool === 'timeline'}
             onClick={() => toggleTool('timeline')}
-            disabled={visiblePeriods.length === 0}
+            disabled={visibleTimelinePeriods.length === 0}
           >
             <span>Price timeline</span>
             <span className="disclosure" aria-hidden="true">
@@ -95,7 +112,7 @@ export function PricesView({ overview, now, display }: PricesViewProps): JSX.Ele
           </button>
         </div>
 
-        {openTool === 'window' && visiblePeriods.length > 0 && (
+        {openTool === 'window' && visibleConfirmedPeriods.length > 0 && (
           <div className="price-tool-content">
             <div className="field-row window-choices">
               {WINDOW_CHOICES.map((minutes) => (
@@ -132,9 +149,14 @@ export function PricesView({ overview, now, display }: PricesViewProps): JSX.Ele
           </div>
         )}
 
-        {openTool === 'timeline' && visiblePeriods.length > 0 && (
+        {openTool === 'timeline' && visibleTimelinePeriods.length > 0 && (
           <div className="price-tool-content">
-            <PriceChart periods={visiblePeriods} now={now} display={display} />
+            <PriceChart periods={visibleTimelinePeriods} now={now} display={display} />
+            {forecastPeriods.length > 0 && (
+              <p className="forecast-note muted small">
+                Outlined bars are experimental estimates from recent confirmed Agile prices.
+              </p>
+            )}
           </div>
         )}
       </div>
@@ -144,7 +166,11 @@ export function PricesView({ overview, now, display }: PricesViewProps): JSX.Ele
           <div>
             <h2>Half-hour prices</h2>
             <p className="section-title">
-              {remainingOnly ? 'Current slot first' : 'Including elapsed prices'}
+              {forecastPeriods.length > 0
+                ? 'Estimates follow confirmed prices'
+                : remainingOnly
+                  ? 'Current slot first'
+                  : 'Including elapsed prices'}
             </p>
           </div>
           <label className="remaining-toggle">
@@ -156,7 +182,17 @@ export function PricesView({ overview, now, display }: PricesViewProps): JSX.Ele
             Remaining only
           </label>
         </div>
-        <PriceTable periods={allPeriods} now={now} display={display} hidePast={remainingOnly} />
+        <PriceTable
+          periods={timelinePeriods}
+          now={now}
+          display={display}
+          hidePast={remainingOnly}
+        />
+        {forecastPeriods.length === 0 && overview.forecast.unavailableReason && (
+          <p className="forecast-note muted small">
+            Experimental estimates will appear after enough recent price history has been collected.
+          </p>
+        )}
       </div>
     </>
   );

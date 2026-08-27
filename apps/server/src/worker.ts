@@ -13,6 +13,7 @@ import { AlertDispatcher } from './alerts/dispatcher.ts';
 import { PricePoller } from './scheduler/poller.ts';
 import { handleApiRequest } from './api/handler.ts';
 import { runArchive, runScheduledJobs } from './forecast/archive.ts';
+import { runForecastHistoryBackfill } from './forecast/baseline.ts';
 
 interface Env {
   DB: D1Database;
@@ -195,7 +196,7 @@ export default {
   },
 
   async scheduled(_controller: ScheduledController, env: Env, context: ExecutionContext) {
-    const { poller, store, logger, config } = await getRuntime(env);
+    const { poller, store, priceService, logger, config } = await getRuntime(env);
 
     // The core work first, and only then the optional archive.
     //
@@ -220,6 +221,7 @@ export default {
                 retentionDays: config.forecastArchiveRetentionDays,
               })
           : undefined,
+        forecast: () => runForecastHistoryBackfill({ store, priceService, logger }),
       }),
     );
   },

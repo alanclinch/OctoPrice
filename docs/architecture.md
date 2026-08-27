@@ -137,7 +137,7 @@ rule, pricing date, the matched run's start and length. The key is written to
 - A server restart cannot re-notify.
 - A failed send can still be retried later, because failure does not claim
   the key.
-- A genuinely changed forecast (a corrected price that lengthens a cheap
+- A genuinely changed published price (a correction that lengthens a cheap
   window) produces a different key, and is treated as new.
 
 ### The timing decision is a pure function
@@ -166,6 +166,25 @@ asynchronous implementations. `D1Store` is used by Cloudflare production;
 `SqliteStore` uses Node's built-in `node:sqlite` for local development and
 tests.
 
+### Forecasting is downstream of confirmed prices
+
+The experimental baseline is deliberately unable to participate in the
+confirmed-price path. After polling and alerts finish, one historical
+tariff-day is backfilled from Octopus for forecasting. The job maintains 28
+complete days for reference region C and each active region, processing only
+46, 48 or 50 rows per cron invocation so it stays modest on Workers Free.
+
+`packages/core/src/forecast.ts` predicts reference-region half-hours from
+recent prices at the same London-local time and weekday/weekend class. The
+server derives peak and off-peak regional transforms from overlapping
+confirmed data and refuses them if R² drops below 0.9999. The API computes the
+result from D1 reads; it never fetches upstream data in a request.
+
+Forecasts appear only in the price table and chart. They do not enter the
+current/next card, publication status, alerts, rules or cheapest-window
+calculator. A confirmed timestamp is removed from the forecast result before
+it reaches the PWA.
+
 ### Cloudflare is the production runtime
 
 The Worker serves the built PWA through Static Assets and handles `/api/*`
@@ -180,7 +199,8 @@ because its router uses runtime code generation, which Workers disallow.
 ## Request flow
 
 1. The PWA calls `GET /api/overview` on load, on focus, and once a minute.
-2. The API reads the store; it never triggers a fetch from Octopus.
+2. The API reads the store and calculates any experimental estimate from that
+   stored history; it never triggers a fetch from Octopus.
 3. The poller writes to the store on its own schedule.
 
 Keeping reads and fetches separate means a slow or failing Octopus API cannot

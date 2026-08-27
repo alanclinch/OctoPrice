@@ -14,3 +14,4 @@ export * from './rules.ts';
 export * from './windows.ts';
 export * from './notifications.ts';
 export * from './defaults.ts';
+export * from './forecast.ts';

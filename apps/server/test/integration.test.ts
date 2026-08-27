@@ -468,6 +468,11 @@ describe('HTTP API', () => {
       expect(body.current.valueIncVat).toBe(34);
       expect(body.next.valueIncVat).toBe(35);
       expect(body.today.complete).toBe(true);
+      expect(body.forecast).toMatchObject({
+        model: 'seasonal-naive-v1',
+        periods: [],
+        unavailableReason: 'insufficient-history',
+      });
     } finally {
       await context2.built.close();
     }

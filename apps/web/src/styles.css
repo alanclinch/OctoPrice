@@ -318,6 +318,13 @@ button {
   stroke-width: 1.5;
 }
 
+.chart .bar[data-forecast='true'] {
+  fill-opacity: 0.28;
+  stroke: var(--text-muted);
+  stroke-width: 1;
+  stroke-dasharray: 2 1;
+}
+
 .chart-readout {
   display: flex;
   justify-content: space-between;
@@ -379,6 +386,42 @@ button {
   font-size: 0.82rem;
   letter-spacing: 0;
   text-transform: none;
+}
+
+.price-table .forecast-separator th {
+  padding: 16px 0 7px;
+  border-bottom: 1px dashed var(--accent);
+  color: var(--accent);
+  font-size: 0.78rem;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.price-table tr.is-forecast td {
+  background: color-mix(in srgb, var(--surface-alt) 55%, transparent);
+  border-bottom-style: dashed;
+}
+
+.forecast-label {
+  display: inline-block;
+  margin-left: 7px;
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
+.forecast-range {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 400;
+}
+
+.forecast-note {
+  margin: 10px 0 0;
 }
 
 /* --- Tabs and navigation ------------------------------------------------ */

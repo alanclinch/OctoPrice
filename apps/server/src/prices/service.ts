@@ -179,6 +179,30 @@ export class PriceService {
     return this.store.getPrices(tariffCode, startOfLondonDay(date), endOfLondonDay(date));
   }
 
+  /**
+   * Stores confirmed historical prices without changing publication state or
+   * dispatching alerts. Used only by the isolated forecast-history backfill.
+   */
+  async backfillHistory(from: Date, to: Date, tariff: TariffSelection): Promise<number> {
+    const fetched = await this.client.getUnitRates({
+      productCode: tariff.productCode,
+      tariffCode: tariff.tariffCode,
+      periodFrom: from,
+      periodTo: to,
+    });
+    if (fetched.length === 0) return 0;
+
+    const retrievedAt = this.now().toISOString();
+    return this.store.upsertPrices(
+      fetched.map((period) => ({
+        ...period,
+        tariffCode: tariff.tariffCode,
+        region: tariff.region,
+        retrievedAt,
+      })),
+    );
+  }
+
   /** Whether a usable day has been recorded for a tariff. */
   async isRetrieved(date: PricingDate, tariffCode: string): Promise<boolean> {
     return (await this.store.getState(this.retrievedKey(date, tariffCode))) !== null;

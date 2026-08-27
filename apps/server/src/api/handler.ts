@@ -51,6 +51,7 @@ import {
   sessionCookie,
 } from '../auth.ts';
 import { buildInfo } from '../version.ts';
+import { buildBaselineForecast } from '../forecast/baseline.ts';
 
 export interface ApiRequest {
   method: string;
@@ -280,6 +281,7 @@ export async function handleApiRequest(
       store.getSettings(userId),
     ]);
     const known = [...todayDay.periods, ...tomorrowDay.periods];
+    const forecast = await buildBaselineForecast({ store, tariff, now });
 
     return json({
       now: now.toISOString(),
@@ -287,6 +289,7 @@ export async function handleApiRequest(
       next: findNextPeriod(known, now),
       today: todayDay,
       tomorrow: tomorrowDay,
+      forecast,
       settings,
       tariff,
       user: publicUser(user),

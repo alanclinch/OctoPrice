@@ -131,7 +131,7 @@ runtime remains available for local development.
 | `docs/architecture.md`  | How the pieces fit together                  |
 | `docs/octopus-api.md`   | Octopus API behaviour and edge cases         |
 | `docs/notifications.md` | Push, providers and duplicate prevention     |
-| `docs/forecasting.md`   | Price forecasting: research and proposed design (not built) |
+| `docs/forecasting.md`   | Forecasting research, archive and experimental baseline |
 | `docs/deployment.md`    | Running it somewhere permanent               |
 | `AI_HANDOFF.md`         | Current project state                        |
 | `CLAUDE.md`             | Instructions for Claude Code                 |

@@ -9,10 +9,11 @@
 import { loadConfig } from './config.ts';
 import { buildApp } from './app.ts';
 import { describeError } from './logger.ts';
+import { runForecastHistoryBackfill } from './forecast/baseline.ts';
 
 async function main(): Promise<void> {
   const config = loadConfig();
-  const { app, logger, poller, close } = await buildApp(config);
+  const { app, store, priceService, logger, poller, close } = await buildApp(config);
 
   await app.listen({ port: config.port, host: config.host });
   logger.info('Listening', { port: config.port, host: config.host });
@@ -20,7 +21,10 @@ async function main(): Promise<void> {
   if (poller) {
     // Do not block startup on the network: the API should answer immediately
     // even if Octopus is slow or unreachable.
-    void poller.runStartupCatchUp().then(() => poller.start());
+    void poller.runStartupCatchUp().then(async () => {
+      await runForecastHistoryBackfill({ store, priceService, logger });
+      poller.start();
+    });
   }
 
   let shuttingDown = false;

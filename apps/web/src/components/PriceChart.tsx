@@ -9,8 +9,8 @@
  */
 
 import { useMemo, useState } from 'react';
-import type { PricePeriod } from '@octoprice/core';
 import { bandClass, clock, pence, periodRange, type DisplayOptions } from '../format.ts';
+import { isForecastPeriod, type TimelinePricePeriod } from './timeline.ts';
 import type { JSX } from 'react';
 
 const WIDTH = 360;
@@ -18,7 +18,7 @@ const HEIGHT = 170;
 const PADDING = { top: 8, right: 4, bottom: 16, left: 26 };
 
 export interface PriceChartProps {
-  periods: PricePeriod[];
+  periods: TimelinePricePeriod[];
   now: Date;
   display: DisplayOptions;
 }
@@ -96,6 +96,7 @@ export function PriceChart({ periods, now, display }: PriceChartProps): JSX.Elem
             <rect
               key={period.validFrom}
               className={`bar ${bandClass(value, 'bar')}${selected === index ? ' selected' : ''}`}
+              data-forecast={isForecastPeriod(period) ? 'true' : undefined}
               x={x}
               y={top}
               width={Math.max(barWidth - 0.6, 0.8)}
@@ -105,6 +106,9 @@ export function PriceChart({ periods, now, display }: PriceChartProps): JSX.Elem
             >
               <title>
                 {periodRange(period, display)}: {pence(value)}
+                {isForecastPeriod(period)
+                  ? ` estimate (${pence(period.lowerIncVat)}–${pence(period.upperIncVat)} recent range)`
+                  : ''}
               </title>
             </rect>
           );
@@ -159,7 +163,8 @@ export function PriceChart({ periods, now, display }: PriceChartProps): JSX.Elem
           <>
             <span>{periodRange(selectedPeriod, display)}</span>
             <strong className={bandClass(selectedPeriod.valueIncVat)}>
-              {pence(selectedPeriod.valueIncVat, 2)}/kWh
+              {isForecastPeriod(selectedPeriod) ? '~' : ''}
+              {pence(selectedPeriod.valueIncVat, isForecastPeriod(selectedPeriod) ? 1 : 2)}/kWh
             </strong>
           </>
         ) : (

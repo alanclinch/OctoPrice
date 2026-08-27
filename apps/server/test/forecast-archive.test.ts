@@ -8,6 +8,10 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { SqliteStore } from '../src/db/sqlite.ts';
 import {
   DEFAULT_INTERVAL_MINUTES,
@@ -25,6 +29,47 @@ import {
 import { silentLogger } from './helpers.ts';
 
 const NOW = new Date('2026-08-27T12:00:00Z');
+
+describe('legacy NESO cleanup migration', () => {
+  it('removes rows retained by an installation that previously ran the collector', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'octoprice-neso-migration-'));
+    const file = join(directory, 'test.sqlite');
+    try {
+      const before = new SqliteStore({ file, defaultRegion: 'C' });
+      before.appendForecastInputs([
+        {
+          source: 'neso_embedded',
+          targetStart: NOW.toISOString(),
+          issuedAt: null,
+          collectedAt: NOW.toISOString(),
+          payload: { windMw: 123 },
+        },
+        {
+          source: 'carbon_intensity',
+          targetStart: NOW.toISOString(),
+          issuedAt: null,
+          collectedAt: NOW.toISOString(),
+          payload: { intensityForecast: 100 },
+        },
+      ]);
+      before.close();
+
+      // Simulate a database that has migrations through 0006 and still owns
+      // the legacy rows. Reopening applies 0007 exactly as an upgrade does.
+      const raw = new DatabaseSync(file);
+      raw.prepare('UPDATE schema_version SET version = 6').run();
+      raw.close();
+
+      const after = new SqliteStore({ file, defaultRegion: 'C' });
+      expect(after.countForecastInputs()).toBe(1);
+      expect(after.lastForecastInputAt('neso_embedded')).toBeNull();
+      expect(after.lastForecastInputAt('carbon_intensity')).not.toBeNull();
+      after.close();
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+});
 
 /** A Carbon Intensity response shaped like the real one. */
 function intensityBody(periods: number, base: Date = NOW) {
@@ -372,6 +417,23 @@ describe('scheduled job ordering', () => {
     });
 
     expect(order).toEqual(['core:start', 'core:end', 'archive:start']);
+  });
+
+  it('runs forecast work only after the core and input archive', async () => {
+    const order: string[] = [];
+    await runScheduledJobs({
+      core: async () => {
+        order.push('core');
+      },
+      archive: async () => {
+        order.push('archive');
+      },
+      forecast: async () => {
+        order.push('forecast');
+      },
+    });
+
+    expect(order).toEqual(['core', 'archive', 'forecast']);
   });
 
   it('skips the archive entirely when it is not enabled', async () => {

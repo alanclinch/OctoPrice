@@ -10,6 +10,7 @@ import type {
   AlertRule,
   AlertRuleInput,
   DaySummary,
+  ForecastPricePeriod,
   NotificationLogEntry,
   PeriodRun,
   PricePeriod,
@@ -51,6 +52,13 @@ export interface Overview {
   next: PricePeriod | null;
   today: DayPayload;
   tomorrow: DayPayload;
+  forecast: {
+    model: string;
+    referenceRegion: string;
+    historyDays: number;
+    periods: ForecastPricePeriod[];
+    unavailableReason: 'insufficient-history' | 'regional-transform-failed' | null;
+  };
   settings: UserSettings;
   tariff: TariffInfo;
   /** Who this response belongs to. */

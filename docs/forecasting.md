@@ -1,7 +1,7 @@
 # Agile price forecasting — research and proposed architecture
 
-**Status: research and design, plus one implemented piece — the input
-archive (section 8). No forecasts are produced yet.**
+**Status: research and design, plus an implemented input archive (section 8)
+and experimental seasonal-naive baseline (section 9).**
 
 This document covers stages 1–4 of the staged plan in the feature request:
 review prior art, investigate data sources, propose an architecture, and
@@ -718,42 +718,41 @@ archive are what unblock everything, and both can proceed without it.
 
 ## 8. Built: the input archive
 
-The first and only piece of forecasting implemented so far. It produces no
-forecasts and changes nothing a user sees. It exists now because it is the
-only part that gets worse by waiting: NESO and the Carbon Intensity API cannot
-be asked what they said last week, so a day not collected is a day that can
-never be used to validate a model honestly.
+The first piece of forecasting implemented. It produces no forecasts by
+itself and changes nothing a user sees. It exists because the Carbon Intensity
+API cannot be asked what it said last week, so a day not collected is a day
+that can never be used to validate a later model honestly. NESO does not have
+that problem: its official annual archives retain proper issue times.
 
-If the forecasting idea is abandoned tomorrow, the cost of having run this is
-a few hundred database rows a day.
+If the forecasting idea is abandoned tomorrow, the cost is roughly 770 small
+database rows a day until retention removes them.
 
 ### What it collects
 
 | Source | Rows per run | Contents |
 | ------ | ------------ | -------- |
-| `carbon_intensity` | 96 | Forecast intensity and full generation mix by fuel, 48 hours, national |
+| `carbon_intensity` | 96–97 | Forecast intensity and full generation mix by fuel, 48 hours, national |
 
 NESO was collected initially and has been **removed**: its own archives supply
 better data with real issue times (section 3a), so archiving the rolling feed
-was storing a worse copy of something already kept. That halves the growth
-figures below.
+was storing a worse copy of something already kept. Migration 0007 removes
+all legacy `neso_embedded` rows from every installation; the earlier manual
+production deletion was not enough.
 
-Verified against the live APIs. Roughly 240 rows a run and, at the default
-three-hour interval, about 1,900 rows a day.
-
-**Storage, measured rather than guessed.** Production rows average **235
-bytes**, so the archive grows about **0.43 MB a day**, or ~157 MB a year of
-payload before index overhead — realistically 300–400 MB a year with the two
-indexes. A **free D1 database is capped at 500 MB** (the 5 GB figure is the
-per-*account* total, which an earlier draft confused). So the archive cannot
-be kept indefinitely, and describing it as comfortably free long-term was
-wrong.
+**Storage, re-measured rather than divided from the old mixed-source figure.**
+Two Carbon-only production batches held 97 and 96 rows. Across all 193 rows,
+the stored column values averaged **292.8 bytes per row**. At the default
+three-hour interval that is about **772 rows and 0.23 MB a day**, or roughly
+82 MB a year of column payload before SQLite pages and index overhead. A
+**free D1 database is capped at 500 MB** (the 5 GB figure is the per-*account*
+total).
 
 Retention is therefore explicit: observations about periods older than
 `FORECAST_ARCHIVE_RETENTION_DAYS` (default **180**) are pruned after a
 successful collection — never after a failed one, so a broken archive does not
 spend its invocation deleting history it is no longer replacing. At 180 days
-that is roughly 80 MB of payload, which fits alongside the price data.
+that is roughly **41 MB of column payload** before SQLite/index overhead, which
+fits alongside the price data.
 
 Anything wanting a longer history needs an export to R2 or elsewhere first.
 That is not built.
@@ -810,16 +809,17 @@ A second review then found three more, two of them P1:
 - **Insert-only.** A later collection of the same period is a new row, never
   an update. The difference between two vintages *is* the revision a
   back-test must not see, so throwing it away would defeat the purpose.
-- **Collection time is the vintage.** Both sources publish no issue time, so
-  `issued_at` is null and `collected_at` is the best available. The column
-  exists because Elexon and Open-Meteo do provide one.
-- **Bounded to the horizon.** NESO offers 14 days; storing all of it every run
-  multiplies the archive for periods that barely move. Trimmed to 72 hours.
-- **CPU-aware.** Parse, shape and serialise measures ~1.5 ms, about 15% of the
-  Workers Free 10 ms budget, and it shares an invocation with the poller.
-  Narrowing the NESO request from 700 to 200 records halved it (2.5 ms → 1.5
-  ms) with no loss of usable coverage. This is the constraint from section 4.6
-  showing up in practice on the very first piece of code.
+- **Collection time is the vintage.** Carbon Intensity publishes no issue
+  time, so `issued_at` is null and `collected_at` is the best available. The
+  column remains because other candidate sources do provide a real issue time.
+- **Bounded to the source horizon.** Only the national 48-hour Carbon
+  Intensity window is retained. An inclusive boundary can make a batch 97
+  rather than 96 periods; the collector validates timestamps and keeps only
+  values inside its configured horizon.
+- **CPU-aware.** The collector makes two concurrent HTTPS reads, shapes at
+  most 97 small records and runs only after confirmed-price and alert work.
+  The obsolete 1.5 ms figure measured the removed NESO parser too and is not
+  retained as a Carbon-only benchmark.
 - **Cannot break anything.** It never throws to its caller, never touches the
   price tables, never marks a pricing day retrieved, and runs last in the
   scheduled handler. If every collector fails it records no run, so the next
@@ -827,10 +827,10 @@ A second review then found three more, two of them P1:
 
 ### Known limitation
 
-NESO's embedded forecast begins at 23:00 on the current day, so with the
-narrowed request it reaches roughly 56 hours ahead rather than the full 72.
-That covers the next two complete days, which is the part that matters, but a
-72-hour model would need a wider request or a second call.
+The retained Carbon forecast reaches 48 hours, not the longer horizon a future
+three-day fundamentals model may want. NESO history remains available from its
+official archives when that model is back-tested; no local rolling copy is
+needed.
 
 ### Terms compliance
 
@@ -839,3 +839,68 @@ Intensity terms require, and collection runs eight times a day rather than
 continuously. The remaining obligation is **attribution in the UI**, which
 falls due when anything derived from this data is first shown to a user — see
 the table in section 3.
+
+---
+
+## 9. Built: experimental seasonal-naive baseline
+
+The first user-visible estimate deliberately stops before a large modelling
+pipeline. An isolated forecast job maintains the previous 28 complete days of
+official Octopus Agile prices. It backfills at most one tariff-day (46, 48 or
+50 periods) per five-minute cron invocation rather than attempting roughly
+1,350 D1 writes at once; a new installation fills the reference region in
+about 2 hours 20 minutes when it is itself the active region, or a
+reference/active-region pair in about 4 hours 40 minutes. It runs after
+confirmed price polling, alerts and the input archive; failures are logged and
+never affect those features. API requests read stored data only and never wait
+on an upstream service.
+
+The calculation follows the binding regional finding in section 1:
+
+1. Forecast reference region C from the median of up to eight recent prices
+   at the same London-local half-hour on the same kind of day
+   (weekday/weekend). At least three comparable observations are required.
+2. Report the recent P20–P80 observations as a descriptive **recent range**.
+   It is explicitly not presented as a calibrated confidence interval.
+3. Fit separate 16:00–19:00 and off-peak linear transforms from overlapping
+   confirmed reference and target-region prices. If either fit has fewer than
+   48 pairs or R² below 0.9999, publish no forecast rather than use a stale
+   regional relationship.
+4. Produce estimates for tomorrow and the following day. Any confirmed
+   Octopus period suppresses the estimate for the same timestamp.
+
+The UI places estimates inline after confirmed prices, draws an explicit
+boundary, labels every estimated row, rounds the point value to one decimal
+place and shows the recent range. Forecast bars are outlined. Estimates do
+not feed alerts, current/next price, cheapest-window advice or publication
+status.
+
+This is an **educated baseline**, not an accuracy claim. It is computed
+deterministically from stored history and not yet persisted as forecast runs,
+so the next responsible step is to retain its live vintages before deciding
+whether fundamentals or machine learning earn their complexity.
+
+### Baseline back-test
+
+`docs/research/backtest-seasonal-baseline.mjs` scores the exact implemented
+calculation against fixed, official region-C Agile history. It uses 28 days of
+past information for each prediction and scores 2,736 half-hours from 1 July
+through 26 August 2026, with no skipped days:
+
+| Measure | Result |
+| ------- | ------ |
+| Mean absolute error | **3.82p/kWh** |
+| Median absolute error | **2.53p/kWh** |
+| 90th-percentile absolute error | **9.73p/kWh** |
+| Mean bias | **−0.86p/kWh** (under-predicts) |
+| Descriptive recent-range coverage | **49.2%** |
+| Below-10p precision / recall | **54.6% / 54.9%** |
+| Negative-price precision / recall | **0% / 0%** |
+
+These figures explain the product restrictions. The estimate is useful for a
+rough shape and price level, but it is not dependable for rare negative prices
+or automation, and its displayed range is not calibrated uncertainty. Pooling
+only the same weekday was also measured and rejected: MAE worsened to 4.25p
+and range coverage collapsed to 17.2% because four observations per slot were
+too few. The broader weekday/weekend grouping remains the implemented
+baseline because it performed better, not because it merely sounded plausible.

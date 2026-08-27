@@ -14,6 +14,12 @@ Octopus publication cycles.
 
 ### Added
 
+- **Experimental two-day price estimates.** Recent confirmed Agile prices now
+  provide a deliberately simple weekday/weekend baseline beyond the official
+  price horizon. Estimates are labelled inline, show a recent range, and are
+  visually distinct. They never drive alerts or cheapest-window advice, and
+  confirmed Octopus prices always replace them.
+
 - **Sharing with friends and family.** The app is no longer one shared account
   behind a public URL. The owner invites people by name from a new People tab
   and sends them a link; opening it once signs that device in for good. No
