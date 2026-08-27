@@ -730,3 +730,48 @@ input[type='checkbox'] {
 .issued-link {
   margin-top: 6px;
 }
+
+/* --- Status page --------------------------------------------------------- */
+
+.status-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--surface-alt);
+}
+
+.status-line:last-of-type {
+  border-bottom: 0;
+}
+
+/*
+ * Roughly five rows, then scroll. The history is worth having to hand but
+ * should never push the things above it off the screen.
+ */
+.notification-list {
+  margin-top: 12px;
+  max-height: 268px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.notification-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--surface-alt);
+}
+
+.notification-row:last-child {
+  border-bottom: 0;
+}
+
+.notification-title {
+  font-weight: 600;
+  font-size: 0.92rem;
+}

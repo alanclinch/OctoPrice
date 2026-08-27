@@ -330,7 +330,7 @@ export function App(): JSX.Element {
         <SettingsView settings={overview.settings} onSettingsChange={onSettingsChange} />
       )}
       {tab === 'people' && user?.isOwner && <PeopleView />}
-      {tab === 'status' && <StatusView now={now} />}
+      {tab === 'status' && <StatusView now={now} user={user} />}
 
       <footer className="app-footer">
         <span>Made by Alan Clinch</span>

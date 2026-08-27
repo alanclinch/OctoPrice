@@ -8,7 +8,7 @@
 
 import { useState } from 'react';
 import type { AlertRule, AlertRuleInput, ComparisonOperator } from '@octoprice/core';
-import { OPERATOR_SYMBOLS, describeRule } from '@octoprice/core';
+import { describeRule } from '@octoprice/core';
 import type { FormEvent, JSX } from 'react';
 
 const OPERATOR_LABELS: Record<ComparisonOperator, string> = {
@@ -247,9 +247,6 @@ export function RuleList({ rules, onEdit, onDelete, onToggle }: RuleListProps): 
           </div>
         </div>
       ))}
-      <p className="muted small">
-        Operators available: {Object.values(OPERATOR_SYMBOLS).join(' ')}
-      </p>
     </>
   );
 }

@@ -9,7 +9,14 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { OWNER_ID, PUSH_SUBSCRIPTION, createTestApp, type TestContext } from './harness.ts';
+import {
+  OWNER_ID,
+  PUSH_SUBSCRIPTION,
+  TOMORROW,
+  createTestApp,
+  tomorrowPrices,
+  type TestContext,
+} from './harness.ts';
 
 describe('access control', () => {
   let context: TestContext;
@@ -383,5 +390,81 @@ describe('push registration belongs to a person', () => {
       payload: PUSH_SUBSCRIPTION,
     });
     expect(status.json().registered).toBe(false);
+  });
+});
+
+describe('status page content', () => {
+  let context: TestContext;
+
+  beforeEach(async () => {
+    context = await createTestApp();
+  });
+
+  afterEach(async () => {
+    await context.built.close();
+  });
+
+  it('reports a day as ready once it is usable, not only once complete', async () => {
+    // The shape Octopus actually publishes: 46 of 48 periods.
+    const partial = await createTestApp(tomorrowPrices().slice(0, 46));
+    try {
+      await partial.built.priceService.refresh(TOMORROW, partial.tariff);
+      const status = await partial.inject({ method: 'GET', url: '/api/status' });
+      const body = status.json();
+
+      expect(body.tomorrow.ready).toBe(true);
+      expect(body.tomorrow.complete).toBe(false);
+    } finally {
+      await partial.built.close();
+    }
+  });
+
+  it('reports a day that has barely arrived as not ready', async () => {
+    const barely = await createTestApp(tomorrowPrices().slice(0, 10));
+    try {
+      await barely.built.priceService.refresh(TOMORROW, barely.tariff);
+      const status = await barely.inject({ method: 'GET', url: '/api/status' });
+      expect(status.json().tomorrow.ready).toBe(false);
+    } finally {
+      await barely.built.close();
+    }
+  });
+
+  it('tells the page when to expect prices', async () => {
+    const status = await context.inject({ method: 'GET', url: '/api/status' });
+    expect(status.json().publicationWindow).toEqual({ start: '16:05', cutoff: '22:15' });
+  });
+
+  it('says whether the viewer is the owner, so detail can be withheld', async () => {
+    const owner = await context.inject({ method: 'GET', url: '/api/status' });
+    expect(owner.json().isOwner).toBe(true);
+
+    const { token } = await context.invite('Mum');
+    const theirs = await context.injectAnonymous({
+      method: 'GET',
+      url: '/api/status',
+      headers: context.asUser(token),
+    });
+    expect(theirs.json().isOwner).toBe(false);
+  });
+
+  it('reports each person their own tariff', async () => {
+    const { token } = await context.invite('Cousin');
+    await context.injectAnonymous({
+      method: 'PATCH',
+      url: '/api/settings',
+      headers: context.asUser(token),
+      payload: { region: 'M' },
+    });
+
+    const owner = await context.inject({ method: 'GET', url: '/api/status' });
+    const theirs = await context.injectAnonymous({
+      method: 'GET',
+      url: '/api/status',
+      headers: context.asUser(token),
+    });
+
+    expect(owner.json().tariffCode).toContain('-C');
+    expect(theirs.json().tariffCode).toContain('-M');
   });
 });

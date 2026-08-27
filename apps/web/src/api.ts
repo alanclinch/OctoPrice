@@ -72,8 +72,11 @@ export interface SystemStatusPayload {
   region: string;
   lastCheckStartedAt: string | null;
   lastSuccessfulRetrievalAt: string | null;
-  today: { date: PricingDate; periodCount: number; complete: boolean };
-  tomorrow: { date: PricingDate; periodCount: number; complete: boolean };
+  /** `ready` means usable; `complete` is the technical detail behind it. */
+  today: { date: PricingDate; periodCount: number; complete: boolean; ready: boolean };
+  tomorrow: { date: PricingDate; periodCount: number; complete: boolean; ready: boolean };
+  publicationWindow: { start: string; cutoff: string };
+  isOwner: boolean;
   storedPeriodCount: number;
   lastNotificationAt: string | null;
   pushConfigured: boolean;
@@ -186,8 +189,11 @@ export const api = {
   notifications: () => request<{ notifications: NotificationLogEntry[] }>('/notifications'),
 
   checkNow: (date?: PricingDate) =>
-    request<{ date: PricingDate; complete: boolean; periodCount: number; missingCount: number }>(
-      `/check-now${date ? `?date=${encodeURIComponent(date)}` : ''}`,
-      { method: 'POST' },
-    ),
+    request<{
+      date: PricingDate;
+      complete: boolean;
+      publishable: boolean;
+      periodCount: number;
+      missingCount: number;
+    }>(`/check-now${date ? `?date=${encodeURIComponent(date)}` : ''}`, { method: 'POST' }),
 };

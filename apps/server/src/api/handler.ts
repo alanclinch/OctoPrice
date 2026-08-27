@@ -14,6 +14,7 @@
 
 import {
   REGIONS,
+  describeDayCoverage,
   addDays,
   alertRuleInputSchema,
   buildTestNotification,
@@ -242,16 +243,24 @@ export async function handleApiRequest(
       region: tariff.region,
       lastCheckStartedAt: await store.getState('last_check_started_at'),
       lastSuccessfulRetrievalAt: await store.getState('last_successful_retrieval_at'),
+      // `publishable` is what a person actually cares about: whether the day
+      // is usable. `complete` is a technical detail - a day sits one hour
+      // short until the following day's batch lands - and saying "partial"
+      // about it reads as a fault when nothing is wrong.
       today: {
         date: today,
         periodCount: todayPeriods.length,
         complete: isDayComplete(todayPeriods, today),
+        ready: describeDayCoverage(todayPeriods, today).publishable,
       },
       tomorrow: {
         date: tomorrow,
         periodCount: tomorrowPeriods.length,
         complete: isDayComplete(tomorrowPeriods, tomorrow),
+        ready: describeDayCoverage(tomorrowPeriods, tomorrow).publishable,
       },
+      publicationWindow: { start: config.poll.start, cutoff: config.poll.cutoff },
+      isOwner: user.isOwner,
       storedPeriodCount: await store.countPrices(),
       lastNotificationAt: await store.lastNotificationAt(userId),
       pushConfigured: config.vapid !== null,

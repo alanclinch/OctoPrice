@@ -12,7 +12,7 @@ If this file and the code disagree, **the code is right** — fix this file.
 - **Current branch:** `main`
 - **Source control:** clean `main`, synced to `origin/main`
 - **Build status:** passing — `npm run verify`
-- **Test status:** passing — 273 tests across 10 files
+- **Test status:** passing — 278 tests across 10 files
 - **Deployed:** `https://octoprice.alanclinch.workers.dev` on Cloudflare
   Workers, with D1 in WEUR and a five-minute Cron Trigger
 - **Git remote:** public GitHub repository at
