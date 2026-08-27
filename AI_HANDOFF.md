@@ -40,10 +40,10 @@ implementation is genuinely blocked.
 ## Current State
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
-- **Current branch:** `main`
-- **Source control:** clean `main`, synced to `origin/main`
+- **Current branch:** `codex/forecast-baseline`
+- **Source control:** implementation commit `6441a82`, pending Claude review
 - **Build status:** passing — `npm run verify`
-- **Test status:** passing — 307 tests across 11 files
+- **Test status:** passing — 321 tests across 13 files
 - **Deployed:** `https://octoprice.alanclinch.workers.dev` on Cloudflare
   Workers, with D1 in WEUR and a five-minute Cron Trigger
 - **Git remote:** public GitHub repository at
@@ -92,22 +92,34 @@ GitHub remote or a real device:
 
 ## Open Review Findings
 
-### Forecast input archive post-removal review — open
+No unresolved findings are recorded. Claude should review `6441a82` and add
+any actionable findings here rather than sending them through Alan.
+
+### Forecast input archive post-removal review — addressed in `6441a82`
 
 Codex reviewed `ea68f40` on 2026-08-27. The code changes resolve the three
 previous findings: the NESO collector is gone, the retained timestamp helper
 subtracts the 30-minute period, the public-vintage research script runs
 successfully, and migration 0006 gives retention an indexed plan. Two P2
-follow-ups remain.
+follow-ups were raised and are now resolved:
 
-1. **P2 — invalid NESO rows are cleaned only in this one deployment.** The
+1. **P2 — invalid NESO rows are cleaned only in this one deployment.**
+   *Fixed.* Migration 0007 idempotently removes every `neso_embedded` row,
+   with an upgrade regression test that preserves Carbon rows.
+
+   The original finding: The
    handoff records a manual production deletion, but no migration removes
    `source = 'neso_embedded'`. Any other installation that ran either flawed
    collector keeps midnight-collapsed or 30-minute-late rows for up to 180
    days, where a future training export can mistake them for valid data. Add a
    new idempotent migration deleting all archived NESO rows; the official NESO
    archives make those local copies unnecessary in every installation.
-2. **P2 — `docs/forecasting.md` still describes the removed collector.** Its
+2. **P2 — `docs/forecasting.md` still describes the removed collector.**
+   *Fixed and re-measured against production D1.* Carbon-only batches held 97
+   and 96 rows at 292.8 bytes of stored column values per row: about 772 rows,
+   0.23 MB/day and 41 MB per 180 days before SQLite/index overhead.
+
+   The original finding: Its
    section 8 says NESO cannot supply history, retains the old 240-row/run and
    1,900-row/day sizing, says both stored sources lack issue times, discusses
    trimming NESO to 72 hours and its CPU cost, and keeps a NESO horizon as a
@@ -294,7 +306,7 @@ so neither agent re-raises them.
    subscription, or have failed. The ready message now speaks only about
    prices and leaves alerts to the alerts card, which reports actual state.
 
-## Status: forecasting resumed under Codex ownership
+## Status: baseline implemented, awaiting Claude review
 
 Alan resumed forecasting development on 2026-08-27 with Codex as implementer
 and Claude as reviewer. The existing application remains deployed and stable;
@@ -305,39 +317,47 @@ summary, price-alert rules, starting-soon alerts, per-person access and the
 status page all work in production, and notifications have been verified
 arriving on a real device across a real publication cycle.
 
-**Forecasting currently remains research plus one small piece.** The input
-archive collects Carbon Intensity and produces no forecasts yet. Codex's next
-development branch will first resolve the two open P2 archive findings, then
-build the smallest useful indicative forecast rather than the previously
-proposed full modelling pipeline.
+**Forecasting now has an experimental user-visible baseline.** It is a rough
+data-based estimate, not a precision claim: measured MAE is 3.82p/kWh and it
+does not predict negative-price events reliably. Those limits are why it is
+labelled throughout and cannot drive alerts or cheapest-window advice.
 
 ## Currently In Progress
 
-- `main` is deployed and verified live; forecast work will be isolated on a
-  `codex/` branch until it is reviewed.
-- **Owner: Codex. Reviewer: Claude.** Next implementation branch:
-  `codex/forecast-baseline`.
-- Scope for the first useful forecast: a deterministic estimate from recent
-  confirmed Agile history, time-of-day and weekday/weekend patterns; a clearly
-  marked estimated range; confirmed prices always win; no forecast-driven
-  alerts or automation in this version.
-- Before the forecast itself, Codex will resolve the two open P2 findings:
-  migrate away invalid legacy NESO rows and correct the stale Carbon-only
-  archive documentation and measurements.
+- **Review-ready branch:** `codex/forecast-baseline`
+- **Implementation commit:** `6441a82` (`Add experimental Agile price baseline`)
+- **Owner: Codex. Reviewer: Claude.** Claude should inspect that commit and
+  put its verdict and any findings directly under Open Review Findings.
+- Not merged, migrated or deployed. Production remains the stable `main`.
+- `npm run verify` passes: format, lint, type-check, **321 tests**, core/server
+  builds and PWA/service-worker build.
+- Local browser verification covered first-run setup, the continuous table,
+  confirmed-to-estimate boundary, estimate labels/ranges and phone-oriented
+  layout with no console warnings or errors.
 
 ## Forecasting
 
-Stages 1-4 are recorded in `docs/forecasting.md`, and stage 5's first piece
-- the input archive - is built and running. It collects Carbon Intensity
-insert-only because that forecast cannot be reconstructed later. It produces
-no forecasts. NESO is no longer collected; its official annual archives carry
-real issue times and support historical back-filling. This deployment's two
-sets of malformed NESO rows were manually deleted, but the open finding above
-requires a migration so every installation receives the same cleanup.
+Stages 1-4 and the implemented archive/baseline are recorded in
+`docs/forecasting.md`. Carbon Intensity remains insert-only because its
+vintages cannot be reconstructed. NESO is not collected; migration 0007
+removes every legacy row because the provider's own archives are better.
 
-A practical note for whoever continues: the old CPU and storage measurements
-included the now-removed NESO collector. Re-measure the Carbon-only archive
-before using those figures for capacity decisions.
+The baseline backfills one tariff-day per cron after all confirmed-price and
+alert work, keeping D1 writes modest. It predicts region C from up to eight
+recent same-slot weekday/weekend observations, then maps other regions with
+derived peak/off-peak fits that must hold R² >= 0.9999. Missing inputs or a
+failed fit produce no forecast. API requests use D1 only.
+
+The UI merges estimates after confirmed prices, marks the boundary, labels
+every row, shows a descriptive recent range and outlines chart bars. Current,
+next, status, alerts, rules and cheapest windows still use confirmed prices
+only. Confirmed timestamps suppress estimates before the response is returned.
+
+The reproducible back-test (`docs/research/backtest-seasonal-baseline.mjs`)
+scores 2,736 periods: MAE 3.82p, median error 2.53p, p90 error 9.73p, recent
+range coverage 49.2%, below-10p precision/recall about 55%, negative-price
+precision/recall 0%. Exact-weekday matching was measured and rejected as
+worse (4.25p MAE).
 
 AgilePredict (MIT, actively maintained) was read properly, not just
 summarised: it predicts a day-ahead wholesale series and converts per region
@@ -376,16 +396,19 @@ model against it. Test ENTSO-E alongside those steps rather than blocking them.
 
 ## Next Recommended Work
 
-1. **Let the Carbon Intensity archive accumulate**, and pull NESO history
-   from its official archives when the back-test is written.
-2. **Confirm the new Android badge visually.** Send another test notification
+1. **Claude reviews `6441a82`.** Findings go under Open Review Findings in
+   this file. Codex fixes them on this branch; Alan does not relay messages.
+2. After approval, merge to `main`, apply migration 0007, deploy, and allow
+   roughly 2h20 for a region-C installation or 4h40 for a reference/other-
+   region pair to accumulate the 28-day backfill through five-minute cron.
+3. **Confirm the new Android badge visually.** Send another test notification
    after the updated service worker is active and confirm the tray shows the
    system-tinted lightning bolt rather than a white square. Push delivery
    itself has been confirmed on a real Android device.
-3. **Watch several real Octopus publication cycles** (DESIGN.md section 42,
+4. **Watch several real Octopus publication cycles** (DESIGN.md section 42,
    step 21) before calling the MVP released. Confirm the daily notification
    arrives once, at a sensible time, and does not repeat.
-4. Then Phase Two (DESIGN.md section 39). The rules engine, the window
+5. Then Phase Two (DESIGN.md section 39). The rules engine, the window
    calculator and the provider interface are already general enough for
    Telegram, Home Assistant and EV-charging features without redesign.
 
@@ -566,6 +589,24 @@ bundle is 87 kB gzipped, which matters for a phone-first PWA.
 been larger and harder to bend to the negative-price presentation.
 
 ## Recent Agent Handoffs
+
+### 2026-08-27 — Codex, experimental forecast baseline
+
+**Work completed:** implemented `seasonal-naive-v1`, isolated incremental
+history backfill, derived regional transforms, confirmed-price precedence and
+inline labelled estimates/ranges; added migration 0007; corrected and
+re-measured the Carbon-only archive documentation. Main files:
+`packages/core/src/forecast.ts`, `apps/server/src/forecast/baseline.ts`,
+`apps/web/src/components/{PricesView,PriceTable,PriceChart}.tsx`, migration
+0007, tests, `docs/forecasting.md`, architecture and changelog.
+
+**Verification:** `npm run verify` passed (321 tests); fixed-range back-test
+measured 3.82p MAE over 2,736 periods; local browser check found no console
+errors. Implementation commit `6441a82` is review-ready on
+`codex/forecast-baseline`.
+
+**Outstanding:** Claude review. Do not migrate or deploy before approval.
+After approval, migration 0007 must precede the Worker deployment.
 
 ### 2026-08-27 — Codex, labels and Android notification polish
 
