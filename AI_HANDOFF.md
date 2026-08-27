@@ -40,11 +40,11 @@ implementation is genuinely blocked.
 ## Current State
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
-- **Current branch:** `main`
-- **Source control:** Claude approved `70593e8` in `39b48a1`; `main` was
-  fast-forwarded and pushed at `a6819f7`
+- **Current branch:** `codex/forecast-background-cache`
+- **Source control:** review-ready background-cache commit `1aa8476`;
+  production remains at approved `a6819f7`
 - **Build status:** passing — `npm run verify`
-- **Test status:** passing — 324 tests across 13 files
+- **Test status:** passing — 328 tests across 13 files
 - **Deployed:** `a6819f7` at `https://octoprice.alanclinch.workers.dev` on
   Cloudflare Workers, with D1 in WEUR and a five-minute Cron Trigger.
   Migration 0007 is applied; `FORECAST_BASELINE_ENABLED=false` for the staged
@@ -94,6 +94,26 @@ GitHub remote or a real device:
   test, build, plus a check that the generated icons are reproducible.
 
 ## Open Review Findings
+
+### Background forecast cache — awaiting Claude review
+
+Live Cloudflare metrics with the baseline disabled measured P50 6.17 ms and
+P90/P99 8.68 ms over the 30-minute window containing an authenticated overview
+request. Adding the isolated ~4 ms calculation to the HTTP path would not fit
+the 10 ms Free-plan budget reliably.
+
+Codex therefore moved history backfill and calculation to a second five-minute
+Cron offset by two minutes, which gives it a separate invocation and CPU
+budget. The job prepares one tariff at a time in D1 state; overview performs
+one cache read and validation, measured at 0.07–0.08 ms median and no more than
+0.14 ms p95 in repeated runs for 96 periods. Cache entries expire after six
+hours and at the London-day boundary. Overview re-applies confirmed timestamp
+precedence, so an official price published after cache generation still
+removes its estimate. The production flag remains false pending review.
+
+Claude should review the review-ready commit recorded under Currently In
+Progress, especially Cron routing, cache validation/expiry and confirmed-price
+precedence, and record any findings here.
 
 ### Re-review of `70593e8` — Claude, 2026-08-27
 
@@ -470,7 +490,7 @@ so neither agent re-raises them.
    subscription, or have failed. The ready message now speaks only about
    prices and leaves alerts to the alerts card, which reports actual state.
 
-## Status: approved and deployed behind the production kill switch
+## Status: deployed baseline disabled; background cache awaiting review
 
 Alan resumed forecasting development on 2026-08-27 with Codex as implementer
 and Claude as reviewer. The existing application remains deployed and stable;
@@ -497,12 +517,15 @@ throughout and cannot drive alerts or cheapest-window advice.
   off are P50 4.27 ms, P90 7.45 ms and P99 11.48 ms. The Free-plan HTTP limit
   is 10 ms; adding the isolated ~4 ms forecast without route-level evidence
   would risk confirmed-price requests.
-- The automation browser has no OctoPrice owner session. Do not rotate or
-  manufacture an access link merely to benchmark. The safe next measurement
-  needs Alan to open the signed-in app while Worker metrics/tail are observed,
-  or another existing authenticated test session.
-- `npm run verify` passes on merged `main`: format, lint, type-check, **324
-  tests**, core/server builds and PWA/service-worker build.
+- Alan opened the signed-in app. The matching 30-minute Cloudflare window was
+  P50 6.17 ms and P90/P99 8.68 ms with forecasting off, confirming there is no
+  reliable room for the ~4 ms calculation on the request path.
+- Review-ready commit `1aa8476` on `codex/forecast-background-cache` uses a
+  separate staggered Cron to compute and store estimates; overview only
+  validates and reads the cache. Production remains unchanged and disabled
+  pending Claude review.
+- `npm run verify` passes on the background-cache branch: format, lint,
+  type-check, **328 tests**, core/server builds and PWA/service-worker build.
 
 ## Forecasting
 
@@ -511,11 +534,11 @@ Stages 1-4 and the implemented archive/baseline are recorded in
 vintages cannot be reconstructed. NESO is not collected; migration 0007
 removes every legacy row because the provider's own archives are better.
 
-The baseline backfills one tariff-day per cron after all confirmed-price and
-alert work, keeping D1 writes modest. It predicts region C from up to eight
-recent same-slot weekday/weekend observations, then maps other regions with
-derived peak/off-peak fits that must hold R² >= 0.9999. Missing inputs or a
-failed fit produce no forecast. API requests use D1 only.
+The baseline backfills one tariff-day per isolated forecast cron, keeping D1
+writes modest and confirmed-price work separate. It predicts region C from up
+to eight recent same-slot weekday/weekend observations, then maps other regions
+with derived peak/off-peak fits that must hold R² >= 0.9999. Missing inputs or
+a failed fit produce no forecast. API requests use D1 only.
 
 The UI merges estimates after confirmed prices, marks the boundary, labels
 every row, shows the middle of recent prices and outlines chart bars. Current,
@@ -565,15 +588,12 @@ model against it. Test ENTSO-E alongside those steps rather than blocking them.
 
 ## Next Recommended Work
 
-1. **Measure authenticated `/api/overview` CPU before enabling the baseline.**
-   Alan can open the signed-in app once while Codex observes Worker metrics or
-   a tail. Do not enable from the isolated 4 ms benchmark alone: production is
-   already P90 7.45 ms with the flag off.
-2. If route-level evidence fits the 10 ms Free-plan budget, set
-   `FORECAST_BASELINE_ENABLED=true`, verify, commit, push and deploy. Then allow
-   roughly 2h20 for a region-C installation or 4h40 for a reference/other-
-   region pair to accumulate the 28-day backfill through five-minute cron. If
-   it does not fit, move calculation off the overview path before enabling it.
+1. **Claude reviews the background-cache commit recorded above.** Findings go
+   under Open Review Findings; Alan does not relay them.
+2. After approval, merge to `main`, deploy with
+   `FORECAST_BASELINE_ENABLED=false`, confirm the second trigger is accepted,
+   then enable it. Allow roughly 2h20 for a region-C installation or 4h40 for
+   a reference/other-region pair to accumulate the 28-day backfill.
 3. **Confirm the new Android badge visually.** Send another test notification
    after the updated service worker is active and confirm the tray shows the
    system-tinted lightning bolt rather than a white square. Push delivery
