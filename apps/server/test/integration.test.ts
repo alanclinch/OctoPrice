@@ -482,12 +482,12 @@ describe('HTTP API', () => {
     const isolated = await createTestApp([], { forecastBaseline: true });
     try {
       const store = isolated.built.store;
-      const originalGetPrices = store.getPrices.bind(store);
-      store.getPrices = async (tariffCode, from, to) => {
-        if (to.getTime() - from.getTime() > 2 * 24 * 60 * 60 * 1000) {
-          throw new Error('simulated forecast history failure');
+      const originalGetState = store.getState.bind(store);
+      store.getState = async (key) => {
+        if (key.startsWith('forecast_baseline_cache:')) {
+          throw new Error('simulated forecast cache failure');
         }
-        return originalGetPrices(tariffCode, from, to);
+        return originalGetState(key);
       };
 
       const response = await isolated.inject({ method: 'GET', url: '/api/overview' });
@@ -496,6 +496,57 @@ describe('HTTP API', () => {
         periods: [],
         unavailableReason: 'failed',
       });
+    } finally {
+      await isolated.built.close();
+    }
+  });
+
+  it('removes newly confirmed prices from a cached forecast', async () => {
+    const isolated = await createTestApp([], { forecastBaseline: true });
+    try {
+      const store = isolated.built.store;
+      const tariff = await isolated.built.priceService.tariff(OWNER_ID);
+      const confirmedFrom = new Date(`${TODAY}T17:00:00.000Z`);
+      const estimatedFrom = new Date(`${TOMORROW}T17:00:00.000Z`);
+      await store.upsertPrices([
+        {
+          tariffCode: tariff.tariffCode,
+          region: tariff.region,
+          validFrom: confirmedFrom.toISOString(),
+          validTo: new Date(confirmedFrom.getTime() + 30 * 60 * 1000).toISOString(),
+          valueIncVat: 20,
+          valueExcVat: 19.0476,
+          retrievedAt: NOW.toISOString(),
+        },
+      ]);
+      const estimate = (from: Date) => ({
+        validFrom: from.toISOString(),
+        validTo: new Date(from.getTime() + 30 * 60 * 1000).toISOString(),
+        valueIncVat: 12,
+        lowerIncVat: 10,
+        upperIncVat: 14,
+        sampleCount: 4,
+        model: 'seasonal-naive-v1',
+      });
+      await store.setState(
+        `forecast_baseline_cache:${tariff.tariffCode}`,
+        JSON.stringify({
+          version: 1,
+          tariffCode: tariff.tariffCode,
+          generatedAt: NOW.toISOString(),
+          forecast: {
+            model: 'seasonal-naive-v1',
+            referenceRegion: 'C',
+            historyDays: 28,
+            periods: [estimate(confirmedFrom), estimate(estimatedFrom)],
+            unavailableReason: null,
+          },
+        }),
+      );
+
+      const response = await isolated.inject({ method: 'GET', url: '/api/overview' });
+      const periods = response.json().forecast.periods as { validFrom: string }[];
+      expect(periods.map((period) => period.validFrom)).toEqual([estimatedFrom.toISOString()]);
     } finally {
       await isolated.built.close();
     }

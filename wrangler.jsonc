@@ -20,12 +20,10 @@
       "migrations_dir": "migrations",
     },
   ],
-  // Every five minutes, all day. "Starting soon" alerts have to be able to
-  // fire at any hour, and they read stored prices only. Octopus itself is
-  // still contacted only inside the Europe/London publication window, because
-  // the poll plan makes the price check a no-op outside it.
+  // Core prices and alerts run every five minutes. Forecast work is offset by
+  // two minutes so it gets a separate invocation and Free-plan CPU budget.
   "triggers": {
-    "crons": ["*/5 * * * *"],
+    "crons": ["*/5 * * * *", "2-59/5 * * * *"],
   },
   "vars": {
     "DEFAULT_REGION": "C",

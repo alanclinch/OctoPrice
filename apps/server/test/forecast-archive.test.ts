@@ -402,7 +402,7 @@ describe('retention', () => {
 
 describe('scheduled job ordering', () => {
   it('finishes the core work before the archive starts', async () => {
-    // Handing all three to Promise.all starts them together and makes them
+    // Handing both to Promise.all starts them together and makes them
     // compete for one 10 ms CPU allowance, whatever the comment above says.
     const order: string[] = [];
     await runScheduledJobs({
@@ -417,23 +417,6 @@ describe('scheduled job ordering', () => {
     });
 
     expect(order).toEqual(['core:start', 'core:end', 'archive:start']);
-  });
-
-  it('runs forecast work only after the core and input archive', async () => {
-    const order: string[] = [];
-    await runScheduledJobs({
-      core: async () => {
-        order.push('core');
-      },
-      archive: async () => {
-        order.push('archive');
-      },
-      forecast: async () => {
-        order.push('forecast');
-      },
-    });
-
-    expect(order).toEqual(['core', 'archive', 'forecast']);
   });
 
   it('skips the archive entirely when it is not enabled', async () => {

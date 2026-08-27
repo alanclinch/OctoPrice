@@ -28,6 +28,14 @@ import type { PriceService, TariffSelection } from '../prices/service.ts';
 
 export const FORECAST_HISTORY_DAYS = 28;
 const BACKFILL_STATE_PREFIX = 'forecast_history_cursor:';
+const FORECAST_CACHE_PREFIX = 'forecast_baseline_cache:';
+const FORECAST_CACHE_CURSOR = 'forecast_baseline_cache_cursor';
+export const FORECAST_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+export const FORECAST_BACKGROUND_CRON = '2-59/5 * * * *';
+
+export function isForecastBackgroundCron(cron: string): boolean {
+  return cron === FORECAST_BACKGROUND_CRON;
+}
 
 export interface ForecastBackfillResult {
   ran: boolean;
@@ -138,6 +146,13 @@ export interface BaselineForecast {
     'disabled' | 'failed' | 'insufficient-history' | 'regional-transform-failed' | null;
 }
 
+interface CachedBaselineForecast {
+  version: 1;
+  tariffCode: string;
+  generatedAt: string;
+  forecast: BaselineForecast;
+}
+
 export function unavailableBaselineForecast(
   reason: Exclude<BaselineForecast['unavailableReason'], null>,
 ): BaselineForecast {
@@ -148,6 +163,122 @@ export function unavailableBaselineForecast(
     periods: [],
     unavailableReason: reason,
   };
+}
+
+function cacheKey(tariffCode: string): string {
+  return `${FORECAST_CACHE_PREFIX}${tariffCode}`;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function parseCachedForecast(value: string): CachedBaselineForecast | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return null;
+  }
+  if (!isRecord(parsed) || parsed.version !== 1 || typeof parsed.tariffCode !== 'string') {
+    return null;
+  }
+  if (typeof parsed.generatedAt !== 'string' || !isRecord(parsed.forecast)) return null;
+  const forecast = parsed.forecast;
+  if (
+    forecast.model !== FORECAST_MODEL ||
+    forecast.referenceRegion !== FORECAST_REFERENCE_REGION ||
+    forecast.historyDays !== FORECAST_HISTORY_DAYS ||
+    !Array.isArray(forecast.periods) ||
+    !forecast.periods.every(
+      (period) =>
+        isRecord(period) &&
+        typeof period.validFrom === 'string' &&
+        typeof period.validTo === 'string' &&
+        typeof period.valueIncVat === 'number' &&
+        typeof period.lowerIncVat === 'number' &&
+        typeof period.upperIncVat === 'number' &&
+        typeof period.sampleCount === 'number' &&
+        period.model === FORECAST_MODEL,
+    ) ||
+    ![null, 'insufficient-history', 'regional-transform-failed'].includes(
+      forecast.unavailableReason as null | string,
+    )
+  ) {
+    return null;
+  }
+  return parsed as unknown as CachedBaselineForecast;
+}
+
+/** Reads a recent same-day estimate prepared by the forecast-only Cron. */
+export async function readBaselineForecastCache(options: {
+  store: Store;
+  tariff: TariffSelection;
+  now: Date;
+}): Promise<BaselineForecast> {
+  const value = await options.store.getState(cacheKey(options.tariff.tariffCode));
+  if (!value) return unavailableBaselineForecast('insufficient-history');
+  const cached = parseCachedForecast(value);
+  const generatedAt = cached ? Date.parse(cached.generatedAt) : Number.NaN;
+  if (
+    !cached ||
+    !Number.isFinite(generatedAt) ||
+    cached.tariffCode !== options.tariff.tariffCode ||
+    londonDateOf(new Date(cached.generatedAt)) !== londonDateOf(options.now) ||
+    generatedAt > options.now.getTime() + 60_000 ||
+    options.now.getTime() - generatedAt > FORECAST_CACHE_MAX_AGE_MS
+  ) {
+    return unavailableBaselineForecast('insufficient-history');
+  }
+  return cached.forecast;
+}
+
+/** Calculates and stores one active tariff per forecast-only Cron invocation. */
+export async function refreshOneBaselineForecast(options: {
+  store: Store;
+  priceService: PriceService;
+  logger: Logger;
+  now?: () => Date;
+}): Promise<{ ran: boolean; tariffCode: string | null }> {
+  const tariffs = (await options.priceService.distinctTariffs()).sort((a, b) =>
+    a.tariffCode.localeCompare(b.tariffCode),
+  );
+  if (tariffs.length === 0) return { ran: false, tariffCode: null };
+
+  const previous = await options.store.getState(FORECAST_CACHE_CURSOR);
+  const index = previous ? tariffs.findIndex((tariff) => tariff.tariffCode === previous) : -1;
+  const tariff = tariffs[(index + 1) % tariffs.length] as TariffSelection;
+  const now = (options.now ?? (() => new Date()))();
+
+  try {
+    const forecast = await buildBaselineForecast({ store: options.store, tariff, now });
+    const cached: CachedBaselineForecast = {
+      version: 1,
+      tariffCode: tariff.tariffCode,
+      generatedAt: now.toISOString(),
+      forecast,
+    };
+    await options.store.setState(cacheKey(tariff.tariffCode), JSON.stringify(cached));
+    await options.store.setState(FORECAST_CACHE_CURSOR, tariff.tariffCode);
+    return { ran: true, tariffCode: tariff.tariffCode };
+  } catch (error) {
+    options.logger.warn('Forecast cache refresh failed', {
+      tariffCode: tariff.tariffCode,
+      ...describeError(error),
+    });
+    return { ran: false, tariffCode: tariff.tariffCode };
+  }
+}
+
+/** Backfills first; once history is complete, refreshes one cached forecast. */
+export async function runForecastBackgroundJob(options: {
+  store: Store;
+  priceService: PriceService;
+  logger: Logger;
+  now?: () => Date;
+}): Promise<void> {
+  const backfill = await runForecastHistoryBackfill(options);
+  if (!backfill.ran) await refreshOneBaselineForecast(options);
 }
 
 /** Builds two days of estimates from stored confirmed prices only. */

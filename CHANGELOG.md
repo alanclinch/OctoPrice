@@ -19,7 +19,9 @@ Octopus publication cycles.
   price horizon. Estimates are labelled inline, show the middle of recent
   prices, and are visually distinct. They never drive alerts or
   cheapest-window advice, confirmed Octopus prices always replace them, and a
-  forecasting fault cannot prevent confirmed prices from loading.
+  forecasting fault cannot prevent confirmed prices from loading. Estimates
+  are prepared by a separate background trigger so opening the app does not
+  spend its request CPU budget calculating them.
 
 - **Sharing with friends and family.** The app is no longer one shared account
   behind a public URL. The owner invites people by name from a new People tab

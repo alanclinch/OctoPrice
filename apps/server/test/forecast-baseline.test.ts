@@ -11,14 +11,25 @@ import { SqliteStore } from '../src/db/sqlite.ts';
 import { OctopusClient } from '../src/octopus/client.ts';
 import { PriceService, type TariffSelection } from '../src/prices/service.ts';
 import {
+  FORECAST_CACHE_MAX_AGE_MS,
+  FORECAST_BACKGROUND_CRON,
   FORECAST_HISTORY_DAYS,
   buildBaselineForecast,
+  readBaselineForecastCache,
+  refreshOneBaselineForecast,
+  isForecastBackgroundCron,
+  runForecastBackgroundJob,
   runForecastHistoryBackfill,
 } from '../src/forecast/baseline.ts';
 import { makeRateRecords, ratesResponse, silentLogger } from './helpers.ts';
 
 const NOW = new Date('2026-01-15T17:00:00.000Z');
 const PRODUCT = 'AGILE-24-10-01';
+
+it('recognises only the staggered forecast Cron', () => {
+  expect(isForecastBackgroundCron(FORECAST_BACKGROUND_CRON)).toBe(true);
+  expect(isForecastBackgroundCron('*/5 * * * *')).toBe(false);
+});
 
 function historyRates(date: string): ReturnType<typeof makeRateRecords> {
   const weekend = [0, 6].includes(new Date(`${date}T12:00:00Z`).getUTCDay());
@@ -238,6 +249,93 @@ describe('baseline forecast assembly', () => {
     };
 
     await expect(buildBaselineForecast({ store, tariff, now: NOW })).resolves.toMatchObject({
+      periods: [],
+      unavailableReason: 'insufficient-history',
+    });
+  });
+
+  it('persists one prepared forecast for cheap overview reads', async () => {
+    await store.getSettings('default');
+    await store.upsertPrices(storedHistory('C'));
+    const priceService = new PriceService({
+      store,
+      client: new OctopusClient({ logger: silentLogger() }),
+      logger: silentLogger(),
+      forcedProductCode: PRODUCT,
+      now: () => NOW,
+    });
+    const tariff = await priceService.tariff('default');
+
+    await expect(
+      refreshOneBaselineForecast({
+        store,
+        priceService,
+        logger: silentLogger(),
+        now: () => NOW,
+      }),
+    ).resolves.toEqual({ ran: true, tariffCode: tariff.tariffCode });
+
+    const cached = await readBaselineForecastCache({ store, tariff, now: NOW });
+    expect(cached.unavailableReason).toBeNull();
+    expect(cached.periods).toHaveLength(96);
+  });
+
+  it('refreshes the cache only after the incremental backfill is caught up', async () => {
+    await store.getSettings('default');
+    await store.upsertPrices(storedHistory('C'));
+    const priceService = new PriceService({
+      store,
+      client: new OctopusClient({ logger: silentLogger() }),
+      logger: silentLogger(),
+      forcedProductCode: PRODUCT,
+      now: () => NOW,
+    });
+    const tariff = await priceService.tariff('default');
+    await store.setState(`forecast_history_cursor:${tariff.tariffCode}`, londonDateOf(NOW));
+
+    await runForecastBackgroundJob({
+      store,
+      priceService,
+      logger: silentLogger(),
+      now: () => NOW,
+    });
+
+    await expect(readBaselineForecastCache({ store, tariff, now: NOW })).resolves.toMatchObject({
+      unavailableReason: null,
+    });
+  });
+
+  it('refuses malformed, expired or previous-day cache entries', async () => {
+    await store.getSettings('default');
+    const tariff: TariffSelection = {
+      productCode: PRODUCT,
+      tariffCode: buildTariffCode(PRODUCT, 'C'),
+      region: 'C',
+    };
+    const key = `forecast_baseline_cache:${tariff.tariffCode}`;
+
+    await store.setState(key, '{broken');
+    await expect(readBaselineForecastCache({ store, tariff, now: NOW })).resolves.toMatchObject({
+      periods: [],
+      unavailableReason: 'insufficient-history',
+    });
+
+    await store.setState(
+      key,
+      JSON.stringify({
+        version: 1,
+        tariffCode: tariff.tariffCode,
+        generatedAt: new Date(NOW.getTime() - FORECAST_CACHE_MAX_AGE_MS - 1).toISOString(),
+        forecast: {
+          model: 'seasonal-naive-v1',
+          referenceRegion: 'C',
+          historyDays: FORECAST_HISTORY_DAYS,
+          periods: [],
+          unavailableReason: 'insufficient-history',
+        },
+      }),
+    );
+    await expect(readBaselineForecastCache({ store, tariff, now: NOW })).resolves.toMatchObject({
       periods: [],
       unavailableReason: 'insufficient-history',
     });

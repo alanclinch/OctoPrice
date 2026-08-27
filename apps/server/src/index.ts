@@ -9,7 +9,7 @@
 import { loadConfig } from './config.ts';
 import { buildApp } from './app.ts';
 import { describeError } from './logger.ts';
-import { runForecastHistoryBackfill } from './forecast/baseline.ts';
+import { runForecastBackgroundJob } from './forecast/baseline.ts';
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -23,7 +23,7 @@ async function main(): Promise<void> {
     // even if Octopus is slow or unreachable.
     void poller.runStartupCatchUp().then(async () => {
       if (config.forecastBaselineEnabled) {
-        await runForecastHistoryBackfill({ store, priceService, logger });
+        await runForecastBackgroundJob({ store, priceService, logger });
       }
       poller.start();
     });

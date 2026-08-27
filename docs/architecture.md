@@ -169,19 +169,21 @@ tests.
 ### Forecasting is downstream of confirmed prices
 
 The experimental baseline is deliberately unable to participate in the
-confirmed-price path. After polling and alerts finish, one historical
-tariff-day is backfilled from Octopus for forecasting. The job maintains 28
-complete days for reference region C and each active region, processing only
-46, 48 or 50 rows per cron invocation so it stays modest on Workers Free.
+confirmed-price path. A separate Cron, staggered two minutes after the core
+five-minute schedule, backfills one historical tariff-day from Octopus or
+prepares one active tariff's estimate. It has its own Workers Free CPU budget.
+The job maintains 28 complete days for reference region C and each active
+region, processing only 46, 48 or 50 rows per backfill invocation.
 
 `packages/core/src/forecast.ts` predicts reference-region half-hours from
 recent prices at the same London-local time and weekday/weekend class. The
 server derives peak and off-peak regional transforms from overlapping
-confirmed data and refuses them if R² drops below 0.9999. The API computes the
-result from D1 reads; it never fetches upstream data in a request. History is
-classified once and reused by the fit and forecast. A forecast read or
-calculation failure returns no estimates rather than failing the overview,
-and `FORECAST_BASELINE_ENABLED` can disable both display and backfill.
+confirmed data and refuses them if R² drops below 0.9999. The background job
+stores the prepared result in D1 worker state. The API reads and validates that
+cache; it never fetches upstream data or calculates a forecast in a request.
+A missing, malformed, stale or failed cache returns no estimates rather than
+failing the overview, and `FORECAST_BASELINE_ENABLED` can disable both display
+and background work.
 
 Forecasts appear only in the price table and chart. They do not enter the
 current/next card, publication status, alerts, rules or cheapest-window
@@ -194,7 +196,9 @@ The Worker serves the built PWA through Static Assets and handles `/api/*`
 with the Web Fetch API. D1 persists prices, rules, subscriptions and
 deduplication state. A five-minute Cron Trigger invokes the same polling plan
 used by the Node timer; most invocations are deliberate no-ops outside the
-16:05–22:15 Europe/London publication window.
+16:05–22:15 Europe/London publication window. A second five-minute trigger,
+offset by two minutes, handles forecast history and cache generation without
+sharing the core trigger's CPU allowance.
 
 Fastify remains the local Node HTTP adapter. It is not bundled into the Worker
 because its router uses runtime code generation, which Workers disallow.

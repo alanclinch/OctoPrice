@@ -13,6 +13,10 @@ import {
   londonDayPeriodStarts,
   prepareForecastHistory,
 } from '../../packages/core/src/index.ts';
+import {
+  FORECAST_HISTORY_DAYS,
+  readBaselineForecastCache,
+} from '../../apps/server/src/forecast/baseline.ts';
 
 const FIRST_DAY = '2026-06-01';
 const NOW = new Date('2026-08-27T20:00:00.000Z');
@@ -72,4 +76,50 @@ const doubled = measure(56);
 const ratio = doubled.medianMs / normal.medianMs;
 if (ratio > 3) throw new Error(`Forecast scaling regressed: doubling history took ${ratio}x`);
 
-console.log(JSON.stringify({ normal, doubled, medianScalingRatio: ratio }, null, 2));
+const { reference, target } = histories(28);
+const prepared = prepareForecastHistory(reference);
+const transform = fitRegionalPriceTransform(reference, target, false, prepared);
+if (!transform) throw new Error('Synthetic regional transform failed');
+const periods = forecastSeasonalPrices({
+  history: reference,
+  preparedHistory: prepared,
+  targets,
+  transform,
+  now: NOW,
+});
+const tariff = {
+  productCode: 'AGILE-24-10-01',
+  tariffCode: 'E-1R-AGILE-24-10-01-N',
+  region: 'N',
+};
+const cachedValue = JSON.stringify({
+  version: 1,
+  tariffCode: tariff.tariffCode,
+  generatedAt: NOW.toISOString(),
+  forecast: {
+    model: 'seasonal-naive-v1',
+    referenceRegion: 'C',
+    historyDays: FORECAST_HISTORY_DAYS,
+    periods,
+    unavailableReason: null,
+  },
+});
+const cacheSamples = [];
+for (let run = 0; run < 1050; run += 1) {
+  const started = performance.now();
+  const result = await readBaselineForecastCache({
+    store: { getState: async () => cachedValue },
+    tariff,
+    now: NOW,
+  });
+  if (result.periods.length !== periods.length) throw new Error('Cached forecast was rejected');
+  if (run >= 50) cacheSamples.push(performance.now() - started);
+}
+cacheSamples.sort((a, b) => a - b);
+const cacheRead = {
+  periods: periods.length,
+  medianMs: cacheSamples[Math.floor(cacheSamples.length / 2)],
+  p95Ms: cacheSamples[Math.floor(cacheSamples.length * 0.95)],
+};
+
+console.log(JSON.stringify({ normal, doubled, medianScalingRatio: ratio, cacheRead }, null, 2));

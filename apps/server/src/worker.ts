@@ -13,7 +13,7 @@ import { AlertDispatcher } from './alerts/dispatcher.ts';
 import { PricePoller } from './scheduler/poller.ts';
 import { handleApiRequest } from './api/handler.ts';
 import { runArchive, runScheduledJobs } from './forecast/archive.ts';
-import { runForecastHistoryBackfill } from './forecast/baseline.ts';
+import { isForecastBackgroundCron, runForecastBackgroundJob } from './forecast/baseline.ts';
 
 interface Env {
   DB: D1Database;
@@ -197,8 +197,18 @@ export default {
     return handleApi(request, env);
   },
 
-  async scheduled(_controller: ScheduledController, env: Env, context: ExecutionContext) {
+  async scheduled(controller: ScheduledController, env: Env, context: ExecutionContext) {
     const { poller, store, priceService, logger, config } = await getRuntime(env);
+
+    // Forecast history and calculation have their own invocation and their
+    // own 10 ms Free-plan CPU budget. They must never share the confirmed
+    // price/alert invocation below or run on an HTTP request.
+    if (isForecastBackgroundCron(controller.cron)) {
+      if (config.forecastBaselineEnabled) {
+        context.waitUntil(runForecastBackgroundJob({ store, priceService, logger }));
+      }
+      return;
+    }
 
     // The core work first, and only then the optional archive.
     //
@@ -222,9 +232,6 @@ export default {
                 intervalMinutes: config.forecastArchiveIntervalMinutes,
                 retentionDays: config.forecastArchiveRetentionDays,
               })
-          : undefined,
-        forecast: config.forecastBaselineEnabled
-          ? () => runForecastHistoryBackfill({ store, priceService, logger })
           : undefined,
       }),
     );

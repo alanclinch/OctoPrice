@@ -21,7 +21,7 @@
  *
  * Isolation is about *scheduling* as well as exceptions, which an earlier
  * version got wrong: it handed the archive to `Promise.all` alongside the
- * price poller and called it "last", when in fact all three started at once
+ * price poller and called it "last", when in fact both started at once
  * and shared one 10 ms CPU budget. `runScheduledJobs` below makes the
  * ordering real.
  */
@@ -208,8 +208,6 @@ export interface ScheduledJobs {
   core: () => Promise<unknown>;
   /** The optional archive. Skipped entirely when not enabled. */
   archive?: (() => Promise<unknown>) | undefined;
-  /** Optional forecast work, also isolated behind all confirmed-price work. */
-  forecast?: (() => Promise<unknown>) | undefined;
 }
 
 /**
@@ -223,7 +221,6 @@ export interface ScheduledJobs {
 export async function runScheduledJobs(jobs: ScheduledJobs): Promise<void> {
   await jobs.core();
   if (jobs.archive) await jobs.archive();
-  if (jobs.forecast) await jobs.forecast();
 }
 
 /** Freshness of the archive, for the status page. */

@@ -110,8 +110,8 @@ Non-secret production values live under `vars` in `wrangler.jsonc`:
 - `FORECAST_BASELINE_ENABLED` — independent switch for the experimental
   estimate and its history backfill; defaults to `false`
 
-The Cron Trigger runs every five minutes, all day. Each invocation does two
-things of very different cost:
+The core Cron Trigger runs every five minutes, all day. Each invocation does
+two things of very different cost:
 
 - **Price polling**, which contacts Octopus. The application converts to
   Europe/London and makes this a no-op outside the local publication window,
@@ -120,6 +120,10 @@ things of very different cost:
 - **Starting-soon alerts**, which read D1 only and never leave the Worker.
   These have to be able to fire at any hour, which is why the cron is no
   longer restricted to the afternoon.
+
+When `FORECAST_BASELINE_ENABLED=true`, a second trigger runs at minutes 2, 7,
+12 and so on. It incrementally backfills history and prepares cached estimates
+without sharing an invocation or CPU budget with confirmed prices and alerts.
 
 ## Local Cloudflare runtime
 

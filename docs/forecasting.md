@@ -847,13 +847,14 @@ the table in section 3.
 The first user-visible estimate deliberately stops before a large modelling
 pipeline. An isolated forecast job maintains the previous 28 complete days of
 official Octopus Agile prices. It backfills at most one tariff-day (46, 48 or
-50 periods) per five-minute cron invocation rather than attempting roughly
+50 periods) per forecast cron invocation rather than attempting roughly
 1,350 D1 writes at once; a new installation fills the reference region in
 about 2 hours 20 minutes when it is itself the active region, or a
-reference/active-region pair in about 4 hours 40 minutes. It runs after
-confirmed price polling, alerts and the input archive; failures are logged and
-never affect those features. API requests read stored data only and never wait
-on an upstream service.
+reference/active-region pair in about 4 hours 40 minutes. Its trigger is
+staggered two minutes after the core five-minute schedule, giving forecasting
+its own 10 ms Workers Free CPU budget. Failures are logged and never affect
+confirmed prices or alerts. API requests read one prepared D1 cache value and
+never wait on an upstream service or calculate a forecast.
 
 The calculation follows the binding regional finding in section 1:
 
@@ -913,10 +914,17 @@ History is classified once by London day type and settlement slot, then that
 prepared pass is shared by the regional fit and all 96 targets. The synthetic
 regression benchmark (`benchmark-seasonal-baseline.mjs`) measures about 4.0 ms
 median for 1,344 history periods on the development machine; doubling history
-takes about 1.70 times as long rather than four times. Forecast reads run
-concurrently with the other overview reads and any forecast exception degrades
-to no estimates while confirmed prices still return normally.
+takes about 1.41 times as long rather than four times. That calculation runs
+only on the staggered forecast Cron. Reading and validating its 96-period cache
+costs about 0.07–0.08 ms median and at most 0.14 ms p95 in repeated runs,
+before the asynchronous D1 wait.
+
+The cache is accepted only for the current London day and for six hours
+after generation. The overview removes any timestamp that has since acquired
+an official price, preserving confirmed-price precedence even between cache
+refreshes. Any cache exception degrades to no estimates while confirmed prices
+still return normally.
 
 `FORECAST_BASELINE_ENABLED` is the independent kill switch. It defaults off
-and remains off for the first production deployment while end-to-end Worker
-CPU is measured. Turning it off also stops the historical backfill job.
+and remains off until this background-cache change is reviewed and deployed.
+Turning it off also stops the historical backfill job and cache refresh.

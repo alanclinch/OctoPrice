@@ -52,7 +52,7 @@ import {
 } from '../auth.ts';
 import { buildInfo } from '../version.ts';
 import {
-  buildBaselineForecast,
+  readBaselineForecastCache,
   unavailableBaselineForecast,
   type BaselineForecast,
 } from '../forecast/baseline.ts';
@@ -144,7 +144,7 @@ async function safeBaselineForecast(options: {
   if (!options.enabled) return unavailableBaselineForecast('disabled');
 
   try {
-    return await buildBaselineForecast(options);
+    return await readBaselineForecastCache(options);
   } catch (error) {
     options.logger.warn('Forecast unavailable; returning confirmed prices', describeError(error));
     return unavailableBaselineForecast('failed');
@@ -296,7 +296,7 @@ export async function handleApiRequest(
     const today = londonDateOf(now);
     const tomorrow = addDays(today, 1);
     const tariff = await priceService.tariff(userId);
-    const [todayDay, tomorrowDay, settings, forecast] = await Promise.all([
+    const [todayDay, tomorrowDay, settings, cachedForecast] = await Promise.all([
       describeDay(priceService, today, tariff.tariffCode),
       describeDay(priceService, tomorrow, tariff.tariffCode),
       store.getSettings(userId),
@@ -309,6 +309,11 @@ export async function handleApiRequest(
       }),
     ]);
     const known = [...todayDay.periods, ...tomorrowDay.periods];
+    const confirmedStarts = new Set(known.map((period) => period.validFrom));
+    const forecast = {
+      ...cachedForecast,
+      periods: cachedForecast.periods.filter((period) => !confirmedStarts.has(period.validFrom)),
+    };
 
     return json({
       now: now.toISOString(),
