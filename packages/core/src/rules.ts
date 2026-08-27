@@ -50,6 +50,20 @@ export function periodQualifies(period: PricePeriod, rule: AlertRule): boolean {
   );
 }
 
+export interface RuleEvaluationOptions {
+  /**
+   * Exclusive end of the price data that has settled, ISO 8601 UTC.
+   *
+   * A matching run ending exactly here is sitting on the edge of incomplete
+   * data and will probably grow when the rest of the day arrives. Growing
+   * changes its dedupe key, which would produce a second, near-identical
+   * notification — so such a run is withheld until the day is complete.
+   *
+   * Null or undefined means every match is settled.
+   */
+  settledUntil?: string | null;
+}
+
 /**
  * Evaluates one rule against one pricing day.
  *
@@ -60,6 +74,7 @@ export function evaluateRule(
   rule: AlertRule,
   periods: readonly PricePeriod[],
   date: PricingDate,
+  options: RuleEvaluationOptions = {},
 ): RuleMatch[] {
   if (!rule.enabled) return [];
 
@@ -68,10 +83,12 @@ export function evaluateRule(
   if (qualifying.length === 0) return [];
 
   const minimumDuration = Math.max(30, rule.minimumDurationMinutes);
+  const settledUntil = options.settledUntil ?? null;
 
   return splitIntoContiguousRuns(qualifying)
     .map((run) => buildRun(run))
     .filter((run) => run.durationMinutes >= minimumDuration)
+    .filter((run) => settledUntil === null || run.endUtc !== settledUntil)
     .map((run) => ({
       ...run,
       ruleId: rule.id,
@@ -85,8 +102,9 @@ export function evaluateRules(
   rules: readonly AlertRule[],
   periods: readonly PricePeriod[],
   date: PricingDate,
+  options: RuleEvaluationOptions = {},
 ): RuleMatch[] {
-  return rules.flatMap((rule) => evaluateRule(rule, periods, date));
+  return rules.flatMap((rule) => evaluateRule(rule, periods, date, options));
 }
 
 /** Formats a price for display, e.g. `7p`, `7.5p`, `-3.6p`. */

@@ -2,19 +2,29 @@
  * Price retrieval and storage.
  *
  * Sits between the Octopus client and the store, and is the only place that
- * decides whether a pricing day counts as "published". That decision is
- * deliberately strict: a day is published only when every expected period is
- * present and contiguous (46, 48 or 50 of them depending on daylight saving).
- * Partial data must never trigger the daily notification.
+ * decides whether a pricing day counts as "published".
+ *
+ * Two separate questions are answered, and conflating them was a real bug:
+ *
+ *  - `complete` - every expected period is present and contiguous (46, 48 or
+ *    50 of them depending on daylight saving). This governs what the
+ *    interface claims about a day.
+ *  - `publishable` - enough of the day has arrived to be worth telling the
+ *    user about. This governs notification.
+ *
+ * Octopus does not deliver a whole local day at once: the afternoon batch
+ * covers the day up to roughly 23:00 local, and the remainder lands later,
+ * usually with the following day's batch. Gating notification on completeness
+ * therefore meant no notification was ever sent at all.
  */
 
-import type { DaySummary, PricePeriod, StoredPricePeriod } from '@octoprice/core';
+import type { DayCoverage, DaySummary, PricePeriod, StoredPricePeriod } from '@octoprice/core';
 import {
   FALLBACK_AGILE_PRODUCT_CODE,
   buildTariffCode,
   endOfLondonDay,
   expectedPeriodCount,
-  isDayComplete,
+  describeDayCoverage,
   isRegionCode,
   londonDateOf,
   missingPeriodStarts,
@@ -36,8 +46,11 @@ export interface TariffSelection {
 
 export interface RefreshResult {
   date: PricingDate;
-  /** True when a full day is now stored. */
+  /** True when every expected period is stored. Governs what the UI claims. */
   complete: boolean;
+  /** True when enough of the day has arrived to notify on it. */
+  publishable: boolean;
+  coverage: DayCoverage;
   periods: PricePeriod[];
   summary: DaySummary | null;
   /** How many periods are still missing, for logging. */
@@ -167,31 +180,48 @@ export class PriceService {
       });
     }
 
-    // Read back from the store so completeness reflects everything held for
-    // the day, not just what this request happened to return.
+    // Read back from the store so coverage reflects everything held for the
+    // day, not just what this request happened to return.
     const periods = await this.storedDay(date);
-    const complete = isDayComplete(periods, date);
+    const coverage = describeDayCoverage(periods, date);
     const missingCount = missingPeriodStarts(periods, date).length;
 
-    if (complete) {
+    if (coverage.publishable) {
+      // "Retrieved" means the day has arrived in a useful state and the
+      // five-minute publication poll can stop. It deliberately does not wait
+      // for completeness, because Octopus delivers the final period or two
+      // later - often not until the following day's batch - and waiting for
+      // that meant the day was never dispatched at all.
       await this.markRetrieved(date);
       await this.store.setState(STATE_KEYS.lastSuccessfulRetrievalAt, this.now().toISOString());
-      this.logger.info('Complete pricing day retrieved', {
+      this.logger.info('Pricing day published', {
         event: LOG_EVENTS.priceDataComplete,
         date,
         periods: periods.length,
+        expected: coverage.expectedPeriodCount,
+        complete: coverage.complete,
+        coveredUntil: coverage.coveredUntil,
       });
     } else {
-      this.logger.info('Pricing day not yet complete', {
+      this.logger.info('Pricing day not yet usable', {
         event: LOG_EVENTS.priceDataNotReady,
         date,
         have: periods.length,
-        expected: expectedPeriodCount(date),
+        expected: coverage.expectedPeriodCount,
+        leading: coverage.leadingPeriodCount,
         missing: missingCount,
       });
     }
 
-    return { date, complete, periods, summary: summariseDay(periods, date), missingCount };
+    return {
+      date,
+      complete: coverage.complete,
+      publishable: coverage.publishable,
+      coverage,
+      periods,
+      summary: summariseDay(periods, date),
+      missingCount,
+    };
   }
 
   /**

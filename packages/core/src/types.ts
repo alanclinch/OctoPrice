@@ -171,7 +171,14 @@ export const webPushSubscriptionSchema = z.object({
 export type WebPushSubscription = z.infer<typeof webPushSubscriptionSchema>;
 
 /** Kinds of notification the application sends. */
-export const NOTIFICATION_TYPES = ['daily_prices', 'rule_match', 'test'] as const;
+export const NOTIFICATION_TYPES = [
+  'daily_prices',
+  /** A rule matched somewhere in a newly published day. Advance notice. */
+  'rule_match',
+  /** A matching stretch is about to begin. Notice in the moment. */
+  'rule_upcoming',
+  'test',
+] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
 export type NotificationStatus = 'sent' | 'failed';

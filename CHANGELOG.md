@@ -12,8 +12,25 @@ MVP feature-complete. Not yet released: push notifications still need
 confirming on a real device, and the app has not yet watched several real
 Octopus publication cycles.
 
+### Fixed
+
+- **Notifications now actually arrive.** No notification of any kind had ever
+  been sent in production. Octopus publishes a day only up to about 23:00
+  local and delivers the remainder later, so a day never reached the
+  "complete" state that both the daily summary and every price alert were
+  waiting for. Publication now triggers on having enough of the day — an
+  unbroken 22 hours from midnight — while the interface keeps reporting
+  completeness honestly. Test notifications always worked because they bypass
+  this path entirely, which is why the fault was invisible.
+- Days that arrive in parts are now filled in as the rest turns up, instead of
+  being abandoned two periods short for good.
+
 ### Added
 
+- **"Starting soon" alerts.** About fifteen minutes before a stretch matching
+  one of your rules begins, so there is time to put the washing on. Published
+  prices still give advance notice the day before; this is the reminder in the
+  moment. Checked every five minutes, all day, from stored prices only.
 - **First-run setup and install action.** New devices choose their electricity
   area before viewing prices, the header shows the area's real name, and an
   install button either opens the native PWA prompt or gives browser-specific

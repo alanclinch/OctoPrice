@@ -2,11 +2,19 @@
 
 ## What gets sent
 
-Two kinds, each switchable independently in Settings.
+Three kinds. The first two are advance notice, sent when prices are published;
+the third arrives in time to act on. The daily summary and the price alerts
+are switchable independently in Settings.
 
 ### Tomorrow's prices are published
 
-Sent once, when a **complete** day for tomorrow has been retrieved.
+Sent once, when enough of tomorrow has arrived to be worth reporting.
+
+"Enough" means an unbroken run from local midnight covering at least 22 hours
+— **not** a complete day. Octopus publishes a day only up to about 23:00
+local and delivers the remainder later, so a day does not become complete
+until roughly a day after it was published. Requiring completeness here was a
+real bug: it meant nothing was ever sent at all.
 
 ```text
 Octopus Agile prices for 2026-08-27 are available
@@ -32,6 +40,26 @@ Average 5p/kWh, low of 4p/kWh
 Price <= 7p for at least 2 hours
 ```
 
+### A matching stretch is starting soon
+
+Sent about fifteen minutes before a stretch that matches one of your rules
+begins.
+
+```text
+Cheap Electricity
+
+Starting in 15 minutes: 10:00 to 12:00 (2 hours)
+Average 5p/kWh, low of 5p/kWh
+```
+
+This is the one that arrives in time to start the dishwasher. The check runs
+every five minutes, all day, and reads only stored prices, so it costs
+nothing and works outside the publication window.
+
+A stretch already under way is never announced — it is not news, and a late
+alert is worse than none. It follows the same "price alerts" switch as
+rule-match notifications.
+
 ## Duplicate prevention
 
 This is the part that matters (DESIGN.md sections 20 and 21). The poller runs
@@ -41,9 +69,19 @@ rule matches" would nag endlessly.
 Every payload carries a `dedupeKey` built only from stable facts:
 
 ```text
-daily:  {user}:daily_prices:{pricingDate}
-rule:   {user}:rule:{ruleId}:{pricingDate}:{runStartUtc}:{periodCount}
+daily:    {user}:daily_prices:{pricingDate}
+rule:     {user}:rule:{ruleId}:{pricingDate}:{runStartUtc}:{periodCount}
+upcoming: {user}:upcoming:{ruleId}:{pricingDate}:{runStartUtc}
 ```
+
+The starting-soon key deliberately omits the period count. A rule match is
+re-announced if the stretch genuinely grows, because that is new information
+worth having in advance; a stretch that is *already beginning* is announced
+once and then left alone.
+
+This also makes re-evaluation safe. A day is dispatched as soon as it is
+publishable and again each time more of it arrives, so the alerts have to be
+idempotent — and they are.
 
 `NotificationService.deliver` checks the key against `notification_log` and
 returns early if it has already been **sent**. The key is written as `sent`

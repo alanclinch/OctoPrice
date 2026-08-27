@@ -3,8 +3,10 @@ import {
   buildDailyPricesNotification,
   buildRuleMatchNotification,
   buildTestNotification,
+  buildUpcomingMatchNotification,
   dailyPricesDedupeKey,
   ruleMatchDedupeKey,
+  upcomingMatchDedupeKey,
 } from '../src/notifications.ts';
 import { evaluateRule } from '../src/rules.ts';
 import { summariseDay } from '../src/prices.ts';
@@ -123,6 +125,79 @@ describe('rule match notification', () => {
     expect(payload.body).toContain('Average 5p/kWh');
     expect(payload.body).toContain('low of 4p/kWh');
     expect(payload.body).toContain('Price <= 7p for at least 2 hours');
+  });
+});
+
+describe('starting-soon alert', () => {
+  const day = makeDayWith(DAY, { 20: 5, 21: 5, 22: 5, 23: 5 }, 20);
+  const rule = makeRule({ id: 'cheap', name: 'Cheap Electricity', thresholdPence: 7 });
+  const match = evaluateRule(rule, day, DAY)[0] as RuleMatch;
+  // The run starts at 10:00 on a GMT day.
+  const fifteenMinutesBefore = new Date('2026-01-15T09:45:00Z');
+
+  it('says how long until the stretch begins', () => {
+    const payload = buildUpcomingMatchNotification({
+      userId: USER,
+      rule,
+      match,
+      now: fifteenMinutesBefore,
+    });
+    expect(payload.type).toBe('rule_upcoming');
+    expect(payload.title).toBe('Cheap Electricity');
+    expect(payload.body).toContain('Starting in 15 minutes: 10:00 to 12:00 (2 hours)');
+  });
+
+  it('reports the average and the low', () => {
+    const payload = buildUpcomingMatchNotification({
+      userId: USER,
+      rule,
+      match,
+      now: fifteenMinutesBefore,
+    });
+    expect(payload.body).toContain('Average 5p/kWh, low of 5p/kWh');
+  });
+
+  it('says "starting now" rather than "in 0 minutes"', () => {
+    const payload = buildUpcomingMatchNotification({
+      userId: USER,
+      rule,
+      match,
+      now: new Date('2026-01-15T10:00:00Z'),
+    });
+    expect(payload.body).toContain('Starting now');
+  });
+
+  it('uses the singular for one minute', () => {
+    const payload = buildUpcomingMatchNotification({
+      userId: USER,
+      rule,
+      match,
+      now: new Date('2026-01-15T09:59:00Z'),
+    });
+    expect(payload.body).toContain('Starting in 1 minute:');
+  });
+
+  it('is announced once even if the stretch later grows', () => {
+    // The run length is deliberately excluded from the key: nobody needs
+    // interrupting twice about the same stretch.
+    const longer = makeDayWith(DAY, { 20: 5, 21: 5, 22: 5, 23: 5, 24: 5 }, 20);
+    const grown = evaluateRule(rule, longer, DAY)[0] as RuleMatch;
+    expect(grown.periodCount).toBe(5);
+    expect(upcomingMatchDedupeKey(USER, grown)).toBe(upcomingMatchDedupeKey(USER, match));
+  });
+
+  it('is distinct from the advance rule-match alert for the same stretch', () => {
+    expect(upcomingMatchDedupeKey(USER, match)).not.toBe(ruleMatchDedupeKey(USER, match));
+  });
+
+  it('deep-links to the day the stretch falls on', () => {
+    const payload = buildUpcomingMatchNotification({
+      userId: USER,
+      rule,
+      match,
+      now: fifteenMinutesBefore,
+    });
+    expect(payload.url).toBe(`/?date=${DAY}`);
   });
 });
 

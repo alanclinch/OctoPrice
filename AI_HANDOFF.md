@@ -12,7 +12,7 @@ If this file and the code disagree, **the code is right** — fix this file.
 - **Current branch:** `main`
 - **Source control:** clean `main`, synced to `origin/main`
 - **Build status:** passing — `npm run verify`
-- **Test status:** passing — 205 tests across 8 files
+- **Test status:** passing — 238 tests across 8 files
 - **Deployed:** `https://octoprice.alanclinch.workers.dev` on Cloudflare
   Workers, with D1 in WEUR and a five-minute Cron Trigger
 - **Git remote:** public GitHub repository at
@@ -61,13 +61,24 @@ GitHub remote or a real device:
 
 ## Currently In Progress
 
-No implementation work is half-finished. The label, authorship and Android
-notification-badge polish release is deployed and verified live. Alert rules
-in production are user-managed; do not assume the original defaults remain.
+- **Task:** publication-trigger fix and "starting soon" alerts.
+- **Responsible agent:** Claude
+- **Branch:** `claude/publication-trigger-fix` — complete and verified
+  locally, **not yet deployed**. Deploying is what makes it real; until then
+  production is still silent.
 
 ## Next Recommended Work
 
-1. **Confirm the new Android badge visually.** Send another test notification
+1. **Deploy the notification fix and watch it fire.** `npm run
+   deploy:cloudflare` from `main` once merged. Then confirm, on the phone,
+   that the daily summary arrives when tomorrow publishes and that a
+   starting-soon alert arrives before a matching stretch. Nothing about this
+   fix is proven until a notification lands on a device.
+2. **Expect a burst on first deploy.** The current day has never been
+   dispatched, so the first scheduled run inside the publication window will
+   send today's summary plus any settled rule matches. That is a one-off
+   catch-up, not a fault.
+3. **Confirm the new Android badge visually.** Send another test notification
    after the updated service worker is active and confirm the tray shows the
    system-tinted lightning bolt rather than a white square. Push delivery
    itself has been confirmed on a real Android device.
@@ -79,6 +90,11 @@ in production are user-managed; do not assume the original defaults remain.
    Telegram, Home Assistant and EV-charging features without redesign.
 
 ## Known Problems
+
+- **The notification fix is unproven in production.** It is covered by tests,
+  including one that reproduces the exact failure, but no notification has yet
+  been seen arriving from a real publication cycle. Until that happens, treat
+  the core promise of the app as unverified.
 
 - **The new Android notification badge has not yet been seen on the phone.**
   The previous badge delivered successfully but appeared as a white square.
@@ -93,6 +109,35 @@ in production are user-managed; do not assume the original defaults remain.
   `vite-plugin-pwa`; it comes from the plugin, not from our config.
 
 ## Important Decisions
+
+### 2026-08-27 — Publication triggers on coverage, not completeness
+
+**Decision:** split "is this day complete?" from "is there enough of this day
+to tell the user about?". Completeness stays strict and governs the interface;
+notification triggers on an unbroken 22 hours from local midnight.
+**Reason:** Octopus publishes a day only up to about 23:00 local and delivers
+the rest later, usually with the following day's batch. A day therefore does
+not become complete until roughly 24 hours after publication, and gating
+notification on completeness meant nothing was ever sent. Confirmed against
+live data and against the deployment, where `lastSuccessfulRetrievalAt` had
+been null since launch.
+**Alternatives considered:** "expected minus two periods", rejected because
+only BST has been observed and a fixed-UTC cutoff would leave a GMT day two
+periods shorter again; a percentage threshold, rejected as arbitrary.
+**Consequence:** matches sitting on the trailing edge of incomplete data are
+withheld until the day settles, so a growing stretch does not produce two
+near-identical alerts.
+
+### 2026-08-27 — Alerts both in advance and in the moment
+
+**Decision:** keep publication-time alerts and add a separate "starting soon"
+alert about fifteen minutes before a matching stretch begins.
+**Reason:** the two answer different questions. Advance notice is for
+planning; the user's actual complaint was that nothing told them when cheap
+electricity was about to start. The starting-soon check reads stored prices
+only, so it can run every five minutes all day at no API cost. The Cloudflare
+cron was widened from the afternoon window to all day to allow it, with price
+polling still a no-op outside the publication window.
 
 ### 2026-08-26 — Cloudflare Workers, D1 and Cron for production
 
