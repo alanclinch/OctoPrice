@@ -860,8 +860,9 @@ The calculation follows the binding regional finding in section 1:
 1. Forecast reference region C from the median of up to eight recent prices
    at the same London-local half-hour on the same kind of day
    (weekday/weekend). At least three comparable observations are required.
-2. Report the recent P20–P80 observations as a descriptive **recent range**.
-   It is explicitly not presented as a calibrated confidence interval.
+2. Report the recent P20–P80 observations as the **middle of recent prices**.
+   It is explicitly not presented as a calibrated confidence interval or a
+   bracket expected to contain the eventual price.
 3. Fit separate 16:00–19:00 and off-peak linear transforms from overlapping
    confirmed reference and target-region prices. If either fit has fewer than
    48 pairs or R² below 0.9999, publish no forecast rather than use a stale
@@ -871,7 +872,7 @@ The calculation follows the binding regional finding in section 1:
 
 The UI places estimates inline after confirmed prices, draws an explicit
 boundary, labels every estimated row, rounds the point value to one decimal
-place and shows the recent range. Forecast bars are outlined. Estimates do
+place and shows the middle of recent prices. Forecast bars are outlined. Estimates do
 not feed alerts, current/next price, cheapest-window advice or publication
 status.
 
@@ -882,20 +883,21 @@ whether fundamentals or machine learning earn their complexity.
 
 ### Baseline back-test
 
-`docs/research/backtest-seasonal-baseline.mjs` scores the exact implemented
-calculation against fixed, official region-C Agile history. It uses 28 days of
-past information for each prediction and scores 2,736 half-hours from 1 July
-through 26 August 2026, with no skipped days:
+`docs/research/backtest-seasonal-baseline.mjs` scores the exact two horizons
+the app displays against fixed, official region-C Agile history. Each issue
+date includes that day's already-confirmed prices, then predicts tomorrow and
+the following day. Both horizons score 2,736 half-hours from 1 July through
+26 August 2026, with no skipped days:
 
-| Measure | Result |
-| ------- | ------ |
-| Mean absolute error | **3.82p/kWh** |
-| Median absolute error | **2.53p/kWh** |
-| 90th-percentile absolute error | **9.73p/kWh** |
-| Mean bias | **−0.86p/kWh** (under-predicts) |
-| Descriptive recent-range coverage | **49.2%** |
-| Below-10p precision / recall | **54.6% / 54.9%** |
-| Negative-price precision / recall | **0% / 0%** |
+| Measure | Tomorrow | Following day |
+| ------- | -------- | ------------- |
+| Mean absolute error | **3.82p/kWh** | **3.99p/kWh** |
+| Median absolute error | **2.53p/kWh** | **2.77p/kWh** |
+| 90th-percentile absolute error | **9.73p/kWh** | **9.56p/kWh** |
+| Mean bias | **−0.86p/kWh** | **−1.02p/kWh** |
+| Middle-of-recent-prices coverage | **49.2%** | **46.9%** |
+| Below-10p precision / recall | **54.6% / 54.9%** | **54.3% / 62.3%** |
+| Negative-price precision / recall | **0% / 0%** | **n/a / 0%** |
 
 These figures explain the product restrictions. The estimate is useful for a
 rough shape and price level, but it is not dependable for rare negative prices
@@ -904,3 +906,17 @@ only the same weekday was also measured and rejected: MAE worsened to 4.25p
 and range coverage collapsed to 17.2% because four observations per slot were
 too few. The broader weekday/weekend grouping remains the implemented
 baseline because it performed better, not because it merely sounded plausible.
+
+### Runtime guardrails
+
+History is classified once by London day type and settlement slot, then that
+prepared pass is shared by the regional fit and all 96 targets. The synthetic
+regression benchmark (`benchmark-seasonal-baseline.mjs`) measures about 4.0 ms
+median for 1,344 history periods on the development machine; doubling history
+takes about 1.70 times as long rather than four times. Forecast reads run
+concurrently with the other overview reads and any forecast exception degrades
+to no estimates while confirmed prices still return normally.
+
+`FORECAST_BASELINE_ENABLED` is the independent kill switch. It defaults off
+for local and unspecified environments; production opts in in `wrangler.jsonc`.
+Turning it off also stops the historical backfill job.

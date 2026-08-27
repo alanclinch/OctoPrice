@@ -82,6 +82,24 @@ export function londonDateOf(instant: Date): PricingDate {
   return formatDateParts(p.year, p.month, p.day);
 }
 
+/**
+ * London calendar date and minutes since midnight from one ICU lookup.
+ *
+ * Use this when both values are needed in a hot path. Calling
+ * `londonDateOf` and `londonMinutesOfDay` separately formats the same instant
+ * twice, which is needlessly expensive on a Worker CPU budget.
+ */
+export function londonDateAndMinutes(instant: Date): {
+  date: PricingDate;
+  minutes: number;
+} {
+  const p = londonParts(instant);
+  return {
+    date: formatDateParts(p.year, p.month, p.day),
+    minutes: p.hour * 60 + p.minute,
+  };
+}
+
 /** Parses `YYYY-MM-DD`, throwing on anything malformed. */
 export function parsePricingDate(date: PricingDate): { year: number; month: number; day: number } {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);

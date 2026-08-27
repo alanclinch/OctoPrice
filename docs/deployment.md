@@ -107,6 +107,8 @@ Non-secret production values live under `vars` in `wrangler.jsonc`:
 - optional `OCTOPUS_PRODUCT_CODE`
 - `POLL_START`, `POLL_INTERVAL_MINUTES`, and `POLL_CUTOFF`
 - `LOG_LEVEL`
+- `FORECAST_BASELINE_ENABLED` — independent switch for the experimental
+  estimate and its history backfill; defaults to `false`
 
 The Cron Trigger runs every five minutes, all day. Each invocation does two
 things of very different cost:

@@ -178,7 +178,10 @@ complete days for reference region C and each active region, processing only
 recent prices at the same London-local time and weekday/weekend class. The
 server derives peak and off-peak regional transforms from overlapping
 confirmed data and refuses them if R² drops below 0.9999. The API computes the
-result from D1 reads; it never fetches upstream data in a request.
+result from D1 reads; it never fetches upstream data in a request. History is
+classified once and reused by the fit and forecast. A forecast read or
+calculation failure returns no estimates rather than failing the overview,
+and `FORECAST_BASELINE_ENABLED` can disable both display and backfill.
 
 Forecasts appear only in the price table and chart. They do not enter the
 current/next card, publication status, alerts, rules or cheapest-window

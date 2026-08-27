@@ -51,7 +51,11 @@ import {
   sessionCookie,
 } from '../auth.ts';
 import { buildInfo } from '../version.ts';
-import { buildBaselineForecast } from '../forecast/baseline.ts';
+import {
+  buildBaselineForecast,
+  unavailableBaselineForecast,
+  type BaselineForecast,
+} from '../forecast/baseline.ts';
 
 export interface ApiRequest {
   method: string;
@@ -128,6 +132,23 @@ async function describeDay(priceService: PriceService, date: PricingDate, tariff
     complete: isDayComplete(periods, date),
     expectedPeriodCount: expectedPeriodCount(date),
   };
+}
+
+async function safeBaselineForecast(options: {
+  enabled: boolean;
+  store: Store;
+  tariff: Awaited<ReturnType<PriceService['tariff']>>;
+  now: Date;
+  logger: Logger;
+}): Promise<BaselineForecast> {
+  if (!options.enabled) return unavailableBaselineForecast('disabled');
+
+  try {
+    return await buildBaselineForecast(options);
+  } catch (error) {
+    options.logger.warn('Forecast unavailable; returning confirmed prices', describeError(error));
+    return unavailableBaselineForecast('failed');
+  }
 }
 
 /**
@@ -275,13 +296,19 @@ export async function handleApiRequest(
     const today = londonDateOf(now);
     const tomorrow = addDays(today, 1);
     const tariff = await priceService.tariff(userId);
-    const [todayDay, tomorrowDay, settings] = await Promise.all([
+    const [todayDay, tomorrowDay, settings, forecast] = await Promise.all([
       describeDay(priceService, today, tariff.tariffCode),
       describeDay(priceService, tomorrow, tariff.tariffCode),
       store.getSettings(userId),
+      safeBaselineForecast({
+        enabled: config.forecastBaselineEnabled,
+        store,
+        tariff,
+        now,
+        logger,
+      }),
     ]);
     const known = [...todayDay.periods, ...tomorrowDay.periods];
-    const forecast = await buildBaselineForecast({ store, tariff, now });
 
     return json({
       now: now.toISOString(),

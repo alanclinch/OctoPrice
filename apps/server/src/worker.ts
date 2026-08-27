@@ -28,6 +28,7 @@ interface Env {
   VAPID_PUBLIC_KEY?: string;
   VAPID_PRIVATE_KEY?: string;
   VAPID_SUBJECT?: string;
+  FORECAST_BASELINE_ENABLED?: string;
   FORECAST_ARCHIVE_ENABLED?: string;
   FORECAST_ARCHIVE_INTERVAL_MINUTES?: string;
   FORECAST_ARCHIVE_RETENTION_DAYS?: string;
@@ -63,6 +64,7 @@ function configFor(env: Env): AppConfig {
     POLL_START: env.POLL_START ?? '16:05',
     POLL_INTERVAL_MINUTES: env.POLL_INTERVAL_MINUTES ?? '5',
     POLL_CUTOFF: env.POLL_CUTOFF ?? '22:15',
+    FORECAST_BASELINE_ENABLED: env.FORECAST_BASELINE_ENABLED ?? 'false',
     FORECAST_ARCHIVE_ENABLED: env.FORECAST_ARCHIVE_ENABLED ?? 'true',
   };
 
@@ -221,7 +223,9 @@ export default {
                 retentionDays: config.forecastArchiveRetentionDays,
               })
           : undefined,
-        forecast: () => runForecastHistoryBackfill({ store, priceService, logger }),
+        forecast: config.forecastBaselineEnabled
+          ? () => runForecastHistoryBackfill({ store, priceService, logger })
+          : undefined,
       }),
     );
   },

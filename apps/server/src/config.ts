@@ -44,6 +44,12 @@ const envSchema = z.object({
   /** Directory of built PWA assets to serve. Empty disables static serving. */
   WEB_DIST_PATH: z.string().default('../web/dist'),
 
+  /** Experimental display-only estimate; safe to withdraw independently. */
+  FORECAST_BASELINE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+
   /**
    * Collect Carbon Intensity vintages that cannot be retrieved later. At the
    * default cadence this is about 770 rows a day and changes nothing by itself.
@@ -88,6 +94,7 @@ export interface AppConfig {
   };
   enableScheduler: boolean;
   webDistPath: string;
+  forecastBaselineEnabled: boolean;
   forecastArchiveEnabled: boolean;
   forecastArchiveIntervalMinutes: number;
   forecastArchiveRetentionDays: number;
@@ -145,6 +152,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     },
     enableScheduler: e.ENABLE_SCHEDULER,
     webDistPath: e.WEB_DIST_PATH,
+    forecastBaselineEnabled: e.FORECAST_BASELINE_ENABLED,
     forecastArchiveEnabled: e.FORECAST_ARCHIVE_ENABLED,
     forecastArchiveIntervalMinutes: e.FORECAST_ARCHIVE_INTERVAL_MINUTES,
     forecastArchiveRetentionDays: e.FORECAST_ARCHIVE_RETENTION_DAYS,

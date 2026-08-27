@@ -8,7 +8,14 @@
  */
 
 import type { PricePeriod } from './types.ts';
-import { HALF_HOUR_MS, londonDateOf, londonMinutesOfDay, type PricingDate } from './time.ts';
+import {
+  HALF_HOUR_MS,
+  addDays,
+  londonDateAndMinutes,
+  londonDateOf,
+  startOfLondonDay,
+  type PricingDate,
+} from './time.ts';
 import { roundPence, sortPeriods } from './prices.ts';
 
 export const FORECAST_MODEL = 'seasonal-naive-v1';
@@ -18,7 +25,10 @@ export const MAX_FORECAST_SAMPLES = 8;
 export const MIN_TRANSFORM_SAMPLES = 48;
 export const MIN_TRANSFORM_R_SQUARED = 0.9999;
 
-export interface ForecastPricePeriod extends PricePeriod {
+export interface ForecastPricePeriod {
+  validFrom: string;
+  validTo: string;
+  valueIncVat: number;
   /** Empirical low/high values from the recent matching observations. */
   lowerIncVat: number;
   upperIncVat: number;
@@ -36,6 +46,13 @@ export interface LinearTransform {
 export interface RegionalPriceTransform {
   offPeak: LinearTransform;
   peak: LinearTransform;
+}
+
+export interface ForecastHistoryPeriod {
+  period: PricePeriod;
+  minutes: number;
+  weekend: boolean;
+  peak: boolean;
 }
 
 function isWeekend(date: PricingDate): boolean {
@@ -56,8 +73,54 @@ function median(sorted: readonly number[]): number {
 }
 
 function isPeak(period: Pick<PricePeriod, 'validFrom'>): boolean {
-  const minutes = londonMinutesOfDay(new Date(period.validFrom));
+  const { minutes } = londonDateAndMinutes(new Date(period.validFrom));
   return minutes >= 16 * 60 && minutes < 19 * 60;
+}
+
+/** Classifies confirmed history once so fitting and forecasting can share it. */
+export function prepareForecastHistory(history: readonly PricePeriod[]): ForecastHistoryPeriod[] {
+  const confirmed = sortPeriods(history);
+  const first = confirmed[0];
+  if (!first) return [];
+
+  // Price history is aligned to settlement periods. Resolve London once per
+  // local day, then derive each slot from its UTC index. This preserves the
+  // skipped/repeated clock-change hour without an ICU format for every row.
+  let date = londonDateOf(new Date(first.validFrom));
+  let dayStart = startOfLondonDay(date).getTime();
+  let nextDayStart = startOfLondonDay(addDays(date, 1)).getTime();
+  const prepared: ForecastHistoryPeriod[] = [];
+
+  for (const period of confirmed) {
+    const at = Date.parse(period.validFrom);
+    while (at >= nextDayStart) {
+      date = addDays(date, 1);
+      dayStart = nextDayStart;
+      nextDayStart = startOfLondonDay(addDays(date, 1)).getTime();
+    }
+
+    const index = Math.round((at - dayStart) / HALF_HOUR_MS);
+    const periodCount = Math.round((nextDayStart - dayStart) / HALF_HOUR_MS);
+    const aligned = at >= dayStart && index >= 0 && index < periodCount;
+    let minutes: number;
+    if (!aligned) {
+      minutes = londonDateAndMinutes(new Date(at)).minutes;
+    } else if (periodCount === 46 && index >= 2) {
+      minutes = (index + 2) * 30;
+    } else if (periodCount === 50 && index >= 4) {
+      minutes = (index - 2) * 30;
+    } else {
+      minutes = index * 30;
+    }
+
+    prepared.push({
+      period,
+      minutes,
+      weekend: isWeekend(date),
+      peak: minutes >= 16 * 60 && minutes < 19 * 60,
+    });
+  }
+  return prepared;
 }
 
 function identityTransform(sampleCount: number): RegionalPriceTransform {
@@ -97,6 +160,7 @@ export function fitRegionalPriceTransform(
   reference: readonly PricePeriod[],
   target: readonly PricePeriod[],
   sameRegion = false,
+  preparedReference?: readonly ForecastHistoryPeriod[],
 ): RegionalPriceTransform | null {
   if (sameRegion) return identityTransform(reference.length);
 
@@ -104,11 +168,12 @@ export function fitRegionalPriceTransform(
   const peak: { x: number; y: number }[] = [];
   const offPeak: { x: number; y: number }[] = [];
 
-  for (const referencePeriod of reference) {
+  const classified = preparedReference ?? prepareForecastHistory(reference);
+  for (const { period: referencePeriod, peak: isPeakPeriod } of classified) {
     const targetPeriod = targetByStart.get(referencePeriod.validFrom);
     if (!targetPeriod) continue;
     const pair = { x: referencePeriod.valueIncVat, y: targetPeriod.valueIncVat };
-    (isPeak(referencePeriod) ? peak : offPeak).push(pair);
+    (isPeakPeriod ? peak : offPeak).push(pair);
   }
 
   const fittedPeak = fitLine(peak);
@@ -127,31 +192,30 @@ function applyTransform(value: number, transform: LinearTransform): number {
  */
 export function forecastSeasonalPrices(options: {
   history: readonly PricePeriod[];
+  preparedHistory?: readonly ForecastHistoryPeriod[];
   targets: readonly Date[];
   transform: RegionalPriceTransform;
   now: Date;
 }): ForecastPricePeriod[] {
-  const history = sortPeriods(options.history).filter(
-    (period) => Date.parse(period.validTo) <= options.now.getTime(),
-  );
+  const history = options.preparedHistory ?? prepareForecastHistory(options.history);
+
+  // Classify every historical period once. The previous implementation did
+  // this inside the target loop, turning 28 days x 96 targets into roughly
+  // 258,000 ICU date formats on every overview request.
+  const buckets = new Map<string, number[]>();
+  for (const item of history) {
+    const key = `${item.weekend ? 1 : 0}:${item.minutes}`;
+    const values = buckets.get(key) ?? [];
+    values.push(item.period.valueIncVat);
+    if (values.length > MAX_FORECAST_SAMPLES) values.shift();
+    buckets.set(key, values);
+  }
 
   return options.targets.flatMap((target): ForecastPricePeriod[] => {
     if (target.getTime() <= options.now.getTime()) return [];
-    const targetDate = londonDateOf(target);
-    const targetMinutes = londonMinutesOfDay(target);
-    const targetWeekend = isWeekend(targetDate);
-
-    const samples = history
-      .filter((period) => {
-        const from = new Date(period.validFrom);
-        return (
-          londonMinutesOfDay(from) === targetMinutes &&
-          isWeekend(londonDateOf(from)) === targetWeekend
-        );
-      })
-      .slice(-MAX_FORECAST_SAMPLES)
-      .map((period) => period.valueIncVat)
-      .sort((a, b) => a - b);
+    const local = londonDateAndMinutes(target);
+    const key = `${isWeekend(local.date) ? 1 : 0}:${local.minutes}`;
+    const samples = [...(buckets.get(key) ?? [])].sort((a, b) => a - b);
 
     if (samples.length < MIN_FORECAST_SAMPLES) return [];
 
@@ -167,7 +231,6 @@ export function forecastSeasonalPrices(options: {
         validFrom: target.toISOString(),
         validTo: new Date(target.getTime() + HALF_HOUR_MS).toISOString(),
         valueIncVat: estimate,
-        valueExcVat: roundPence(estimate / 1.05, 2),
         lowerIncVat: Math.min(lower, upper),
         upperIncVat: Math.max(lower, upper),
         sampleCount: samples.length,

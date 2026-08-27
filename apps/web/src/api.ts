@@ -57,7 +57,8 @@ export interface Overview {
     referenceRegion: string;
     historyDays: number;
     periods: ForecastPricePeriod[];
-    unavailableReason: 'insufficient-history' | 'regional-transform-failed' | null;
+    unavailableReason:
+      'disabled' | 'failed' | 'insufficient-history' | 'regional-transform-failed' | null;
   };
   settings: UserSettings;
   tariff: TariffInfo;

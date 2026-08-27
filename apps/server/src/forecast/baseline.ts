@@ -17,6 +17,7 @@ import {
   isDayComplete,
   londonDateOf,
   londonDayPeriodStarts,
+  prepareForecastHistory,
   startOfLondonDay,
   type ForecastPricePeriod,
   type PricingDate,
@@ -133,7 +134,20 @@ export interface BaselineForecast {
   referenceRegion: typeof FORECAST_REFERENCE_REGION;
   historyDays: number;
   periods: ForecastPricePeriod[];
-  unavailableReason: 'insufficient-history' | 'regional-transform-failed' | null;
+  unavailableReason:
+    'disabled' | 'failed' | 'insufficient-history' | 'regional-transform-failed' | null;
+}
+
+export function unavailableBaselineForecast(
+  reason: Exclude<BaselineForecast['unavailableReason'], null>,
+): BaselineForecast {
+  return {
+    model: FORECAST_MODEL,
+    referenceRegion: FORECAST_REFERENCE_REGION,
+    historyDays: FORECAST_HISTORY_DAYS,
+    periods: [],
+    unavailableReason: reason,
+  };
 }
 
 /** Builds two days of estimates from stored confirmed prices only. */
@@ -144,7 +158,9 @@ export async function buildBaselineForecast(options: {
 }): Promise<BaselineForecast> {
   const today = londonDateOf(options.now);
   const historyFrom = startOfLondonDay(addDays(today, -FORECAST_HISTORY_DAYS));
-  const historyTo = startOfLondonDay(today);
+  // Today's official prices are already stored and are the freshest matching
+  // observations available, including slots later than the current time.
+  const historyTo = endOfLondonDay(today);
   const firstTarget: PricingDate = addDays(today, 1);
   const lastTarget: PricingDate = addDays(today, 2);
   const reference = referenceTariff(options.tariff.productCode);
@@ -162,31 +178,22 @@ export async function buildBaselineForecast(options: {
   ]);
 
   if (referenceHistory.length === 0) {
-    return {
-      model: FORECAST_MODEL,
-      referenceRegion: FORECAST_REFERENCE_REGION,
-      historyDays: FORECAST_HISTORY_DAYS,
-      periods: [],
-      unavailableReason: 'insufficient-history',
-    };
+    return unavailableBaselineForecast('insufficient-history');
   }
 
+  const preparedHistory = prepareForecastHistory(referenceHistory);
   const transform = fitRegionalPriceTransform(
     referenceHistory,
     targetHistory,
     options.tariff.region === FORECAST_REFERENCE_REGION,
+    preparedHistory,
   );
   if (!transform) {
-    return {
-      model: FORECAST_MODEL,
-      referenceRegion: FORECAST_REFERENCE_REGION,
-      historyDays: FORECAST_HISTORY_DAYS,
-      periods: [],
-      unavailableReason:
-        options.tariff.region === FORECAST_REFERENCE_REGION
-          ? 'insufficient-history'
-          : 'regional-transform-failed',
-    };
+    return unavailableBaselineForecast(
+      options.tariff.region === FORECAST_REFERENCE_REGION
+        ? 'insufficient-history'
+        : 'regional-transform-failed',
+    );
   }
 
   const confirmedStarts = new Set(confirmed.map((period) => period.validFrom));
@@ -196,6 +203,7 @@ export async function buildBaselineForecast(options: {
   ].filter((target) => !confirmedStarts.has(target.toISOString()));
   const periods = forecastSeasonalPrices({
     history: referenceHistory,
+    preparedHistory,
     targets,
     transform,
     now: options.now,

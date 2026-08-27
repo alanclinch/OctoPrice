@@ -13,6 +13,7 @@
 
 import {
   addDays,
+  endOfLondonDay,
   fitRegionalPriceTransform,
   forecastSeasonalPrices,
   londonDayPeriodStarts,
@@ -90,45 +91,63 @@ function percentile(values, fraction) {
 
 const all = await fetchPrices();
 const transform = fitRegionalPriceTransform(all, all, true);
-const scored = [];
-let skippedDays = 0;
+function scoreHorizon(daysAhead) {
+  const scored = [];
+  let skippedDays = 0;
 
-for (const date of dates(SCORE_FROM, SCORE_TO)) {
-  const actual = periodsForLondonDay(all, date);
-  const historyFrom = startOfLondonDay(addDays(date, -HISTORY_DAYS)).getTime();
-  const predictionTime = new Date(startOfLondonDay(date).getTime() - 1);
-  const history = all.filter((period) => {
-    const at = Date.parse(period.validFrom);
-    return at >= historyFrom && Date.parse(period.validTo) <= predictionTime.getTime();
-  });
-  const forecast = forecastSeasonalPrices({
-    history,
-    targets: londonDayPeriodStarts(date),
-    transform,
-    now: predictionTime,
-  });
-  const actualByStart = new Map(actual.map((period) => [period.validFrom, period.valueIncVat]));
-
-  if (forecast.length !== actual.length || actual.length === 0) {
-    skippedDays += 1;
-    continue;
-  }
-  for (const estimate of forecast) {
-    const actualValue = actualByStart.get(estimate.validFrom);
-    if (actualValue === undefined) continue;
-    scored.push({
-      estimate: estimate.valueIncVat,
-      lower: estimate.lowerIncVat,
-      upper: estimate.upperIncVat,
-      actual: actualValue,
+  for (const date of dates(SCORE_FROM, SCORE_TO)) {
+    const issueDate = addDays(date, -daysAhead);
+    const actual = periodsForLondonDay(all, date);
+    const historyFrom = startOfLondonDay(addDays(issueDate, -HISTORY_DAYS)).getTime();
+    // Agile prices for the issue date are official already. This evaluates
+    // the same tomorrow/day-after horizons the app displays and includes that
+    // freshest confirmed day, as the shipped database query now does.
+    const predictionTime = new Date(endOfLondonDay(issueDate).getTime() - 1);
+    const history = all.filter((period) => {
+      const at = Date.parse(period.validFrom);
+      return at >= historyFrom && Date.parse(period.validTo) <= predictionTime.getTime();
     });
-  }
-}
+    const forecast = forecastSeasonalPrices({
+      history,
+      targets: londonDayPeriodStarts(date),
+      transform,
+      now: predictionTime,
+    });
+    const actualByStart = new Map(actual.map((period) => [period.validFrom, period.valueIncVat]));
 
-if (scored.length === 0) throw new Error('No periods were available to score');
-const absoluteErrors = scored.map((row) => Math.abs(row.estimate - row.actual));
-const signedErrors = scored.map((row) => row.estimate - row.actual);
-const covered = scored.filter((row) => row.actual >= row.lower && row.actual <= row.upper).length;
+    if (forecast.length !== actual.length || actual.length === 0) {
+      skippedDays += 1;
+      continue;
+    }
+    for (const estimate of forecast) {
+      const actualValue = actualByStart.get(estimate.validFrom);
+      if (actualValue === undefined) continue;
+      scored.push({
+        estimate: estimate.valueIncVat,
+        lower: estimate.lowerIncVat,
+        upper: estimate.upperIncVat,
+        actual: actualValue,
+      });
+    }
+  }
+
+  if (scored.length === 0) throw new Error('No periods were available to score');
+  const absoluteErrors = scored.map((row) => Math.abs(row.estimate - row.actual));
+  const signedErrors = scored.map((row) => row.estimate - row.actual);
+  const covered = scored.filter((row) => row.actual >= row.lower && row.actual <= row.upper).length;
+  return {
+    daysAhead,
+    scoredPeriods: scored.length,
+    skippedDays,
+    maePence: absoluteErrors.reduce((sum, value) => sum + value, 0) / scored.length,
+    medianAbsoluteErrorPence: percentile(absoluteErrors, 0.5),
+    p90AbsoluteErrorPence: percentile(absoluteErrors, 0.9),
+    meanBiasPence: signedErrors.reduce((sum, value) => sum + value, 0) / scored.length,
+    middleRecentPricesCoverage: covered / scored.length,
+    cheapBelow10p: eventCounts(scored, (value) => value < 10),
+    negative: eventCounts(scored, (value) => value < 0),
+  };
+}
 
 console.log(
   JSON.stringify(
@@ -136,15 +155,7 @@ console.log(
       product: PRODUCT,
       tariff: TARIFF,
       fetchedPeriods: all.length,
-      scoredPeriods: scored.length,
-      skippedDays,
-      maePence: absoluteErrors.reduce((sum, value) => sum + value, 0) / scored.length,
-      medianAbsoluteErrorPence: percentile(absoluteErrors, 0.5),
-      p90AbsoluteErrorPence: percentile(absoluteErrors, 0.9),
-      meanBiasPence: signedErrors.reduce((sum, value) => sum + value, 0) / scored.length,
-      recentRangeCoverage: covered / scored.length,
-      cheapBelow10p: eventCounts(scored, (value) => value < 10),
-      negative: eventCounts(scored, (value) => value < 0),
+      horizons: [scoreHorizon(1), scoreHorizon(2)],
     },
     null,
     2,

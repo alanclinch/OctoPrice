@@ -22,7 +22,9 @@ async function main(): Promise<void> {
     // Do not block startup on the network: the API should answer immediately
     // even if Octopus is slow or unreachable.
     void poller.runStartupCatchUp().then(async () => {
-      await runForecastHistoryBackfill({ store, priceService, logger });
+      if (config.forecastBaselineEnabled) {
+        await runForecastHistoryBackfill({ store, priceService, logger });
+      }
       poller.start();
     });
   }

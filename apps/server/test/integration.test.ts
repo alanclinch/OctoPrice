@@ -471,10 +471,33 @@ describe('HTTP API', () => {
       expect(body.forecast).toMatchObject({
         model: 'seasonal-naive-v1',
         periods: [],
-        unavailableReason: 'insufficient-history',
+        unavailableReason: 'disabled',
       });
     } finally {
       await context2.built.close();
+    }
+  });
+
+  it('keeps confirmed overview prices available when forecasting fails', async () => {
+    const isolated = await createTestApp([], { forecastBaseline: true });
+    try {
+      const store = isolated.built.store;
+      const originalGetPrices = store.getPrices.bind(store);
+      store.getPrices = async (tariffCode, from, to) => {
+        if (to.getTime() - from.getTime() > 2 * 24 * 60 * 60 * 1000) {
+          throw new Error('simulated forecast history failure');
+        }
+        return originalGetPrices(tariffCode, from, to);
+      };
+
+      const response = await isolated.inject({ method: 'GET', url: '/api/overview' });
+      expect(response.statusCode).toBe(200);
+      expect(response.json().forecast).toMatchObject({
+        periods: [],
+        unavailableReason: 'failed',
+      });
+    } finally {
+      await isolated.built.close();
     }
   });
 

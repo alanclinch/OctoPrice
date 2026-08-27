@@ -4,6 +4,8 @@ import {
   fitRegionalPriceTransform,
   forecastSeasonalPrices,
   londonDayPeriodStarts,
+  londonMinutesOfDay,
+  prepareForecastHistory,
   roundPence,
   type PricePeriod,
 } from '../src/index.ts';
@@ -86,6 +88,32 @@ describe('seasonal-naive price forecasting', () => {
     ).toEqual([]);
   });
 
+  it('uses one prepared history pass for every target', () => {
+    const history = [
+      ...historyDay('2026-01-05', 10),
+      ...historyDay('2026-01-06', 20),
+      ...historyDay('2026-01-07', 30),
+      ...historyDay('2026-01-08', 40),
+    ];
+    const now = new Date('2026-01-08T23:59:00.000Z');
+    const preparedHistory = prepareForecastHistory(history);
+    const unreadableHistory = new Proxy(history, {
+      get() {
+        throw new Error('forecast rescanned raw history');
+      },
+    });
+
+    expect(
+      forecastSeasonalPrices({
+        history: unreadableHistory,
+        preparedHistory,
+        targets: londonDayPeriodStarts('2026-01-09'),
+        transform: fitRegionalPriceTransform(history, history, true)!,
+        now,
+      }),
+    ).toHaveLength(48);
+  });
+
   it('creates the correct number of periods on short and long clock-change days', () => {
     const history = [
       ...historyDay('2026-03-14', 9),
@@ -115,6 +143,14 @@ describe('seasonal-naive price forecasting', () => {
         now: new Date('2026-10-24T22:59:00.000Z'),
       }),
     ).toHaveLength(50);
+  });
+
+  it('classifies every clock-change settlement slot in London time', () => {
+    const history = [...historyDay('2026-03-29', 10), ...historyDay('2026-10-25', 20)];
+
+    for (const item of prepareForecastHistory(history)) {
+      expect(item.minutes).toBe(londonMinutesOfDay(new Date(item.period.validFrom)));
+    }
   });
 });
 

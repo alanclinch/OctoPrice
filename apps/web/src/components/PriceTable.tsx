@@ -28,6 +28,7 @@ export function PriceTable({
 }: PriceTableProps): JSX.Element {
   const at = now.getTime();
   const visible = hidePast ? periods.filter((period) => Date.parse(period.validTo) > at) : periods;
+  const firstForecastIndex = visible.findIndex(isForecastPeriod);
 
   if (visible.length === 0) {
     return <p className="centre">Nothing left to show for this day.</p>;
@@ -53,8 +54,7 @@ export function PriceTable({
           const previousDate =
             index > 0 ? londonDateOf(new Date(visible[index - 1]?.validFrom ?? from)) : null;
           const forecast = isForecastPeriod(period);
-          const previous = visible[index - 1];
-          const beginsForecast = forecast && (!previous || !isForecastPeriod(previous));
+          const beginsForecast = forecast && index === firstForecastIndex;
 
           return (
             <Fragment key={period.validFrom}>
@@ -86,7 +86,8 @@ export function PriceTable({
                   {forecast ? `~${pence(period.valueIncVat, 1)}` : pence(period.valueIncVat, 2)}
                   {forecast && (
                     <span className="forecast-range">
-                      {pence(period.lowerIncVat, 1)}–{pence(period.upperIncVat, 1)} recent range
+                      {pence(period.lowerIncVat, 1)}–{pence(period.upperIncVat, 1)} middle of recent
+                      prices
                     </span>
                   )}
                 </td>

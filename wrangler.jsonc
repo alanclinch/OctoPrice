@@ -34,5 +34,6 @@
     "POLL_START": "16:05",
     "POLL_INTERVAL_MINUTES": "5",
     "POLL_CUTOFF": "22:15",
+    "FORECAST_BASELINE_ENABLED": "true",
   },
 }

@@ -107,7 +107,7 @@ export function PriceChart({ periods, now, display }: PriceChartProps): JSX.Elem
               <title>
                 {periodRange(period, display)}: {pence(value)}
                 {isForecastPeriod(period)
-                  ? ` estimate (${pence(period.lowerIncVat)}–${pence(period.upperIncVat)} recent range)`
+                  ? ` estimate (${pence(period.lowerIncVat)}–${pence(period.upperIncVat)} middle of recent prices)`
                   : ''}
               </title>
             </rect>

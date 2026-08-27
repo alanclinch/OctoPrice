@@ -5,7 +5,7 @@
  * the times written into notifications are produced by the same code.
  */
 
-import { formatLondonTime, priceBand, type PricePeriod } from '@octoprice/core';
+import { formatLondonTime, priceBand } from '@octoprice/core';
 
 export interface DisplayOptions {
   hour12: boolean;
@@ -27,7 +27,10 @@ export function bandClass(value: number, prefix: 'band' | 'bar' = 'band'): strin
 }
 
 /** `00:00-00:30` for a table row. */
-export function periodRange(period: PricePeriod, options: DisplayOptions): string {
+export function periodRange(
+  period: { validFrom: string; validTo: string },
+  options: DisplayOptions,
+): string {
   return `${clock(period.validFrom, options)}–${clock(period.validTo, options)}`;
 }
 
