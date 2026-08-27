@@ -72,6 +72,42 @@ GitHub remote or a real device:
 
 ## Open Review Findings
 
+### Further forecasting research review — open
+
+Recorded by Codex on 2026-08-27 after reviewing `4f118e1` through `5f58370`.
+The earlier six gates were addressed well; these follow from the new Worker
+benchmark and Carbon Intensity proposal.
+
+1. **P1 — Cloudflare Cron does not make an oversized model fit the free
+   tier.** Workers Free gives Cron invocations the same 10 ms CPU allowance as
+   HTTP invocations. Precomputing a large ensemble in the existing scheduled
+   Worker protects request latency but does not make the 500/1000-tree cases
+   legal or reliable. Heavy inference must run in GitHub Actions or another
+   explicitly budgeted environment, leaving the Worker to ingest immutable
+   results; alternatively the model must remain inside the measured small-model
+   envelope.
+2. **P1 — Carbon Intensity collection needs a terms and attribution design.**
+   The API is CC BY 4.0 but its additional terms require compliance, prohibit
+   substantially replacing NESO's core experience, require the application's
+   identity not to be concealed, and allow rate limiting or discontinuation.
+   Before the proposed archive starts, document attribution, request identity,
+   polling rate, retention/derived-model use and failure behaviour.
+3. **P2 — regional carbon mix is not a regional Agile price signal.** Agile's
+   wholesale component is one GB series and regional differences are the known
+   retail transform. DNO carbon regions model local generation, consumption
+   and power flows; their matching geography is useful user context but does
+   not justify regional price features or models. Start with the national
+   generation-mix forecast as a candidate reference-price feature and retain
+   it only if walk-forward testing shows incremental value. Gas generation
+   share is not a substitute for the missing gas commodity price.
+4. **P2 — the CPU benchmark is a sizing experiment, not yet a Worker
+   benchmark.** It is synthetic, randomly generated and measured in local
+   Node without JSON parsing or the rest of the invocation. A rerun on the
+   same workstation produced 3.17/18.72/40.92 ms for the 300/500/1000-tree
+   cases versus 2.73/12.11/29.68 ms in the document. Record runtime/hardware,
+   use repeat distributions and a fixed seed, then benchmark the chosen model
+   in a deployed Worker before closing free-tier feasibility.
+
 ### Forecasting research review — addressed
 
 Codex raised six design gates on 2026-08-27 against `docs/forecasting.md`.
@@ -181,21 +217,19 @@ Two findings bind whatever gets built:
   day-ahead auction that clears at 15:45, fifteen minutes before Octopus
   publishes. Fine for history, useless as the forward input.
 
-Biggest open question: ENTSO-E needs a registration token and has not been
-tested. Whether GB day-ahead prices are available there, complete and timely,
-is the single thing most likely to decide whether good 24h forecasting is
-achievable — note AgilePredict takes GB day-ahead from Nord Pool (licence
-restricted, and hourly not half-hourly) and uses ENTSO-E only for French
-nuclear.
+The immediate open questions are the honest baseline accuracy and collecting
+unrevised vintages from sources that cannot provide history. ENTSO-E remains a
+parallel experiment for improving the short same-day horizon; it is not a
+dependency for the 48–72-hour fundamentals forecast.
 
 Verified working with no API key: Elexon (day-ahead demand, wind forecast,
 generation outturn, daily surplus, market index), NESO (embedded wind and
 solar, 14 days), Open-Meteo. All reachable from a Worker with no secrets.
 
-Recommended order, from `docs/forecasting.md` section 7: test ENTSO-E, then
-back-test a seasonal-naive baseline and *publish its error* before judging any
-model against it. The regional coefficient fitting is independently useful and
-can ship on its own.
+Recommended order, from `docs/forecasting.md` section 7: begin the live input
+archive, fit and monitor regional forecast coefficients, then back-test a
+seasonal-naive baseline and *publish its error* before judging any model
+against it. Test ENTSO-E alongside those steps rather than blocking them.
 
 ## Next Recommended Work
 
