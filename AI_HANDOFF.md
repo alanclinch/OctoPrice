@@ -17,6 +17,26 @@ and its relevant tests have been verified. Include severity, file/area and the
 reason the behaviour is wrong so the other agent can act without needing the
 original conversation.
 
+## Active Agent Roles
+
+Alan should never have to carry findings or instructions between agents.
+For forecasting work, the standing roles are:
+
+- **Codex owns development:** design decisions within the agreed scope,
+  implementation, tests, documentation, deployment preparation and fixes.
+- **Claude owns review:** inspect Codex's completed forecasting changes and
+  record actionable findings directly in this file. Claude does not take over
+  implementation unless Alan explicitly changes the roles.
+- **`AI_HANDOFF.md` is the conversation between agents.** Codex records the
+  branch, review-ready commit, verification and assumptions here. Claude
+  records its verdict and findings here. Alan only needs to say “continue” or
+  “review”; no copying and pasting between agents.
+
+The forecasting implementation target is deliberately modest: an
+**experimental, educated data-based estimate**, not a precision claim or a
+large machine-learning system. Avoid reopening broad research unless a live
+implementation is genuinely blocked.
+
 ## Current State
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
@@ -274,37 +294,36 @@ so neither agent re-raises them.
    subscription, or have failed. The ready message now speaks only about
    prices and leaves alerts to the alerts card, which reports actual state.
 
-## Status: parked, deliberately
+## Status: forecasting resumed under Codex ownership
 
-The owner stopped development on 2026-08-27 to live with the app for a while.
-Nothing is half-finished. `main` is deployed, CI is green, and every branch
-has been merged and deleted.
+Alan resumed forecasting development on 2026-08-27 with Codex as implementer
+and Claude as reviewer. The existing application remains deployed and stable;
+forecasting work must not weaken confirmed prices or alerts.
 
 **The app is done and doing its job.** Confirmed prices, the daily publication
 summary, price-alert rules, starting-soon alerts, per-person access and the
 status page all work in production, and notifications have been verified
 arriving on a real device across a real publication cycle.
 
-**Forecasting is research plus one small piece.** `docs/forecasting.md` holds
-the design; the input archive collects the Carbon Intensity forecast and
-nothing else. It produces no forecasts and costs a few hundred rows a day, so
-it can be left running indefinitely - which is the point. If the idea is
-picked up later, there will be history waiting.
-
-Before resuming forecasting, read `docs/forecasting.md` section 7 for the
-order, and note the pattern that cost the most time: several conclusions were
-written down without being checked against a live response, and the reviews
-that followed were mostly correcting those. Verify first.
+**Forecasting currently remains research plus one small piece.** The input
+archive collects Carbon Intensity and produces no forecasts yet. Codex's next
+development branch will first resolve the two open P2 archive findings, then
+build the smallest useful indicative forecast rather than the previously
+proposed full modelling pipeline.
 
 ## Currently In Progress
 
-- Nothing is half-finished. `main` is deployed and verified live.
-- Nothing. Development is paused; see above.
-
-- Forecasting reference: the **input archive is built** (`docs/forecasting.md` section
-  8) and is the only forecasting code that exists. It produces no forecasts
-  and changes nothing a user sees. It now collects **Carbon Intensity only**;
-  NESO was removed because its own archives are better in every respect.
+- `main` is deployed and verified live; forecast work will be isolated on a
+  `codex/` branch until it is reviewed.
+- **Owner: Codex. Reviewer: Claude.** Next implementation branch:
+  `codex/forecast-baseline`.
+- Scope for the first useful forecast: a deterministic estimate from recent
+  confirmed Agile history, time-of-day and weekday/weekend patterns; a clearly
+  marked estimated range; confirmed prices always win; no forecast-driven
+  alerts or automation in this version.
+- Before the forecast itself, Codex will resolve the two open P2 findings:
+  migrate away invalid legacy NESO rows and correct the stale Carbon-only
+  archive documentation and measurements.
 
 ## Forecasting
 
