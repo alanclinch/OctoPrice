@@ -11,6 +11,18 @@ written.
 Everything marked **verified** was tested against the live API on 2026-08-27
 from this repository. Everything else is proposal or secondary reading.
 
+The headline measurements are reproducible rather than narrative. See
+`docs/research/`:
+
+| Script | Reproduces |
+| ------ | ---------- |
+| `fit-regional-coefficients.mjs` | Finding 1.1, and warns if the relationship stops being exact |
+| `bench-inference.mjs` | The Worker CPU budget table in section 4.6 |
+
+Each records its own product codes, date ranges, VAT treatment, alignment and
+regression method, so a later reader can disagree with the method rather than
+having to trust a number in prose.
+
 ---
 
 ## 1. The two findings that should shape the design
@@ -133,6 +145,14 @@ rather than modelling — that is prior art. It is two narrower things:
    reference region's *confirmed* prices can drive the other thirteen without
    any wholesale price at all.
 
+**A derived value is never a confirmed price.** The transform is exact to
+0.01p, which makes it tempting to show a mapped region as official. It must
+not be. Confirmed prices come from the Octopus API for that region and nowhere
+else; a mapped value is a forecast and is labelled as one, however small its
+error. The mapping exists to produce forecast output, to check coefficient
+health, and to avoid modelling fourteen series — not to fill gaps in the
+confirmed-price path.
+
 **What else to take:** weighting extreme observations during training, and
 deriving intervals from weather ensembles as well as historical residuals.
 
@@ -197,6 +217,35 @@ hourly day-ahead auction (~11:00) is a strong correlate and worth testing as a
 same-day anchor, but it is hourly, not half-hourly.
 
 ---
+
+## 3a. Data vintage: can back-tests be made leak-free?
+
+Grid and weather forecasts are *revised* after publication. Training or
+validating against the latest stored value would let the model see information
+that did not exist at forecast time, making measured accuracy better than
+anything achievable live. This is the difference between a back-test that
+means something and one that flatters.
+
+So the question is whether each source can be asked what it *said at the
+time*. Tested 2026-08-27:
+
+| Source | Vintage available? | How |
+| ------ | ------------------ | --- |
+| Elexon wind forecast | **Yes** | `/forecast/generation/wind/history?publishTime=…` returns the forecast as it stood |
+| Elexon day-ahead demand | **Yes** | `/forecast/demand/day-ahead/history?publishTime=…` |
+| Elexon (any dataset) | **Yes** | `/datasets/{name}?publishDateTimeFrom=…&publishDateTimeTo=…` |
+| Open-Meteo | **Yes** | `historical-forecast-api.open-meteo.com` serves past forecast runs |
+| NESO embedded wind/solar | **No** | Fields are `SETTLEMENT_DATE, SETTLEMENT_PERIOD, EMBEDDED_WIND_FORECAST…` with no issue or publish time |
+
+**Consequence:** leak-free back-testing is possible today for the Elexon and
+weather inputs, which is most of the feature set. NESO is the exception and
+cannot be reconstructed after the fact, so **a live archive of NESO
+observations must start before any NESO feature is trusted in a back-test** —
+collection can begin immediately and independently of everything else.
+
+Every stored observation should record both the source's own issue time and
+our collection time. They are different facts and only the first prevents
+leakage.
 
 ## 4. Proposed architecture
 
@@ -322,14 +371,45 @@ confirmed price supersedes a forecast.
 
 | Question | Answer |
 | -------- | ------ |
-| Inference in Workers? | Yes — linear coefficients or JSON trees. No Python, no native libraries, no WASM needed. |
+| Inference in Workers? | **Only for small models — measured, see below.** |
 | Data collection? | Yes — the existing cron already runs every five minutes; collectors need only a few slots a day. |
 | Storage? | D1 for forecasts, inputs and accuracy. R2 only if raw payload archives are wanted later. |
 | Training? | Not in a Worker. GitHub Actions on a schedule, publishing a model artefact the Worker reads. |
 | Paid infrastructure? | None required for the proposed tiers. |
 
-Model artefacts should be versioned and the version recorded on every
-forecast, so a change in accuracy can be attributed to a change in model.
+Model artefacts should be versioned, integrity-checked and either bundled or
+published immutably — not fetched as mutable data at request time — and the
+version recorded on every forecast, so a change in accuracy can be attributed
+to a change in model.
+
+### Measured inference cost
+
+Workers Free allows **10 ms of CPU per invocation**. An earlier draft asserted
+inference "runs in microseconds" without measuring it. Forecasting 144 periods
+(72 hours) with 12 features, via `docs/research/bench-inference.mjs`:
+
+| Model | CPU | Share of budget |
+| ----- | --- | --------------- |
+| Linear | 0.010 ms | 0.1% |
+| 100 trees, depth 6 (0.5 MB) | 0.790 ms | 7.9% |
+| 300 trees, depth 6 (1.6 MB) | 2.734 ms | 27.3% |
+| 500 trees, depth 8 (10.7 MB) | 12.113 ms | **121%** |
+| 1000 trees, depth 8 (21.4 MB) | 29.676 ms | **297%** |
+
+Measured in Node, not a Worker — same engine, different isolate — and
+excluding model parsing, D1 round trips and response building, which also
+count against the 10 ms. Treat it as an order of magnitude.
+
+The conclusion is firm enough to act on: **tiers 1 and 2 are comfortable, and
+a full-size ensemble is not.** AgilePredict runs *three* such models together;
+that is out of reach on this budget regardless of accuracy. A tree model here
+is capped at roughly a few hundred shallow trees, and model *size* binds as
+tightly as CPU — a multi-megabyte artefact parsed per invocation would
+dominate everything in the table.
+
+If a larger model ever proves necessary, forecasts must be precomputed on the
+cron schedule and stored, with the request path only reading D1. That is
+probably the better design anyway.
 
 ### 4.7 Failure handling
 
@@ -347,6 +427,34 @@ path. Concretely:
   prices continue to work exactly as now.
 
 ---
+
+### 4.8 Judging a model, and calibrating confidence
+
+MAE alone is the wrong yardstick, because it is not what the application is
+for. The decisions this app supports are "when should I run the dishwasher",
+"will it go negative", and "when should I avoid". A model can improve its MAE
+while getting all three of those worse — flattening its predictions towards
+the mean reduces average error and destroys exactly the extremes that matter.
+
+Judge candidate models on:
+
+- **Cheap-window regret** — the difference in cost between the window the
+  forecast recommended and the cheapest window that actually occurred. This is
+  the metric that corresponds to user harm, and it is the one to optimise.
+- **Event precision and recall** for negative periods, very cheap periods and
+  spikes. These are rare, so they are invisible in an average and need
+  counting separately.
+- **Pinball loss** for quantile outputs.
+- **Interval coverage and width.** A P10–P90 output is *not* an 80% interval
+  until observed coverage says it is. If 60% of actuals land inside it the
+  label is a lie; if 99% do, it is too wide to be useful. Coverage must be
+  measured before any confidence wording is shown to anyone, and re-measured
+  whenever the model changes.
+- MAE by horizon bucket, as the conventional baseline comparison.
+
+All of these need walk-forward evaluation on identical periods, using the
+input vintages from section 3a. Comparing models on different windows, or on
+revised inputs, produces numbers that cannot be compared.
 
 ## 5. Presentation
 
@@ -389,19 +497,29 @@ Honest gaps, to be closed before implementation:
 Following the staged plan, and stopping at each point to check the result is
 worth continuing from:
 
-1. Register for ENTSO-E and test GB day-ahead availability and timing.
-2. Build the historical dataset from sources already verified, storing raw
-   observations from the start.
-3. Implement and back-test the seasonal-naive baseline. **Publish its error.**
-4. Implement the regional coefficient fitting from 1.1, with its health check.
-   This is independently useful and low-risk.
-5. Add the fundamentals model and compare against the baseline by walk-forward
-   validation over the same periods.
-6. Only then: storage of live forecasts, UI, notifications, accuracy
-   reporting.
+These are ordered so that nothing waits on an unknown, and each step is
+worth doing even if the next never happens.
 
-Steps 3 and 4 are the ones that pay off soonest, and step 4 can ship on its
-own regardless of whether the forecasting model ever proves good enough.
+1. **Start collecting NESO observations now.** It is the one source with no
+   retrievable vintage (section 3a), so every day without an archive is a day
+   that can never be back-tested. Nothing else depends on this starting first,
+   which is exactly why it should.
+2. **Implement the regional coefficient fitting** from 1.1, with its health
+   check. Independently useful, low risk, and ships on its own.
+3. **Back-test the seasonal-naive baseline and publish its error.** Until this
+   number exists, "useful" is undefined and no model can be judged.
+4. **Add the fundamentals model** and compare against the baseline by
+   walk-forward validation on identical periods, using the decision metrics in
+   section 6 rather than MAE alone.
+5. **Then** storage of live forecasts, UI, notifications, accuracy reporting.
+
+**ENTSO-E is an experiment that runs alongside, not a dependency.** It is
+worth testing — confirm the exact GB product, resolution, publication time,
+completeness and redistribution terms — but even a good result mainly helps
+the same-day horizon. It does not solve the 48–72 hour fundamentals problem,
+which is where the difficulty actually is. An earlier draft called it "the
+single biggest open question", which overstated it: the baseline and the input
+archive are what unblock everything, and both can proceed without it.
 
 ---
 

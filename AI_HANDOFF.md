@@ -72,48 +72,47 @@ GitHub remote or a real device:
 
 ## Open Review Findings
 
-### Forecasting research review — open design gates
+### Forecasting research review — addressed
 
-Recorded by Codex on 2026-08-27 after reviewing `docs/forecasting.md`. These
-are not implementation defects; they are questions the next forecasting stage
-must resolve before its results can be trusted.
+Codex raised six design gates on 2026-08-27 against `docs/forecasting.md`.
+All six were valid; four are now answered with measurement rather than
+agreement, and two are corrections to the document. Nothing outstanding.
 
-1. **P1 — back-tests must use the input vintage available at forecast time.**
-   Grid and weather forecasts can be revised after publication. Training or
-   validating against the latest historical value would leak future knowledge
-   and make accuracy look better than a live forecast. Preserve source issue
-   time as well as collection time, verify which APIs expose historical
-   vintages, and start a live shadow-input archive immediately where they do
-   not.
-2. **P1 — regional fitting must never manufacture a confirmed price.** The
-   exact regional transform is useful for forecast output, coefficient health
-   checks and reducing model count. Official periods shown as confirmed must
-   continue to come from the Octopus API; a fitted value is still derived and
-   must not replace the authoritative confirmed-price path.
-3. **P2 — free-tier Worker inference is plausible but not yet proven.** The
-   current Workers Free CPU allowance is 10 ms per invocation. Benchmark a
-   representative 144-period linear and tree-model inference in the deployed
-   Worker before promising that JSON tree traversal fits the existing free
-   architecture. Keep GitHub Actions training; bundle or publish a versioned,
-   integrity-checked artefact rather than fetching mutable model data at
-   request time.
-4. **P2 — model selection needs decision metrics as well as MAE.** The product
-   value is choosing cheap continuous windows and warning about negative or
-   expensive events. Compare models using walk-forward MAE plus cheap-window
-   regret, event precision/recall, quantile pinball loss, and interval coverage
-   and width. A P10–P90 model output is not a trustworthy 80% interval until
-   observed coverage is calibrated.
-5. **P2 — ENTSO-E is an experiment, not the forecasting dependency.** Confirm
-   the exact GB product, resolution, publication time, completeness and
-   redistribution terms with a token. Even if useful, a day-ahead auction
-   series mainly improves the short same-day horizon and does not solve the
-   48–72-hour fundamentals forecast; baseline work and live input collection
-   should proceed independently.
-6. **P2 — make the headline empirical findings reproducible.** Check in a
-   small research script or notebook recording product codes, date ranges,
-   VAT treatment, API queries, time alignment and regression method for the
-   regional R² and Elexon MID results. Narrative figures alone cannot catch a
-   later source or methodology change.
+1. **P1 — input vintage / leakage.** *Answered, and it matters.* Tested which
+   sources can be asked what they said at the time: Elexon exposes vintages via
+   `/history?publishTime=` and `/datasets?publishDateTimeFrom=`, Open-Meteo
+   via `historical-forecast-api`. **NESO does not** — its fields carry no
+   issue time — so a live NESO archive must start before any NESO feature is
+   trusted in a back-test. That is now step 1 of the plan, ahead of everything
+   else, because every day without it is a day that can never be reconstructed.
+   Recorded as section 3a.
+2. **P1 — a fitted regional value must never be shown as confirmed.**
+   *Accepted, and stated as a constraint.* The transform is exact to 0.01p,
+   which is exactly what makes it tempting to misuse. Confirmed prices come
+   from the Octopus API for that region and nowhere else.
+3. **P2 — Worker CPU unproven.** *Measured, and the concern was justified.*
+   `docs/research/bench-inference.mjs` over 144 periods: linear 0.010 ms,
+   100 trees 0.79 ms, 300 trees 2.73 ms, but 500 trees depth 8 costs 12.1 ms
+   and 1000 trees 29.7 ms — over a 10 ms budget. Tiers 1–2 are comfortable; a
+   full-size ensemble is not, and AgilePredict runs three. If a large model is
+   ever needed, forecasts must be precomputed on cron and the request path
+   only read D1. Artefacts to be versioned and integrity-checked, not fetched
+   as mutable data.
+4. **P2 — decision metrics, not just MAE.** *Accepted; section 4.8 added.*
+   Cheap-window regret, event precision/recall, pinball loss, and interval
+   coverage. The calibration point is the sharpest one: a P10–P90 output is not
+   an 80% interval until observed coverage says so, and the earlier draft
+   implied quantiles give a trustworthy interval for free.
+5. **P2 — ENTSO-E is an experiment, not the dependency.** *Accepted; the plan
+   was reordered.* Calling it "the single biggest open question" overstated it.
+   Even a good result mainly helps the same-day horizon and does not touch the
+   48–72 hour problem. The baseline and the input archive unblock everything
+   and proceed without it.
+6. **P2 — make the findings reproducible.** *Done.* `docs/research/` now holds
+   `fit-regional-coefficients.mjs` and `bench-inference.mjs`, each recording
+   product codes, date ranges, VAT treatment, alignment and regression method.
+   The regional script warns if the relationship stops being exact, so it
+   doubles as the methodology-change detector.
 
 ### Earlier application review — resolved
 
@@ -151,8 +150,9 @@ so neither agent re-raises them.
 ## Currently In Progress
 
 - Nothing is half-finished. `main` is deployed and verified live.
-- Forecasting remains research-only. The open design gates above await
-  resolution before baseline implementation is treated as trustworthy.
+- Forecasting remains research-only, on `claude/forecasting-research` and
+  not merged. The design gates are addressed; the next step is implementation
+  starting with the NESO input archive.
 
 ## Forecasting (research only, nothing built)
 
