@@ -472,6 +472,43 @@ Confirmed and forecast prices must never be confusable. Proposed treatment:
 When Octopus publishes, the confirmed price supersedes the forecast for that
 settlement period — but the forecast is retained for validation.
 
+### A shipped example, and what it gets wrong
+
+A third-party Agile app (screenshot supplied by the project owner, 2026-08-27)
+forecasts 48 hours ahead and presents it like this:
+
+- Forecast rows sit **inline in the same list** as confirmed rows, in
+  chronological order.
+- They are distinguished **only by a small glyph** before the price. Same
+  typography, same decimal precision, same coloured price-band chip, same
+  expand chevron.
+- There is **no marker at the boundary** where confirmed becomes forecast.
+- Each forecast is a **single value to two decimal places** — e.g.
+  `31.69p/kWh` at roughly 48 hours out.
+
+Two things to take from it.
+
+**Inline is right.** Scrolling from confirmed into forecast in one continuous
+list is genuinely how people want to read this — "what is it doing tonight"
+does not respect the boundary between published and predicted. An earlier
+draft of this document implied forecasts might live somewhere separate. They
+should not. The owner's own description — "they just appear in the same prices
+bit" — is the feature, not the flaw.
+
+**The differentiation is too weak, and the precision is dishonest.** A small
+glyph is easy to miss while scrolling, and a band chip rendered identically on
+a forecast lends it the authority of a confirmed price. Worse, `31.69p` two
+days out claims a precision no forecast has; the second decimal is noise
+presented as fact. That is the failure mode `DESIGN.md` warns about, arrived
+at not through carelessness but by making forecasts look consistent with
+confirmed rows — which is the natural thing to do.
+
+So: keep the inline list, and carry the distinction in the parts that are hard
+to miss — round forecast figures to a sensible precision, show a range rather
+than a point where one exists, mark the confirmed/forecast boundary explicitly
+in the list, and treat the price-band colour as something a forecast has to
+earn rather than inherit.
+
 ---
 
 ## 6. What this does not yet answer
