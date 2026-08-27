@@ -6,6 +6,17 @@ both must read it before starting and update it before finishing.
 
 If this file and the code disagree, **the code is right** — fix this file.
 
+## Shared Review Protocol
+
+This file is also the durable review queue between Claude and Codex. Chat
+messages are not a handoff: when either agent is asked to review the project,
+it must record every unresolved actionable finding under **Open Review
+Findings** before finishing. Both agents must read that section before making
+changes, update it as work progresses, and remove a finding only after the fix
+and its relevant tests have been verified. Include severity, file/area and the
+reason the behaviour is wrong so the other agent can act without needing the
+original conversation.
+
 ## Current State
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
@@ -59,31 +70,49 @@ GitHub remote or a real device:
 - CI workflow written (`.github/workflows/ci.yml`) — format, lint, typecheck,
   test, build, plus a check that the generated icons are reproducible.
 
+## Open Review Findings
+
+Recorded by Codex on 2026-08-27 after reviewing `fb6615d` and `ed1fc65`.
+These are findings, not completed work; no agent is currently assigned.
+
+1. **P1 — existing users can remain on an unconfirmed default region.**
+   `migrations/0004_region_confirmed.sql` sets `region_confirmed = 1` for every
+   existing settings row. The previous browser-local flag could make a second
+   user skip region selection, which means an existing row does not prove that
+   person chose the stored region. Prefer a one-time prompt for existing users
+   unless confirmation can be inferred reliably.
+2. **P1 — one browser push endpoint can belong to two people.** Subscription
+   uniqueness is `(user_id, subscription_data)`. If browser unsubscribe fails
+   during an account change, enabling push for the new person reuses the valid
+   endpoint while the old person's row remains enabled, so both people's
+   alerts can reach that device. Registration should atomically transfer an
+   endpoint away from any previous owner, with a regression test.
+3. **P2 — reopening your own invite link disables working notifications.**
+   `claimFromUrl()` releases the device subscription after every successful
+   claim, even when the claimed user is already signed in on that device.
+   Release it only when the previous and claimed identities differ.
+4. **P2 — the status page claims alerts were sent without evidence.**
+   `tomorrow.ready` describes price coverage only. Alerts may be disabled,
+   lack a subscription or have failed, so the ready message must not say that
+   alerts have been sent unless delivery state proves it.
+
 ## Currently In Progress
 
-- **Task:** publication-trigger fix and "starting soon" alerts.
-- **Responsible agent:** Claude
 - Nothing is half-finished. `main` is deployed and verified live.
+- The review findings above are awaiting implementation.
 
 ## Next Recommended Work
 
-1. **Deploy the notification fix and watch it fire.** `npm run
-   deploy:cloudflare` from `main` once merged. Then confirm, on the phone,
-   that the daily summary arrives when tomorrow publishes and that a
-   starting-soon alert arrives before a matching stretch. Nothing about this
-   fix is proven until a notification lands on a device.
-2. **Expect a burst on first deploy.** The current day has never been
-   dispatched, so the first scheduled run inside the publication window will
-   send today's summary plus any settled rule matches. That is a one-off
-   catch-up, not a fault.
-3. **Confirm the new Android badge visually.** Send another test notification
+1. Resolve the open review findings in severity order, adding regression tests
+   for the migration and both account-switch push cases.
+2. **Confirm the new Android badge visually.** Send another test notification
    after the updated service worker is active and confirm the tray shows the
    system-tinted lightning bolt rather than a white square. Push delivery
    itself has been confirmed on a real Android device.
-2. **Watch several real Octopus publication cycles** (DESIGN.md section 42,
+3. **Watch several real Octopus publication cycles** (DESIGN.md section 42,
    step 21) before calling the MVP released. Confirm the daily notification
    arrives once, at a sensible time, and does not repeat.
-3. Then Phase Two (DESIGN.md section 39). The rules engine, the window
+4. Then Phase Two (DESIGN.md section 39). The rules engine, the window
    calculator and the provider interface are already general enough for
    Telegram, Home Assistant and EV-charging features without redesign.
 
@@ -92,11 +121,6 @@ GitHub remote or a real device:
 - **Migration 0003 locks a live installation until a link is claimed.** Apply
   the migration, deploy, then immediately run `npm run issue-link`. Existing
   push subscriptions belong to the owner and keep working once claimed.
-
-- **Push on a device that has changed hands.** Signing in as a different
-  person now releases the browser's push subscription, but the server-side
-  record is only cleaned up when a send to it fails and returns 410. That is
-  correct but not immediate.
 
 - **The new Android notification badge has not yet been seen on the phone.**
   The previous badge delivered successfully but appeared as a white square.
