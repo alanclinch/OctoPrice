@@ -61,9 +61,9 @@ GitHub remote or a real device:
 
 ## Currently In Progress
 
-No implementation work is half-finished. The first-run and chronological
-timeline release is deployed and verified live. The production migration
-removed the duplicated defaults, leaving exactly three rules.
+No implementation work is half-finished. The compact price-tools release is
+deployed and verified live. The production migration previously removed the
+duplicated defaults, leaving exactly three rules.
 
 ## Next Recommended Work
 
@@ -188,6 +188,22 @@ bundle is 87 kB gzipped, which matters for a phone-first PWA.
 been larger and harder to bend to the negative-price presentation.
 
 ## Recent Agent Handoffs
+
+### 2026-08-27 — Codex, compact price tools
+
+**Work completed:** replaced the separate next-price row with an inline
+“Until … · then …” line; condensed tomorrow's publication state, cheapest
+window and price chart into one compact card; made the two tools collapsed by
+default and persisted the user's open or closed choice locally. Updated the
+design and changelog.
+
+**Verification:** `npm run verify` passed twice (205 tests), including once on
+the fast-forwarded `main`. GitHub Actions run 33050731569 passed. At a phone
+viewport, both tools expanded correctly, the chosen state survived reload,
+and the browser reported no errors. Commit `959fc09` is deployed and the same
+behaviour was verified live.
+
+**Outstanding:** install on a real phone and confirm Web Push delivery.
 
 ### 2026-08-27 — Codex, first-run and price timeline fixes
 
