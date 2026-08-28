@@ -40,16 +40,15 @@ implementation is genuinely blocked.
 ## Current State
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
-- **Current branch:** `codex/maskable-icon-safe-zone`
-- **Source control:** Claude's rebrand review commit `45df73c` is on `main`;
-  its maskable-icon safe-zone response is complete and verified on the current
-  branch. OctoAgile Advisor rebrand commit `c780556` remains deployed, and
-  GitHub CI run 33153820894 passed.
+- **Current branch:** `main`
+- **Source control:** maskable-icon review fix `0c179f0` is pushed on `main`;
+  GitHub CI run 33157041525 passed. Claude's rebrand review is resolved without
+  another review round.
 - **Build status:** passing — `npm run verify`; mobile identity visually checked
   at 320 px and 360 px with no horizontal overflow
 - **Test status:** passing — 330 tests across 13 files
-- **Deployed:** `b8b6dee`, Worker version
-  `deb57631-2a0c-4490-9d42-d858cd4a224e`, at
+- **Deployed:** `0c179f0`, Worker version
+  `4dc919b4-5c32-4689-91f6-9d09110a49d8`, at
   `https://octoprice.alanclinch.workers.dev`. D1 is in WEUR, migration 0007 is
   applied, both five-minute triggers are active and
   `FORECAST_BASELINE_ENABLED=true`.
