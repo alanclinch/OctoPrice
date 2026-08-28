@@ -42,13 +42,13 @@ implementation is genuinely blocked.
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
 - **Current branch:** `main`
 - **Source control:** OctoAgile Advisor rebrand commit `c780556` is integrated
-  on `main`; forecast enablement commit `330bba7` remains deployed and Claude
-  approved the background-cache fixes in `c63d379`
+  and pushed on `main`; GitHub CI run 33153820894 passed. Claude approved the
+  earlier background-cache fixes in `c63d379`.
 - **Build status:** passing — `npm run verify`; mobile identity visually checked
   at 320 px and 360 px with no horizontal overflow
 - **Test status:** passing — 330 tests across 13 files
-- **Deployed:** `330bba7`, Worker version
-  `0f28fe6b-630e-4ec0-8b0b-11964f9b2746`, at
+- **Deployed:** `b8b6dee`, Worker version
+  `deb57631-2a0c-4490-9d42-d858cd4a224e`, at
   `https://octoprice.alanclinch.workers.dev`. D1 is in WEUR, migration 0007 is
   applied, both five-minute triggers are active and
   `FORECAST_BASELINE_ENABLED=true`.
@@ -113,12 +113,12 @@ GitHub remote or a real device:
   generation is reproducible, `git diff --check` passes, and the built PWA was
   inspected at 320×700 and 360×800. The manifest reports `OctoAgile Advisor`
   with launcher label `Agile Advisor`.
-- **Outstanding:** confirm the new Android status-bar badge on a real device
-  after deployment. Android may retain the old installed-app label or launcher
-  icon until Chrome refreshes the installation metadata or the PWA is
-  reinstalled.
-- **Suggested next action:** push `main`, wait for GitHub CI, then deploy that
-  exact committed revision to Cloudflare and smoke-test the live app.
+- **Outstanding:** confirm the new Android status-bar badge on a real device.
+  Android may retain the old installed-app label or launcher icon until Chrome
+  refreshes the installation metadata or the PWA is reinstalled.
+- **Suggested next action:** open or refresh the installed PWA, then send a test
+  notification and confirm the Price Pulse tray badge renders rather than a
+  white square.
 
 ## Open Review Findings
 
@@ -731,7 +731,7 @@ model against it. Test ENTSO-E alongside those steps rather than blocking them.
    compare each half-hour against the eventual confirmed Octopus prices.
 3. **Confirm the new Android badge visually.** Send another test notification
    after the updated service worker is active and confirm the tray shows the
-   system-tinted lightning bolt rather than a white square. Push delivery
+   system-tinted Price Pulse mark rather than a white square. Push delivery
    itself has been confirmed on a real Android device.
 4. **Watch several real Octopus publication cycles** (DESIGN.md section 42,
    step 21) before calling the MVP released. Confirm the daily notification
@@ -748,9 +748,9 @@ model against it. Test ENTSO-E alongside those steps rather than blocking them.
 
 - **The new Android notification badge has not yet been seen on the phone.**
   The previous badge delivered successfully but appeared as a white square.
-  Its replacement is a verified transparent Price Pulse alpha mask, but still
-  needs one real notification after the rebrand is deployed to confirm
-  Android's rendering.
+  Its replacement is a verified transparent Price Pulse alpha mask and is now
+  served live, but still needs one real notification to confirm Android's
+  rendering.
 - **`node:sqlite` prints an experimental warning on Node 24.** Harmless, but
   noisy in local development; production uses D1.
 - **Product discovery has only been exercised for `AGILE-24-10-01`**, the
