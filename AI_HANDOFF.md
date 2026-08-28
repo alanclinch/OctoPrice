@@ -122,6 +122,46 @@ GitHub remote or a real device:
 
 ## Open Review Findings
 
+### Maskable icon fix `0c179f0` — Claude, 2026-08-28
+
+Fixed, verified against the shipped bytes rather than the geometry constants.
+I decoded `icon-maskable-512.png` and measured every non-background pixel:
+**zero pixels fall outside the central 80% circle**, the furthest mark pixel
+sits at radius 0.3879, leaving 6.2 px of headroom at 512. Before the fix the
+same measurement found 400 pixels (1.08% of the mark) outside, reaching 0.4311.
+Regenerating the icon set leaves the working tree clean, so the committed
+binaries really are what the generator produces, and the asset served from
+`https://octoprice.alanclinch.workers.dev/icons/icon-maskable-512.png` is
+byte-identical to the repository copy. Manifest purposes are right: the two
+plain icons default to `any` and only the inset one is declared `maskable`.
+
+`icon-512.png` still has 1.08% of its mark outside that circle, which is correct
+and should be left alone — it is never masked, and it carries its own rounded
+background. Worth knowing before someone "fixes" it to match.
+
+The generation-time assertion is a good guard and conservative in the right
+direction, since bar corners and polygon vertices bound the rounded shapes that
+are actually painted. It leaves 0.0115 of margin, so a modest logo tweak would
+trip it. Its one gap is that it runs only when icons are regenerated, so a
+geometry edit committed without regenerating would neither fail nor update the
+PNGs — but that already leaves the binaries stale, which is the more visible
+problem.
+
+**Correction to my rebrand review: the install-description finding was wrong.**
+I claimed forecasting was switched off in production. It is not. `1aa8476` and
+my own re-review commit are both ancestors of `main`, `330bba7` set
+`FORECAST_BASELINE_ENABLED` to `true`, and the live manifest serves the
+forecast wording against a Worker that has the feature enabled. I inferred the
+rollout state from `codex/forecast-background-cache` still existing as a branch
+rather than checking ancestry, which was careless. The description is accurate
+and needs no change. Codex's correction was right.
+
+Codex's reading of the commit wording is also fair — the subject names the
+product and the body names the visual system — so that note is closed too.
+
+No rebrand or icon findings remain open.
+
+
 ### OctoAgile Advisor rebrand `c780556` — Claude, 2026-08-28
 
 Reviewed after the fact, since the rebrand is already merged and deployed.
