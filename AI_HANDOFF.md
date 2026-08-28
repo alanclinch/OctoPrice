@@ -40,15 +40,16 @@ implementation is genuinely blocked.
 ## Current State
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
-- **Current branch:** `codex/forecast-background-cache`
-- **Source control:** review-fix commit `3a728ba` is awaiting Claude re-review;
-  production remains at approved `a6819f7`
+- **Current branch:** `main`
+- **Source control:** forecast enablement commit `330bba7` is pushed and
+  deployed; Claude approved the background-cache fixes in `c63d379`
 - **Build status:** passing — `npm run verify`
 - **Test status:** passing — 330 tests across 13 files
-- **Deployed:** `a6819f7` at `https://octoprice.alanclinch.workers.dev` on
-  Cloudflare Workers, with D1 in WEUR and a five-minute Cron Trigger.
-  Migration 0007 is applied; `FORECAST_BASELINE_ENABLED=false` for the staged
-  rollout described below.
+- **Deployed:** `330bba7`, Worker version
+  `0f28fe6b-630e-4ec0-8b0b-11964f9b2746`, at
+  `https://octoprice.alanclinch.workers.dev`. D1 is in WEUR, migration 0007 is
+  applied, both five-minute triggers are active and
+  `FORECAST_BASELINE_ENABLED=true`.
 - **Git remote:** public GitHub repository at
   `https://github.com/alanclinch/OctoPrice`; `main` is pushed and GitHub CI
   has completed successfully
@@ -165,7 +166,7 @@ API, 2026-03-29 returns 46 periods and 2025-10-26 returns 50, and both satisfy
 `isDayComplete`. That failure mode is not real.
 
 Three findings, none blocking a merge. Codex addressed all three in `3a728ba`;
-the resolutions below are awaiting Claude re-review.
+Claude confirmed the resolutions in the re-review above.
 
 **1. Medium — nothing ties `wrangler.jsonc` to `FORECAST_BACKGROUND_CRON`.**
 `isForecastBackgroundCron` is exact string equality against
@@ -600,7 +601,7 @@ so neither agent re-raises them.
    subscription, or have failed. The ready message now speaks only about
    prices and leaves alerts to the alerts card, which reports actual state.
 
-## Status: deployed baseline disabled; review fixes awaiting re-review
+## Status: experimental forecast enabled; history backfill in progress
 
 Alan resumed forecasting development on 2026-08-27 with Codex as implementer
 and Claude as reviewer. The existing application remains deployed and stable;
@@ -619,23 +620,22 @@ throughout and cannot drive alerts or cheapest-window advice.
 
 ## Currently In Progress
 
-- Claude's re-review found no blocking issue. The branch is merged, migration
-  0007 is applied and production version `fa8304af-2687-478b-b862-0e383e036639`
-  is healthy. Public `/api/health` and the app shell return 200.
-- The experimental baseline is deliberately **disabled in production** while
-  whole-request CPU is measured. Cloudflare's previous-24-hour metrics with it
-  off are P50 4.27 ms, P90 7.45 ms and P99 11.48 ms. The Free-plan HTTP limit
-  is 10 ms; adding the isolated ~4 ms forecast without route-level evidence
-  would risk confirmed-price requests.
-- Alan opened the signed-in app. The matching 30-minute Cloudflare window was
-  P50 6.17 ms and P90/P99 8.68 ms with forecasting off, confirming there is no
-  reliable room for the ~4 ms calculation on the request path.
-- Review-fix commit `3a728ba` on `codex/forecast-background-cache` addresses
-  Claude's three findings: safe Cron/config routing, bounded unavailable-day
-  retries and honest stale-cache wording. Production remains unchanged and
-  disabled pending Claude re-review.
-- `npm run verify` passes on the background-cache branch: format, lint,
-  type-check, **330 tests**, core/server builds and PWA/service-worker build.
+- Claude's final re-review approved all three fixes and explicitly found
+  nothing blocking merge or staged rollout. Its new transient-outage note is
+  low severity and did not delay enablement.
+- `c63d379` was fast-forwarded to `main`; local `npm run verify` and GitHub CI
+  run 33151865731 passed with 330 tests.
+- The disabled staged deployment succeeded as Worker version
+  `46712db1-e50c-46aa-8cc6-3877ee01123a`. Cloudflare accepted both Cron
+  expressions; `/api/health` and the app shell returned 200.
+- Enablement commit `330bba7` passed local verification and GitHub CI run
+  33152043906, then deployed as Worker version
+  `0f28fe6b-630e-4ec0-8b0b-11964f9b2746` with the flag true. Both live routes
+  remain healthy.
+- The first live forecast invocation advanced reference-region C's cursor to
+  `2026-08-01`, proving backfill is running. Production has one active region
+  N plus reference region C, so the initial 56-day backfill and first cache
+  should take at most about 4 hours 40 minutes from the 08:37 BST first run.
 
 ## Forecasting
 
@@ -698,12 +698,11 @@ model against it. Test ENTSO-E alongside those steps rather than blocking them.
 
 ## Next Recommended Work
 
-1. **Claude re-reviews fix commit `3a728ba`.** Findings or approval go under
-   Open Review Findings; Alan does not relay them.
-2. After approval, merge to `main`, deploy with
-   `FORECAST_BASELINE_ENABLED=false`, confirm the second trigger is accepted,
-   then enable it. Allow roughly 2h20 for a region-C installation or 4h40 for
-   a reference/other-region pair to accumulate the 28-day backfill.
+1. After roughly 13:20 BST, confirm the first region-N cache exists and the
+   signed-in price timeline displays estimates for tomorrow and the following
+   day.
+2. Capture OctoPrice and comparison-app forecasts at the same issue time, then
+   compare each half-hour against the eventual confirmed Octopus prices.
 3. **Confirm the new Android badge visually.** Send another test notification
    after the updated service worker is active and confirm the tray shows the
    system-tinted lightning bolt rather than a white square. Push delivery
