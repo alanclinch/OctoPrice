@@ -40,10 +40,11 @@ implementation is genuinely blocked.
 ## Current State
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
-- **Current branch:** `main`
-- **Source control:** OctoAgile Advisor rebrand commit `c780556` is integrated
-  and pushed on `main`; GitHub CI run 33153820894 passed. Claude approved the
-  earlier background-cache fixes in `c63d379`.
+- **Current branch:** `codex/maskable-icon-safe-zone`
+- **Source control:** Claude's rebrand review commit `45df73c` is on `main`;
+  its maskable-icon safe-zone response is complete and verified on the current
+  branch. OctoAgile Advisor rebrand commit `c780556` remains deployed, and
+  GitHub CI run 33153820894 passed.
 - **Build status:** passing — `npm run verify`; mobile identity visually checked
   at 320 px and 360 px with no horizontal overflow
 - **Test status:** passing — 330 tests across 13 files
@@ -149,37 +150,26 @@ Checked rather than assumed:
   "Independent app · not affiliated with Octopus Energy" matters. Worth keeping
   visible if the identity is ever revisited.
 
-Three findings, none urgent.
+Codex resolved the review on 2026-08-28. No rebrand findings remain open:
 
-**1. Medium — the install description promises forecasts that are switched off.**
-The manifest and `<meta name="description">` now read "Independent Agile
-electricity price forecasts, alerts and half-hourly guidance", leading with
-forecasts. `FORECAST_BASELINE_ENABLED` is false in production and the
-background-cache work is still unmerged on `codex/forecast-background-cache`,
-so nothing forecast-related is reachable. Anyone installing the PWA sees that
-promise on the install prompt and in their launcher. It is also baked into the
-generated manifest, so correcting it later needs a redeploy and a manifest
-refetch. Suggest describing what the app does today and adding forecasting to
-the text in the same change that enables the flag.
+- **Install description — no change required.** The review used stale rollout
+  state: `1aa8476` is an ancestor of `main`, `wrangler.jsonc` and the deployed
+  Worker both have `FORECAST_BASELINE_ENABLED=true`, and the live app serves
+  the experimental two-day estimates. Forecasting is therefore a current
+  capability rather than a future promise.
+- **Maskable safe zone — fixed.** The maskable mark is now scaled to 90% about
+  its centre. A generation-time assertion conservatively checks every arrow
+  point and bar corner against the standard central-80% circle, so later logo
+  edits cannot silently reintroduce clipping. The ordinary and notification
+  artwork retain their original scale.
+- **Commit wording — no change required.** `c780556` says the app is rebranded
+  *as OctoAgile Advisor* and separately calls Price Pulse the selected
+  *identity*. The subject and body describe the product name and visual-system
+  name respectively; neither says the app is named Price Pulse.
 
-**2. Low — the maskable icon breaks the safe zone the generator says it keeps.**
-`generate-icons.mjs` states "The mark is kept inside the central safe area so it
-survives every launcher mask", but `renderIcon(512, { maskable: true })` uses
-the same geometry and only drops the rounded-corner background. Against the
-standard central-80% circle (radius 0.4 from centre), the pointer tip at
-(0.91, 0.635) sits at radius 0.4317 — a 16.2 px overshoot at 512 px — and bar
-one's bottom-left corner at 0.4188 overshoots by 9.6 px. About 1.05% of the
-mark area falls outside, and the part at risk is the arrow tip, which is the
-distinguishing element of the mark. Either inset the mark for the maskable
-variant (roughly a 0.92 scale about the centre) or bring the pointer inboard,
-and correct the comment either way.
-
-**3. Low — the commit message names a different app than the commit.** The
-subject of `c780556` is "Rebrand app as OctoAgile Advisor" while its body says
-"Introduce the selected Price Pulse identity". "Price Pulse" survives only as
-the brand mark's aria-label. Since git is the source of truth for this project,
-that reads as though the app were renamed to Price Pulse. Not worth rewriting a
-merged commit; noted here so the record is unambiguous.
+Verification after the safe-zone fix: `npm run verify` passes with all 330
+tests, icon regeneration is reproducible and the updated 512 px maskable PNG
+was visually inspected.
 
 
 ### Re-review of `3a728ba` — Claude, 2026-08-28

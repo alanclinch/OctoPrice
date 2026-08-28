@@ -14,6 +14,7 @@ import { deflateSync } from 'node:zlib';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import assert from 'node:assert/strict';
 
 const OUT_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'icons');
 
@@ -38,6 +39,32 @@ const POINTER_SHAPE = [
   [0.91, 0.635],
   [0.75, 0.77],
 ];
+const MASKABLE_MARK_SCALE = 0.9;
+const MASKABLE_SAFE_RADIUS = 0.4;
+
+/**
+ * Android launchers may retain only the standard central 80% circle. Keep a
+ * conservative check over every polygon point and bar corner so future edits
+ * cannot silently put the distinguishing arrow outside that safe zone.
+ */
+function assertMaskableSafeZone() {
+  const barCorners = PRICE_BARS.flatMap((bar) => [
+    [bar.x1, bar.y1],
+    [bar.x2, bar.y1],
+    [bar.x2, bar.y2],
+    [bar.x1, bar.y2],
+  ]);
+
+  for (const [x, y] of [...POINTER_SHAPE, ...barCorners]) {
+    const scaledDistance = Math.hypot(x - 0.5, y - 0.5) * MASKABLE_MARK_SCALE;
+    assert.ok(
+      scaledDistance <= MASKABLE_SAFE_RADIUS,
+      `Maskable mark point (${x}, ${y}) exceeds the central safe zone`,
+    );
+  }
+}
+
+assertMaskableSafeZone();
 
 // --- PNG encoding -----------------------------------------------------------
 
@@ -147,6 +174,7 @@ function renderIcon(size, { maskable = false } = {}) {
   const rgba = Buffer.alloc(size * size * 4);
   const samples = 3; // 3x3 supersampling, enough to hide the jaggies
   const cornerRadius = 0.22;
+  const markScale = maskable ? MASKABLE_MARK_SCALE : 1;
 
   for (let py = 0; py < size; py += 1) {
     for (let px = 0; px < size; px += 1) {
@@ -161,7 +189,9 @@ function renderIcon(size, { maskable = false } = {}) {
           const inBackground = maskable || insideRoundedSquare(x, y, cornerRadius);
           if (!inBackground) continue;
           coverageBackground += 1;
-          const colour = markColourAt(x, y) ?? BACKGROUND;
+          const markX = 0.5 + (x - 0.5) / markScale;
+          const markY = 0.5 + (y - 0.5) / markScale;
+          const colour = markColourAt(markX, markY) ?? BACKGROUND;
           for (let channel = 0; channel < 3; channel += 1) {
             colourTotal[channel] += colour[channel];
           }

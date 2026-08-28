@@ -39,7 +39,8 @@ Octopus publication cycles.
   icon set, refreshed violet-and-mint branding, the shorter launcher name
   “Agile Advisor”, and an explicit independent-app notice. Technical storage,
   package and deployment identifiers remain unchanged to protect existing
-  sessions and production data.
+  sessions and production data. The maskable launcher variant keeps the full
+  arrow inside Android's standard safe zone.
 - **The app is now private.** Every screen requires an invite link. Anyone
   with the address used to be able to read the dashboard and change the
   region, alert rules and notifications for everybody.
