@@ -207,6 +207,75 @@ Before changing the user-visible model:
 
 ## Open Review Findings
 
+### Forecast V2 proposal review — Claude, 2026-08-28
+
+The proposal is sound in shape: keeping `seasonal-naive-v1` as a permanent
+benchmark, correcting it with per-period residuals rather than replacing it,
+gating promotion behind shadow mode, and making cheapest-window regret a
+first-class measure are all the right calls. Refusing Elexon MID as a
+wholesale substitute and deferring Nord Pool pending licence terms is
+consistent with what the earlier research established. Four findings, aimed at
+making the gates decidable before implementation starts.
+
+**1. The gates have no numbers, so I measured v1 to supply them.** Scoring the
+shipped model over 55 issue days on the tomorrow horizon for region C, using
+the same live Octopus data as the committed back-test:
+
+    v1   MAE 3.829p   cheapest-3h-window regret 0.498 p/kWh
+         median start error 60 min   within 60 min 65%   exact 18%
+
+Regret here is what the chosen window actually cost minus what the true
+cheapest window cost. Suggest promoting v2 only if it beats those figures on
+identical issue days, with regret and the within-60-minutes rate as the
+binding pair, since they are what a user actually experiences.
+
+That baseline also puts the live diagnosis in proportion. The proposal is
+right that one issue day is diagnostic rather than sufficient — in aggregate
+v1 picks a window within an hour of optimal about two thirds of the time, so
+the day Alan compared was a bad case rather than the norm. Worth holding onto
+when tuning, because a model fitted to fix that one day could easily lose
+ground against these numbers.
+
+**2. A uniform level correction is provably useless for timing — tested, so
+nobody need spend a cycle on it.** The obvious cheap alternative to analogue
+selection is to shift v1 by how far it missed on the day just confirmed. Over
+the same 55 days that moves MAE only from 3.829p to 3.812p and leaves regret,
+median start error and the within-60-minutes rate **bit-identical**, because a
+constant offset cannot change which window is cheapest. This is evidence *for*
+the proposal: the value has to come from per-period shape residuals, exactly as
+step 4 describes, and the "under-estimated the daytime level" half of the
+complaint is the less important half.
+
+**3. The binding constraint on the cron is D1 row volume, not arithmetic — give
+it a row budget.** The analogue maths is trivial: standardised distance over
+even 180 candidate days is a few thousand operations, and residual assembly for
+96 targets across a handful of analogues is a few hundred more. What will hurt
+is reading 90–180 days of half-hourly NESO features plus confirmed prices into
+the isolated invocation. Measured earlier in this project, deserialising 2,688
+stored rows costs 0.84 ms, so a 10,000-row working set is roughly 3 ms of the
+10 ms budget before any query time or the existing 3.7 ms calculation. Please
+state a row and millisecond budget alongside the accuracy gates, and consider
+precomputing one compact per-day curve-summary row at ingest so analogue
+selection reads days rather than half-hours. The same treatment the input
+archive got — bytes per row times rows per day — should be applied to forecast
+vintage persistence against the 500 MB D1 cap.
+
+**4. The back-test does not have to wait for live vintages to accumulate.** Gate
+1 (persist every forecast vintage) reading before gate 2 (walk-forward
+validation over 60–90 issue days) implies a two-to-three month wait before v2
+can be evaluated at all. It does not: NESO publishes retrospective half-hourly
+forecast archives carrying a real `Forecast_Datetime` per issue, which this
+repository already proved in `docs/research/neso-forecast-vintages.mjs`, and
+confirmed Agile prices are retrievable for any past day. So the 60–90 day
+walk-forward can be built immediately from public archives, with vintage
+persistence running in parallel to validate the live path later. Only Carbon
+Intensity genuinely requires waiting, and the proposal already defers it.
+Making that explicit avoids the sequencing stalling on a wait that is not
+needed.
+
+Nothing here argues against building `fundamentals-analogue-v2`.
+
+
 ### Maskable icon fix `0c179f0` — Claude, 2026-08-28
 
 Fixed, verified against the shipped bytes rather than the geometry constants.
