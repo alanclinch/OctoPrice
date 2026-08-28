@@ -41,10 +41,10 @@ implementation is genuinely blocked.
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
 - **Current branch:** `codex/forecast-background-cache`
-- **Source control:** review-ready background-cache commit `1aa8476`;
+- **Source control:** review-fix commit `3a728ba` is awaiting Claude re-review;
   production remains at approved `a6819f7`
 - **Build status:** passing — `npm run verify`
-- **Test status:** passing — 328 tests across 13 files
+- **Test status:** passing — 330 tests across 13 files
 - **Deployed:** `a6819f7` at `https://octoprice.alanclinch.workers.dev` on
   Cloudflare Workers, with D1 in WEUR and a five-minute Cron Trigger.
   Migration 0007 is applied; `FORECAST_BASELINE_ENABLED=false` for the staged
@@ -117,8 +117,8 @@ transition days will enter the rolling 28-day window. Against the live Octopus
 API, 2026-03-29 returns 46 periods and 2025-10-26 returns 50, and both satisfy
 `isDayComplete`. That failure mode is not real.
 
-Three findings, none blocking a merge, but the first two should be fixed before
-the flag is switched on.
+Three findings, none blocking a merge. Codex addressed all three in `3a728ba`;
+the resolutions below are awaiting Claude re-review.
 
 **1. Medium — nothing ties `wrangler.jsonc` to `FORECAST_BACKGROUND_CRON`.**
 `isForecastBackgroundCron` is exact string equality against
@@ -131,6 +131,10 @@ error anywhere. Please add a test that reads `wrangler.jsonc` and asserts its
 `triggers.crons` contains `FORECAST_BACKGROUND_CRON` alongside the core
 expression. That is the one assertion that matters here and it is the one not
 being made.
+
+*Addressed in `3a728ba`.* Cron expressions and explicit routing now share one
+module. A test reads the real `wrangler.jsonc` and requires both expressions;
+an unknown expression is logged and ignored rather than falling into core work.
 
 **2. Medium — one un-completable backfill day now stalls all forecasting,
 permanently.** `runForecastHistoryBackfill` has three paths that return
@@ -152,6 +156,11 @@ minutes, and a UI message saying history is still being collected. Suggest
 counting attempts per date and skipping forward past a date that has failed
 repeatedly.
 
+*Addressed in `3a728ba`.* Empty, incomplete and failed days share a persisted
+attempt counter. After three attempts the cursor advances. A two-region test
+proves a permanently unavailable reference day no longer starves the other
+tariff.
+
 **3. Low — a stale cache reports itself as missing history.** Absent, expired,
 previous-day and corrupt entries all collapse to `insufficient-history`, which
 the UI renders as “estimates will appear after enough recent price history has
@@ -162,29 +171,12 @@ minutes times the number of active tariffs — saying history is missing when it
 is complete. A separate `stale` reason with its own wording would be honest and
 would also make the round-robin's latency visible if it ever grows.
 
+*Addressed in `3a728ba`.* Missing cache means history is still collecting;
+expired, future or previous-day cache means `stale`; malformed cache means
+`failed`. The UI now describes `stale` as an estimate refresh in progress.
+
 One thing only a deploy can settle, already in the rollout plan: whether the
 Free plan accepts the second Cron Trigger.
-
-
-### Background forecast cache — awaiting Claude review
-
-Live Cloudflare metrics with the baseline disabled measured P50 6.17 ms and
-P90/P99 8.68 ms over the 30-minute window containing an authenticated overview
-request. Adding the isolated ~4 ms calculation to the HTTP path would not fit
-the 10 ms Free-plan budget reliably.
-
-Codex therefore moved history backfill and calculation to a second five-minute
-Cron offset by two minutes, which gives it a separate invocation and CPU
-budget. The job prepares one tariff at a time in D1 state; overview performs
-one cache read and validation, measured at 0.07–0.08 ms median and no more than
-0.14 ms p95 in repeated runs for 96 periods. Cache entries expire after six
-hours and at the London-day boundary. Overview re-applies confirmed timestamp
-precedence, so an official price published after cache generation still
-removes its estimate. The production flag remains false pending review.
-
-Claude should review the review-ready commit recorded under Currently In
-Progress, especially Cron routing, cache validation/expiry and confirmed-price
-precedence, and record any findings here.
 
 ### Re-review of `70593e8` — Claude, 2026-08-27
 
@@ -561,7 +553,7 @@ so neither agent re-raises them.
    subscription, or have failed. The ready message now speaks only about
    prices and leaves alerts to the alerts card, which reports actual state.
 
-## Status: deployed baseline disabled; background cache awaiting review
+## Status: deployed baseline disabled; review fixes awaiting re-review
 
 Alan resumed forecasting development on 2026-08-27 with Codex as implementer
 and Claude as reviewer. The existing application remains deployed and stable;
@@ -591,12 +583,12 @@ throughout and cannot drive alerts or cheapest-window advice.
 - Alan opened the signed-in app. The matching 30-minute Cloudflare window was
   P50 6.17 ms and P90/P99 8.68 ms with forecasting off, confirming there is no
   reliable room for the ~4 ms calculation on the request path.
-- Review-ready commit `1aa8476` on `codex/forecast-background-cache` uses a
-  separate staggered Cron to compute and store estimates; overview only
-  validates and reads the cache. Production remains unchanged and disabled
-  pending Claude review.
+- Review-fix commit `3a728ba` on `codex/forecast-background-cache` addresses
+  Claude's three findings: safe Cron/config routing, bounded unavailable-day
+  retries and honest stale-cache wording. Production remains unchanged and
+  disabled pending Claude re-review.
 - `npm run verify` passes on the background-cache branch: format, lint,
-  type-check, **328 tests**, core/server builds and PWA/service-worker build.
+  type-check, **330 tests**, core/server builds and PWA/service-worker build.
 
 ## Forecasting
 
@@ -659,8 +651,8 @@ model against it. Test ENTSO-E alongside those steps rather than blocking them.
 
 ## Next Recommended Work
 
-1. **Claude reviews the background-cache commit recorded above.** Findings go
-   under Open Review Findings; Alan does not relay them.
+1. **Claude re-reviews fix commit `3a728ba`.** Findings or approval go under
+   Open Review Findings; Alan does not relay them.
 2. After approval, merge to `main`, deploy with
    `FORECAST_BASELINE_ENABLED=false`, confirm the second trigger is accepted,
    then enable it. Allow roughly 2h20 for a region-C installation or 4h40 for
