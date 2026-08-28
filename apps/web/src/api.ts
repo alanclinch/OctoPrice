@@ -16,6 +16,7 @@ import type {
   PricePeriod,
   PricingDate,
   RegionInfo,
+  RegionCode,
   UserSettings,
   UserSettingsInput,
 } from '@octoprice/core';
@@ -92,6 +93,43 @@ export interface SystemStatusPayload {
   schedulerEnabled: boolean;
 }
 
+export interface ForecastExperimentPeriod {
+  validFrom: string;
+  validTo: string;
+  valueIncVat: number;
+}
+
+export interface ForecastExperimentRun {
+  id: string;
+  model: string;
+  targetDate: PricingDate;
+  generatedAt: string;
+  issueCutoff: string;
+  inputVintages: string[];
+  periods: ForecastExperimentPeriod[];
+  score: {
+    scoredAt: string;
+    maePence: number;
+    cheapest3hRegret: number;
+    within60Minutes: boolean;
+  } | null;
+}
+
+export interface ForecastExperimentPayload {
+  experimental: true;
+  phase: 'collecting-history' | 'preparing-days' | 'waiting-for-forecast' | 'running';
+  requestedRegion: RegionCode;
+  displayRegion: RegionCode;
+  regionalTransformAvailable: boolean;
+  referenceRegion: RegionCode;
+  historyThrough: PricingDate | null;
+  preparedThrough: PricingDate | null;
+  preparedDays: number;
+  requiredPreparedDays: number;
+  runs: ForecastExperimentRun[];
+  actual: PricePeriod[];
+}
+
 /** An API call that failed, carrying whatever the server explained. */
 export class ApiError extends Error {
   readonly status: number;
@@ -165,6 +203,8 @@ export const api = {
     ),
 
   status: () => request<SystemStatusPayload>('/status'),
+
+  forecastExperiment: () => request<ForecastExperimentPayload>('/forecast-experiment'),
 
   regions: () => request<{ regions: RegionInfo[] }>('/regions'),
 

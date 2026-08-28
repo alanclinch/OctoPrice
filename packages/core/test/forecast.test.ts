@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   FORECAST_MODEL,
+  applyRegionalPriceTransform,
   fitRegionalPriceTransform,
   forecastSeasonalPrices,
   londonDayPeriodStarts,
@@ -155,6 +156,16 @@ describe('seasonal-naive price forecasting', () => {
 });
 
 describe('regional price transforms', () => {
+  it('maps an aligned reference curve with separate peak and off-peak coefficients', () => {
+    const targets = [new Date('2026-08-28T12:00:00.000Z'), new Date('2026-08-28T15:00:00.000Z')];
+    expect(
+      applyRegionalPriceTransform([10, 20], targets, {
+        offPeak: { slope: 2, intercept: 1, sampleCount: 48, rSquared: 1 },
+        peak: { slope: 3, intercept: 2, sampleCount: 48, rSquared: 1 },
+      }),
+    ).toEqual([21, 62]);
+  });
+
   it('derives separate exact peak and off-peak mappings', () => {
     const reference = [
       ...historyDay('2025-12-29', 5),

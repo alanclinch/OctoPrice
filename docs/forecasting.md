@@ -1046,8 +1046,10 @@ the issue-time run immutable. A missing or incomplete input records no v2 run;
 transient network failures retry, while an immutable missing historical day is
 skipped only after three attempts so one date cannot stall the cursor.
 
-The public API has no read path for these tables. The visible estimate remains
-`seasonal-naive-v1`, including the following-day horizon. Before promotion, v2
+The normal price API has no read path for these tables. An owner-only Forecast
+tab may display the prepared shadow curves, progress and scores, but cannot use
+them for alerts or advice. The visible estimate remains `seasonal-naive-v1`,
+including the following-day horizon. Before promotion, v2
 still needs live shadow evidence, an extended back-test through the 25 October
 2026 clock change, and calibrated v2-specific uncertainty. A 46- or 50-period
 target with too few same-length analogue days deliberately produces no v2;

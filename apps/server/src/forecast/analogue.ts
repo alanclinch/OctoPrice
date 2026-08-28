@@ -23,18 +23,27 @@ import {
   startOfLondonDay,
   type PricingDate,
 } from '@octoprice/core';
-import type { PreparedForecastDay, Store } from '../db/store.ts';
+import type { ForecastRunEvaluation, PreparedForecastDay, Store } from '../db/store.ts';
 import { describeError, type Logger } from '../logger.ts';
 import type { PriceService, TariffSelection } from '../prices/service.ts';
 
 const ELEXON_API = 'https://data.elexon.co.uk/bmrs/api/v1';
 const ANALOGUE_PRICE_HISTORY_DAYS = 118;
-const ANALOGUE_CANDIDATE_DAYS = 90;
+export const ANALOGUE_CANDIDATE_DAYS = 90;
 const ANALOGUE_PRICE_CURSOR_PREFIX = 'forecast_analogue_price_cursor:';
 const ANALOGUE_PRICE_ATTEMPT_PREFIX = 'forecast_analogue_price_attempt:';
 const ANALOGUE_DAY_CURSOR_PREFIX = 'forecast_analogue_day_cursor:';
 const ANALOGUE_DAY_ATTEMPT_PREFIX = 'forecast_analogue_day_attempt:';
 const MAX_PERMANENT_ATTEMPTS = 3;
+
+export interface AnalogueShadowStatus {
+  referenceTariffCode: string;
+  historyThrough: PricingDate | null;
+  preparedThrough: PricingDate | null;
+  preparedDays: number;
+  requiredPreparedDays: number;
+  runs: ForecastRunEvaluation[];
+}
 
 interface ElexonDemandRow {
   publishTime?: unknown;
@@ -179,6 +188,33 @@ function referenceTariff(productCode: string): TariffSelection {
     productCode,
     region: FORECAST_REFERENCE_REGION,
     tariffCode: buildTariffCode(productCode, FORECAST_REFERENCE_REGION),
+  };
+}
+
+function completedCursorDate(value: string | null): PricingDate | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  return addDays(value as PricingDate, -1);
+}
+
+/** Owner diagnostics for the private shadow pipeline; no calculation or fetch. */
+export async function readAnalogueShadowStatus(
+  store: Store,
+  productCode: string,
+): Promise<AnalogueShadowStatus> {
+  const tariff = referenceTariff(productCode);
+  const [priceCursor, dayCursor, preparedDays, runs] = await Promise.all([
+    store.getState(`${ANALOGUE_PRICE_CURSOR_PREFIX}${tariff.tariffCode}`),
+    store.getState(`${ANALOGUE_DAY_CURSOR_PREFIX}${tariff.tariffCode}`),
+    store.countPreparedForecastDays(tariff.tariffCode),
+    store.listForecastRuns(tariff.tariffCode, 20),
+  ]);
+  return {
+    referenceTariffCode: tariff.tariffCode,
+    historyThrough: completedCursorDate(priceCursor),
+    preparedThrough: completedCursorDate(dayCursor),
+    preparedDays: Math.min(preparedDays, ANALOGUE_CANDIDATE_DAYS),
+    requiredPreparedDays: ANALOGUE_CANDIDATE_DAYS,
+    runs,
   };
 }
 

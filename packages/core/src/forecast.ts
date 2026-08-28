@@ -185,6 +185,29 @@ function applyTransform(value: number, transform: LinearTransform): number {
   return roundPence(value * transform.slope + transform.intercept, 2);
 }
 
+/** Maps an aligned reference-region curve into another Agile region. */
+export function applyRegionalPriceTransform(
+  values: readonly number[],
+  targets: readonly Date[],
+  transform: RegionalPriceTransform,
+): number[] | null {
+  if (
+    values.length === 0 ||
+    values.length !== targets.length ||
+    !values.every(Number.isFinite) ||
+    !targets.every((target) => Number.isFinite(target.getTime()))
+  ) {
+    return null;
+  }
+  return values.map((value, index) => {
+    const target = targets[index] as Date;
+    return applyTransform(
+      value,
+      isPeak({ validFrom: target.toISOString() }) ? transform.peak : transform.offPeak,
+    );
+  });
+}
+
 /**
  * Forecasts target half-hours from recent confirmed reference-region prices.
  * The returned range is descriptive (recent P20-P80 values), not a calibrated

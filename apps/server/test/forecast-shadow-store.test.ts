@@ -55,6 +55,8 @@ describe('forecast shadow persistence', () => {
       }),
     ]);
     expect(store.listPreparedForecastDays(tariffCode, '2026-08-29', '2026-08-30')).toEqual([]);
+    expect(store.countPreparedForecastDays(tariffCode)).toBe(1);
+    expect(store.countPreparedForecastDays('E-1R-AGILE-NEXT-C')).toBe(1);
   });
 
   it('keeps one immutable run per model, target and issue cut-off then scores it', () => {
@@ -83,6 +85,17 @@ describe('forecast shadow persistence', () => {
     });
 
     expect(store.listUnscoredForecastRuns('2026-08-30', 10)).toEqual([]);
+    expect(store.listForecastRuns(run.tariffCode, 10)).toEqual([
+      expect.objectContaining({
+        model: run.model,
+        score: {
+          scoredAt: '2026-08-30T00:00:00.000Z',
+          maePence: 1.25,
+          cheapest3hRegret: 0.2,
+          within60Minutes: true,
+        },
+      }),
+    ]);
     expect(store.countForecastRuns()).toBe(1);
   });
 });

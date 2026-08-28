@@ -73,24 +73,31 @@ export function readToken(headers: {
  * `Set-Cookie` value for a session.
  *
  * HttpOnly so that a script cannot read the token; SameSite=Lax so the invite
- * link still works when followed from a message; Secure because the app is
- * served over HTTPS (browsers treat localhost as secure, so local development
- * is unaffected).
+ * link still works when followed from a message. Production and tests keep
+ * Secure; an explicitly non-secure development origin may omit it so the PWA
+ * can be tested from a phone on the local network as well as localhost.
  */
-export function sessionCookie(token: string): string {
+export function sessionCookie(token: string, secure = true): string {
   return [
     `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
     'Path=/',
     'HttpOnly',
-    'Secure',
+    ...(secure ? ['Secure'] : []),
     'SameSite=Lax',
     `Max-Age=${SESSION_MAX_AGE_SECONDS}`,
   ].join('; ');
 }
 
 /** `Set-Cookie` value that removes the session. */
-export function clearSessionCookie(): string {
-  return `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`;
+export function clearSessionCookie(secure = true): string {
+  return [
+    `${SESSION_COOKIE}=`,
+    'Path=/',
+    'HttpOnly',
+    ...(secure ? ['Secure'] : []),
+    'SameSite=Lax',
+    'Max-Age=0',
+  ].join('; ');
 }
 
 /**

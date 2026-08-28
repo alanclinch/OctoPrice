@@ -14,6 +14,11 @@ Octopus publication cycles.
 
 ### Added
 
+- **Owner forecast laboratory.** A separate experimental Forecast tab shows
+  model-preparation progress, overlays the current baseline, new analogue model
+  and official prices, and lists scored accuracy as evidence accumulates. It is
+  owner-only and remains disconnected from alerts and price advice.
+
 - **Experimental two-day price estimates.** Recent confirmed Agile prices now
   provide a deliberately simple weekday/weekend baseline beyond the official
   price horizon. Estimates are labelled inline, show the middle of recent

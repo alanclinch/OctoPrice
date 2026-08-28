@@ -16,6 +16,7 @@ import type {
 } from '@octoprice/core';
 import { FALLBACK_AGILE_PRODUCT_CODE } from '@octoprice/core';
 import type {
+  ForecastRunEvaluation,
   ForecastRunScore,
   NewForecastInput,
   NewForecastRun,
@@ -119,6 +120,10 @@ interface ForecastRunRow {
   issue_cutoff: string;
   periods: string;
   input_vintages: string;
+  scored_at?: string | null;
+  mae_pence?: number | null;
+  cheapest_3h_regret?: number | null;
+  within_60_minutes?: number | null;
 }
 
 function parseNumberArray(value: string): number[] {
@@ -163,6 +168,26 @@ function toStoredForecastRun(row: ForecastRunRow): StoredForecastRun {
     issueCutoff: row.issue_cutoff,
     periods: parseNumberArray(row.periods),
     inputVintages: parseStringArray(row.input_vintages),
+  };
+}
+
+function toForecastRunEvaluation(row: ForecastRunRow): ForecastRunEvaluation {
+  const run = toStoredForecastRun(row);
+  const scored =
+    typeof row.scored_at === 'string' &&
+    typeof row.mae_pence === 'number' &&
+    typeof row.cheapest_3h_regret === 'number' &&
+    typeof row.within_60_minutes === 'number';
+  return {
+    ...run,
+    score: scored
+      ? {
+          scoredAt: row.scored_at as string,
+          maePence: row.mae_pence as number,
+          cheapest3hRegret: row.cheapest_3h_regret as number,
+          within60Minutes: Boolean(row.within_60_minutes),
+        }
+      : null,
   };
 }
 
@@ -695,6 +720,14 @@ export class D1Store implements Store {
     return result.results.map(toPreparedForecastDay);
   }
 
+  async countPreparedForecastDays(tariffCode: string): Promise<number> {
+    const row = await this.database
+      .prepare('SELECT COUNT(*) AS n FROM forecast_prepared_days WHERE tariff_code = ?')
+      .bind(tariffCode)
+      .first<{ n: number }>();
+    return row?.n ?? 0;
+  }
+
   async insertForecastRun(run: NewForecastRun): Promise<boolean> {
     const result = await this.database
       .prepare(
@@ -731,6 +764,22 @@ export class D1Store implements Store {
       .bind(beforeDate, limit)
       .all<ForecastRunRow>();
     return result.results.map(toStoredForecastRun);
+  }
+
+  async listForecastRuns(tariffCode: string, limit: number): Promise<ForecastRunEvaluation[]> {
+    const result = await this.database
+      .prepare(
+        `SELECT id, model, tariff_code, target_date, generated_at, issue_cutoff,
+                periods, input_vintages, scored_at, mae_pence,
+                cheapest_3h_regret, within_60_minutes
+         FROM forecast_runs
+         WHERE tariff_code = ?
+         ORDER BY target_date DESC, generated_at DESC, model ASC
+         LIMIT ?`,
+      )
+      .bind(tariffCode, limit)
+      .all<ForecastRunRow>();
+    return result.results.map(toForecastRunEvaluation);
   }
 
   async scoreForecastRun(id: string, score: ForecastRunScore): Promise<void> {

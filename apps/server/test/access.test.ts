@@ -30,13 +30,17 @@ describe('access control', () => {
   });
 
   describe('authentication', () => {
-    it.each(['/api/overview', '/api/rules', '/api/settings', '/api/status', '/api/notifications'])(
-      'refuses %s without a session',
-      async (url) => {
-        const response = await context.injectAnonymous({ method: 'GET', url });
-        expect(response.statusCode).toBe(401);
-      },
-    );
+    it.each([
+      '/api/overview',
+      '/api/rules',
+      '/api/settings',
+      '/api/status',
+      '/api/notifications',
+      '/api/forecast-experiment',
+    ])('refuses %s without a session', async (url) => {
+      const response = await context.injectAnonymous({ method: 'GET', url });
+      expect(response.statusCode).toBe(401);
+    });
 
     it('refuses an unknown token', async () => {
       const response = await context.injectAnonymous({
@@ -216,6 +220,7 @@ describe('access control', () => {
     it.each([
       { method: 'GET' as const, url: '/api/invites' },
       { method: 'POST' as const, url: '/api/invites', payload: { name: 'Someone else' } },
+      { method: 'GET' as const, url: '/api/forecast-experiment' },
     ])('refuses $method $url for a non-owner', async (request) => {
       const { token } = await context.invite('Mum');
       const response = await context.injectAnonymous({
@@ -223,6 +228,22 @@ describe('access control', () => {
         headers: context.asUser(token),
       });
       expect(response.statusCode).toBe(403);
+    });
+
+    it('lets the owner inspect forecast preparation without adding it to prices', async () => {
+      const experiment = await context.inject({ method: 'GET', url: '/api/forecast-experiment' });
+      expect(experiment.statusCode).toBe(200);
+      expect(experiment.json()).toMatchObject({
+        experimental: true,
+        phase: 'collecting-history',
+        referenceRegion: 'C',
+        preparedDays: 0,
+        requiredPreparedDays: 90,
+        runs: [],
+      });
+
+      const overview = await context.inject({ method: 'GET', url: '/api/overview' });
+      expect(overview.json()).not.toHaveProperty('forecastExperiment');
     });
 
     it('refuses to remove the owner', async () => {

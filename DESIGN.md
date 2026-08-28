@@ -351,6 +351,16 @@ Negative periods should be immediately obvious.
 
 ---
 
+### 14.1 Owner forecast experiment
+
+While replacement models are being developed, the owner may inspect them in a
+separate **Forecast** tab. It shows preparation progress, paired current/new
+model curves, official prices once available, and recorded accuracy. The view
+must say that it is experimental and must not feed alerts, publication state,
+current prices or cheapest-window advice. Non-owners cannot access its API.
+
+---
+
 ## 15. Settings
 
 Settings should initially include:

@@ -98,6 +98,10 @@ export interface ForecastRunScore {
   within60Minutes: boolean;
 }
 
+export interface ForecastRunEvaluation extends StoredForecastRun {
+  score: ForecastRunScore | null;
+}
+
 export interface Store {
   // --- Users -------------------------------------------------------------
 
@@ -200,9 +204,11 @@ export interface Store {
     from: string,
     toExclusive: string,
   ): StoreResult<PreparedForecastDay[]>;
+  countPreparedForecastDays(tariffCode: string): StoreResult<number>;
   /** Inserts one immutable issue vintage; false means it already existed. */
   insertForecastRun(run: NewForecastRun): StoreResult<boolean>;
   listUnscoredForecastRuns(beforeDate: string, limit: number): StoreResult<StoredForecastRun[]>;
+  listForecastRuns(tariffCode: string, limit: number): StoreResult<ForecastRunEvaluation[]>;
   scoreForecastRun(id: string, score: ForecastRunScore): StoreResult<void>;
   countForecastRuns(): StoreResult<number>;
 

@@ -43,9 +43,10 @@ implementation is genuinely blocked.
 - **Current branch:** `codex/forecast-v2-plan`
 - **Source control:** `main` is at `fe4a47a`; forecast-v2 research, core logic
   and Claude's review are committed on this branch. Shadow-mode runtime changes
-  are verified locally and awaiting Claude review at the pushed branch tip.
+  plus the owner Forecast tab are verified locally and awaiting Claude review
+  at the pushed branch tip.
 - **Build status:** passing — `npm run verify`
-- **Test status:** passing — 343 tests across 16 files
+- **Test status:** passing — 347 tests across 16 files
 - **Deployed:** `0c179f0`, Worker version
   `4dc919b4-5c32-4689-91f6-9d09110a49d8`, at
   `https://octoprice.alanclinch.workers.dev`. D1 is in WEUR, migration 0007 is
@@ -110,25 +111,32 @@ GitHub remote or a real device:
   immutable paired v1/v2 forecast runs and outcome scores; issue-time Elexon
   demand-minus-wind collection; incremental 118-day region-C history and
   90-day prepared-curve catch-up; tomorrow-only v2 generation; and alternating
-  bounded shadow/v1 cache turns on the existing isolated forecast Cron. There
-  is deliberately no API/UI read path for v2.
+  bounded shadow/v1 cache turns on the existing isolated forecast Cron.
+- **Owner view:** Alan asked to see the work in progress. An owner-only Forecast
+  tab now shows catch-up progress, paired v1/v2 curves mapped to the owner's
+  region, official prices when available, a half-hour table and stored scores.
+  Non-owners receive 403. The normal overview response is unchanged, and the
+  experiment still cannot feed alerts, current prices or cheapest-window advice.
 - **Claude finding addressed:** inverse-distance flooring is now relative to
   median candidate distance and has a scale-invariance regression test. The
   46/50-period path explicitly returns no v2 when same-length analogues are
   unavailable. Missing immutable history advances after three attempts;
   transient fetch failures do not consume that budget.
-- **Verification:** `npm run verify` passes: format, lint, typecheck, 343 tests
+- **Verification:** `npm run verify` passes: format, lint, typecheck, 347 tests
   across 16 files, and all workspace builds. Collector tests cover London issue
   cut-offs across both clock changes, wind interpolation, missing periods and
   post-cut-off rejection. Persistence tests cover tariff isolation,
-  idempotency and scoring.
+  idempotency and scoring. A real 390×844 browser check covered all five tabs,
+  progress, v1/v2/official curves and the collapsed comparison table with no
+  console errors.
 - **Deployment:** not deployed. Apply migration 0008 before deploying the code,
   and deploy only after review, merge to `main` and CI. The first private v2 run
   is expected roughly 35 hours after enablement because catch-up is intentionally
   limited to one small unit per shadow turn.
 - **Claude review request:** verify D1 SQL parity, Elexon issue-vintage
   semantics, cursor/three-attempt behaviour, paired-run immutability and the
-  guarantee that no v2 data reaches the public forecast response.
+  guarantee that only the owner diagnostics endpoint can read v2 while the
+  public forecast response and advice remain unchanged.
 
 ## Proposed Forecast Model V2 — Codex, 2026-08-28
 
@@ -1002,8 +1010,9 @@ throughout and cannot drive alerts or cheapest-window advice.
 - The visible `seasonal-naive-v1` baseline remains the deployed model and is
   unaffected by this branch.
 - Codex has implemented and locally verified private v2 shadow collection,
-  persistence and scoring. It still needs a review-ready commit and push,
-  Claude review, merge/CI, migration 0008 and deployment.
+  persistence, scoring and an owner-only observation tab. It still needs a
+  review-ready commit and push, Claude review, merge/CI, migration 0008 and
+  deployment.
 - After deployment, allow roughly 35 hours for deliberately incremental
   catch-up before expecting the first paired v1/v2 tomorrow run.
 

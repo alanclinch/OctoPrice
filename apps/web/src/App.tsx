@@ -15,11 +15,12 @@ import { PricesView } from './components/PricesView.tsx';
 import { SettingsView } from './components/SettingsView.tsx';
 import { StatusView } from './components/StatusView.tsx';
 import { PeopleView } from './components/PeopleView.tsx';
+import { ForecastView } from './components/ForecastView.tsx';
 import { SignedOut } from './components/SignedOut.tsx';
 import { Brand } from './components/Brand.tsx';
 import type { JSX } from 'react';
 
-type Tab = 'prices' | 'settings' | 'people' | 'status';
+type Tab = 'prices' | 'forecast' | 'settings' | 'people' | 'status';
 
 /** Whether this device is signed in, and if not, why not. */
 type AuthState = 'checking' | 'signed-in' | 'no-link' | 'bad-link' | 'claim-failed';
@@ -32,6 +33,7 @@ interface InstallPromptEvent extends Event {
 const REFRESH_INTERVAL_MS = 60_000;
 
 function initialTab(): Tab {
+  if (window.location.pathname.startsWith('/forecast')) return 'forecast';
   if (window.location.pathname.startsWith('/settings')) return 'settings';
   return 'prices';
 }
@@ -309,6 +311,7 @@ export function App(): JSX.Element {
         {(
           [
             ['prices', 'Prices'],
+            ...(user?.isOwner ? ([['forecast', 'Forecast']] as [Tab, string][]) : []),
             ['settings', 'Settings'],
             ...(user?.isOwner ? ([['people', 'People']] as [Tab, string][]) : []),
             ['status', 'Status'],
@@ -329,6 +332,7 @@ export function App(): JSX.Element {
       {error && <p className="error">{error}</p>}
 
       {tab === 'prices' && <PricesView overview={overview} now={now} display={display} />}
+      {tab === 'forecast' && user?.isOwner && <ForecastView display={display} />}
       {tab === 'settings' && (
         <SettingsView settings={overview.settings} onSettingsChange={onSettingsChange} />
       )}

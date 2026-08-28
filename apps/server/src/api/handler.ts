@@ -13,19 +13,26 @@
  */
 
 import {
+  FORECAST_REFERENCE_REGION,
   REGIONS,
+  applyRegionalPriceTransform,
   describeDayCoverage,
   addDays,
   alertRuleInputSchema,
   buildTestNotification,
+  buildTariffCode,
+  endOfLondonDay,
+  fitRegionalPriceTransform,
   findCheapestWindow,
   findNextPeriod,
   findPeriodAt,
   inviteInputSchema,
   isDayComplete,
   londonDateOf,
+  londonDayPeriodStarts,
   rankWindows,
   summariseDay,
+  startOfLondonDay,
   userSettingsInputSchema,
   webPushSubscriptionSchema,
   expectedPeriodCount,
@@ -56,6 +63,7 @@ import {
   unavailableBaselineForecast,
   type BaselineForecast,
 } from '../forecast/baseline.ts';
+import { readAnalogueShadowStatus } from '../forecast/analogue.ts';
 
 export interface ApiRequest {
   method: string;
@@ -120,6 +128,10 @@ const claimSchema = z.object({ token: z.string().min(1).max(200) });
 
 function queryObject(query: URLSearchParams): Record<string, string> {
   return Object.fromEntries(query.entries());
+}
+
+function requiresSecureCookie(config: AppConfig, origin: string): boolean {
+  return config.nodeEnv !== 'development' || origin.startsWith('https://');
 }
 
 /** Shapes one pricing day the way every price endpoint returns it. */
@@ -220,7 +232,7 @@ export async function handleApiRequest(
     await seedRulesFor(store, user.id);
 
     return json({ user: publicUser(user) }, 200, {
-      'set-cookie': sessionCookie(parsed.data.token),
+      'set-cookie': sessionCookie(parsed.data.token, requiresSecureCookie(config, request.origin)),
     });
   }
 
@@ -242,7 +254,89 @@ export async function handleApiRequest(
   }
 
   if (method === 'POST' && path === '/api/session/signout') {
-    return json({ signedOut: true }, 200, { 'set-cookie': clearSessionCookie() });
+    return json({ signedOut: true }, 200, {
+      'set-cookie': clearSessionCookie(requiresSecureCookie(config, request.origin)),
+    });
+  }
+
+  // --- Forecast experiment (owner only) -----------------------------------
+
+  if (method === 'GET' && path === '/api/forecast-experiment') {
+    if (!user.isOwner) return fail(403, 'Only the owner can view forecast experiments.');
+
+    const tariff = await priceService.tariff(userId);
+    const shadow = await readAnalogueShadowStatus(store, tariff.productCode);
+    const today = londonDateOf(now);
+    const historyFrom = startOfLondonDay(addDays(today, -28));
+    const historyTo = endOfLondonDay(today);
+    const referenceTariffCode = buildTariffCode(tariff.productCode, FORECAST_REFERENCE_REGION);
+    const [referenceHistory, targetHistory] = await Promise.all([
+      store.getPrices(referenceTariffCode, historyFrom, historyTo),
+      tariff.region === FORECAST_REFERENCE_REGION
+        ? Promise.resolve([])
+        : store.getPrices(tariff.tariffCode, historyFrom, historyTo),
+    ]);
+    const transform = fitRegionalPriceTransform(
+      referenceHistory,
+      targetHistory,
+      tariff.region === FORECAST_REFERENCE_REGION,
+    );
+    const displayRegion = transform ? tariff.region : FORECAST_REFERENCE_REGION;
+    const displayTariffCode = transform ? tariff.tariffCode : referenceTariffCode;
+    const runs = shadow.runs.flatMap((run) => {
+      const targets = londonDayPeriodStarts(run.targetDate as PricingDate);
+      const values = transform
+        ? applyRegionalPriceTransform(run.periods, targets, transform)
+        : run.periods;
+      if (!values || values.length !== targets.length) return [];
+      return [
+        {
+          id: run.id,
+          model: run.model,
+          targetDate: run.targetDate,
+          generatedAt: run.generatedAt,
+          issueCutoff: run.issueCutoff,
+          inputVintages: run.inputVintages,
+          score: run.score,
+          periods: targets.map((target, index) => ({
+            validFrom: target.toISOString(),
+            validTo: new Date(target.getTime() + 30 * 60 * 1000).toISOString(),
+            valueIncVat: values[index] as number,
+          })),
+        },
+      ];
+    });
+    const latestDate = runs[0]?.targetDate as PricingDate | undefined;
+    const actual = latestDate
+      ? await store.getPrices(
+          displayTariffCode,
+          startOfLondonDay(latestDate),
+          endOfLondonDay(latestDate),
+        )
+      : [];
+    const phase =
+      runs.length > 0
+        ? 'running'
+        : shadow.preparedDays >= shadow.requiredPreparedDays
+          ? 'waiting-for-forecast'
+          : shadow.preparedDays > 0
+            ? 'preparing-days'
+            : 'collecting-history';
+
+    return json({
+      experimental: true,
+      phase,
+      requestedRegion: tariff.region,
+      displayRegion,
+      regionalTransformAvailable: transform !== null,
+      referenceRegion: FORECAST_REFERENCE_REGION,
+      historyThrough: shadow.historyThrough,
+      preparedThrough: shadow.preparedThrough,
+      preparedDays: shadow.preparedDays,
+      requiredPreparedDays: shadow.requiredPreparedDays,
+      runs,
+      actual,
+    });
   }
 
   // --- Status --------------------------------------------------------------
