@@ -212,6 +212,83 @@ Before changing the user-visible model:
 
 ## Open Review Findings
 
+### Fundamentals-analogue implementation `3b2b48b` — Claude, 2026-08-28
+
+`npm run verify` passes with 334 tests across 14 files, and I reproduced the
+back-test end to end against live Elexon, NESO and Octopus data. Every headline
+number matches: winner `residual-demand k=12 shrinkage=0.75`, holdout MAE
+2.910p, regret 0.4389 p/kWh, within-60-minutes 69.8%, inference 0.073 ms median
+and 0.150 ms p95, 157,416 bytes for 90 prepared days.
+
+The methodology is genuinely leakage-safe, which I checked rather than assumed:
+the 14:00 Europe/London D-1 cut-off is applied to Elexon `publishTime` and NESO
+`Forecast_Datetime` alike and is stricter than Octopus's own ~16:00
+publication; analogue candidates come from `dates(date - 90, date)`, which
+excludes the target day; the 36-configuration grid is scored on the 47 tuning
+days only and the winner is scored once on the untouched 43-day holdout. The
+core module is properly pure — no I/O, no clock, `ageDays` supplied by the
+caller — and degrades to `null` on malformed input.
+
+**The evidence is stronger than the aggregates show, in one place and weaker in
+another.** I extracted per-day paired results for the holdout and bootstrapped
+the differences (20,000 resamples, paired by day):
+
+    MAE     v2-v1  -0.556 p       95% CI [-0.795, -0.326]   excludes zero
+    regret  v2-v1  -0.118 p/kWh   95% CI [-0.272, -0.006]   excludes zero
+    within-60-min  +7.0 points    95% CI [ 0.000, +0.163]   touches zero
+
+So the accuracy and regret improvements are real and not artefacts of the
+split. The timing metric is not established: McNemar on the holdout shows only
+**3 discordant days out of 43**, and while all 3 favour v2 with none against —
+which is encouraging and worth saying — three days cannot carry a pass/fail
+gate. Recommend making **regret the binding gate**, promoted only when its
+paired CI excludes zero, with within-60-minutes monitored and reported but not
+decisive until enough discordant days accumulate to say anything. As written,
+"must beat v1 on both regret and timing" can be flipped by two days of luck.
+
+Four findings for the work before shadow mode.
+
+**1. Medium — the clock-change path is unexercised and silently returns
+nothing.** `validCurve` requires every candidate curve to match the target
+length, so on a 46- or 50-period day every 48-period candidate is filtered out,
+`candidates.length < neighbours` holds, and `forecastAnaloguePrices` returns
+`null`. That is the right failure, but the scored window (2026-05-29 to
+2026-08-27) contains no clock change, so the path has never run. Given this
+project's history with 46/50-period days, extend the back-test across
+2026-10-25 before promotion, and make production fall back to a v1 estimate
+labelled as v1 — never an empty or v2-labelled gap.
+
+**2. Medium — only the tomorrow horizon is measured, but the app shows two
+days.** The fixed 14:00 D-1 cut-off scores a 24-hour lead only. Elexon and NESO
+vintages are materially less accurate at 48 hours, so nothing here supports
+letting v2 drive the second displayed day. Either measure that horizon
+separately or keep day two on v1 at promotion.
+
+**3. Medium — v2 produces no uncertainty, and v1's range would no longer match
+it.** `forecastAnaloguePrices` returns point estimates. The UI still shows the
+descriptive P20–P80 spread of v1's own samples, whose empirical coverage I
+measured earlier at 47–49%. Displaying that band around a v2 point estimate
+would be a range that does not correspond to the number beside it. Proposal
+gate 4, calibrated signed residual quantiles by horizon and peak/off-peak
+class, needs to land with promotion rather than after it.
+
+**4. Low — the distance floor is absolute while the comment claims scale
+invariance.** `Math.max(analogue.distance, 0.05)` sits under a comment saying
+that dividing every distance by a positive constant changes "neither ranking
+nor inverse-distance relative weights". True of ranking, not of the weights
+once the floor binds. It never binds today because residual demand is in MW and
+distances run to thousands. It would bind immediately if a multi-feature
+version standardises features to O(1) distances, which is exactly the extension
+the script already prototypes — silently flattening the weighting. Make the
+floor relative, e.g. a small fraction of the median candidate distance, and
+correct the comment.
+
+Also worth noting: the 90-day lookback consumes 90 of the 100 prepared rows the
+budget allows, so there is little headroom if the window ever grows.
+
+Nothing here blocks proceeding to prepared-day persistence and shadow mode.
+
+
 ### Forecast V2 proposal review — Claude, 2026-08-28
 
 The proposal is sound in shape: keeping `seasonal-naive-v1` as a permanent
