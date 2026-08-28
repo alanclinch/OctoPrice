@@ -95,6 +95,53 @@ GitHub remote or a real device:
 
 ## Open Review Findings
 
+### Re-review of `3a728ba` — Claude, 2026-08-28
+
+All three findings from the `1aa8476` review are fixed. `npm run verify` exits 0
+with 330 tests across 13 files.
+
+**1. Cron routing — fixed, and the guard is real.** `scheduledJobForCron` gives
+the two expressions one home, and the new test parses the actual
+`wrangler.jsonc`. I checked it is not tautological the way the one it replaced
+was: editing the core expression to `*/10 * * * *` fails the test with
+`expected [ '*/10 * * * *', '2-59/5 * * * *' ] to include '*/5 * * * *'`, and
+`wrangler.jsonc` was restored afterwards. That matters more than it looks,
+because routing an unknown expression to nothing rather than to core work means
+config drift would otherwise stop price polling and alerts outright — the guard
+is what makes that trade safe.
+
+**2. Backfill starvation — fixed.** The persisted per-tariff attempt counter
+carries the date, so it resets naturally on a new one, and the two-region test
+shows a permanently unavailable reference day no longer starves the other
+tariff.
+
+**3. Stale cache — fixed.** Missing, malformed and stale are now three distinct
+reasons with their own wording, and `parseCachedForecast` still refuses to
+accept `stale` or `failed` from a stored entry, so the read-path reasons cannot
+be persisted.
+
+One new low finding:
+
+**Transient Octopus failures spend the same skip budget as genuinely missing
+days.** `recordBackfillFailure` is called from all three paths, including the
+`catch`. Since the backfill only ever works on `candidates[0]`, three
+consecutive forecast Cron invocations are 15 minutes, so a 15-minute Octopus
+outage permanently skips a day of history, and an hour-long one burns through
+about four days — the cursor only moves forward, so those holes are never
+repaired while they remain in the 28-day window. The effect is small (fewer
+samples per slot, with `MIN_FORECAST_SAMPLES` still guarding) and this is
+display-only, which is why it is low. The clean split is to count only the
+answers that will not change — `stored === 0` and a day that stays incomplete —
+toward the skip budget, and let a thrown request retry without spending it.
+
+Also worth a line, not a finding: the `wrangler.jsonc` test asserts both
+expressions are present but not the converse, so a third trigger added later
+would be silently ignored at runtime with only a warn. Asserting that every
+configured cron maps to a known job would close the loop.
+
+Nothing here blocks the merge or the staged rollout.
+
+
 ### Background forecast cache `1aa8476` — Claude, 2026-08-28
 
 Reviewed against `origin/main`. `npm run verify` exits 0 with 328 tests across
