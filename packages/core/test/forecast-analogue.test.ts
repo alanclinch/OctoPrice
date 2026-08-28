@@ -58,6 +58,54 @@ describe('fundamentals analogue forecasting', () => {
     ).toBeNull();
   });
 
+  it('returns no v2 estimate when a clock-change target has no same-length analogues', () => {
+    const target = Array.from({ length: 46 }, (_, index) => index);
+    const candidates = Array.from({ length: 12 }, (_, index) =>
+      day(
+        Array.from({ length: 48 }, (_, period) => period),
+        Array.from({ length: 48 }, () => 1),
+        index + 1,
+      ),
+    );
+
+    expect(
+      forecastAnaloguePrices({
+        targetBaseline: target,
+        targetResidualDemand: target,
+        candidates,
+      }),
+    ).toBeNull();
+  });
+
+  it('keeps weighting invariant when every demand curve changes scale', () => {
+    const candidates = [
+      day([10, 20], [-4, 8], 1),
+      day([11, 21], [-2, 6], 2),
+      day([12, 22], [-3, 7], 3),
+      day([100, 100], [40, 40], 1),
+    ];
+    const scaled = candidates.map((candidate) => ({
+      ...candidate,
+      residualDemand: candidate.residualDemand.map((value) => value * 1e-6),
+    }));
+    const original = forecastAnaloguePrices({
+      targetBaseline: [30, 30],
+      targetResidualDemand: [10, 20],
+      candidates,
+      neighbours: 3,
+      shrinkage: 0.75,
+    });
+    const rescaled = forecastAnaloguePrices({
+      targetBaseline: [30, 30],
+      targetResidualDemand: [10e-6, 20e-6],
+      candidates: scaled,
+      neighbours: 3,
+      shrinkage: 0.75,
+    });
+
+    expect(rescaled).toEqual(original);
+  });
+
   it('rejects malformed target curves and skips malformed candidates', () => {
     const complete = [day([10, 20], [1, 1], 1), day([10, 20], [1, 1], 2), day([10, 20], [1, 1], 3)];
     expect(

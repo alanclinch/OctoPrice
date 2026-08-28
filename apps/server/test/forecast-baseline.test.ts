@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import {
   addDays,
@@ -360,6 +360,48 @@ describe('baseline forecast assembly', () => {
     await expect(readBaselineForecastCache({ store, tariff, now: NOW })).resolves.toMatchObject({
       unavailableReason: null,
     });
+  });
+
+  it('alternates visible cache refreshes with one private shadow unit', async () => {
+    await store.getSettings('default');
+    await store.upsertPrices(storedHistory('C'));
+    const priceService = new PriceService({
+      store,
+      client: new OctopusClient({ logger: silentLogger() }),
+      logger: silentLogger(),
+      forcedProductCode: PRODUCT,
+      now: () => NOW,
+    });
+    const tariff = await priceService.tariff('default');
+    await store.setState(`forecast_history_cursor:${tariff.tariffCode}`, londonDateOf(NOW));
+    const shadowWork = vi.fn(async () => {});
+
+    await runForecastBackgroundJob({
+      store,
+      priceService,
+      logger: silentLogger(),
+      now: () => NOW,
+      shadowWork,
+    });
+    expect(shadowWork).not.toHaveBeenCalled();
+
+    await runForecastBackgroundJob({
+      store,
+      priceService,
+      logger: silentLogger(),
+      now: () => NOW,
+      shadowWork,
+    });
+    expect(shadowWork).toHaveBeenCalledOnce();
+
+    await runForecastBackgroundJob({
+      store,
+      priceService,
+      logger: silentLogger(),
+      now: () => NOW,
+      shadowWork,
+    });
+    expect(shadowWork).toHaveBeenCalledOnce();
   });
 
   it('distinguishes missing, malformed and stale cache entries', async () => {

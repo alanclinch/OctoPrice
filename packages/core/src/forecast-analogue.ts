@@ -35,6 +35,8 @@ interface RankedDay extends PreparedAnalogueDay {
   distance: number;
 }
 
+const DISTANCE_FLOOR_FRACTION = 1e-6;
+
 function validCurve(curve: readonly number[], expectedLength: number): boolean {
   return curve.length === expectedLength && curve.every(Number.isFinite);
 }
@@ -91,21 +93,23 @@ export function forecastAnaloguePrices(input: AnalogueForecastInput): number[] |
   );
   if (candidates.length < neighbours) return null;
 
-  const ranked: RankedDay[] = candidates
+  const rankedAll: RankedDay[] = candidates
     .map((candidate) => ({
       ...candidate,
       distance:
         curveDistance(input.targetResidualDemand, candidate.residualDemand) *
         (1 + candidate.ageDays / 365),
     }))
-    .sort((left, right) => left.distance - right.distance)
-    .slice(0, neighbours);
+    .sort((left, right) => left.distance - right.distance);
+  const medianDistance = rankedAll[Math.floor(rankedAll.length / 2)]?.distance ?? 0;
+  const distanceFloor = Math.max(medianDistance * DISTANCE_FLOOR_FRACTION, Number.EPSILON);
+  const ranked = rankedAll.slice(0, neighbours);
 
   return input.targetBaseline.map((baseline, period) => {
     const correction = weightedMedian(
       ranked.map((analogue) => ({
         value: (analogue.actual[period] as number) - (analogue.baseline[period] as number),
-        weight: Math.exp(-analogue.ageDays / 180) / Math.max(analogue.distance, 0.05),
+        weight: Math.exp(-analogue.ageDays / 180) / Math.max(analogue.distance, distanceFloor),
       })),
     );
     return baseline + shrinkage * correction;

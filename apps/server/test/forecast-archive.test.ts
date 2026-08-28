@@ -57,6 +57,7 @@ describe('legacy NESO cleanup migration', () => {
       // Simulate a database that has migrations through 0006 and still owns
       // the legacy rows. Reopening applies 0007 exactly as an upgrade does.
       const raw = new DatabaseSync(file);
+      raw.exec('DROP TABLE forecast_runs; DROP TABLE forecast_prepared_days;');
       raw.prepare('UPDATE schema_version SET version = 6').run();
       raw.close();
 

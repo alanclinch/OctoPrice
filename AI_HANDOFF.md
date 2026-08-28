@@ -41,11 +41,11 @@ implementation is genuinely blocked.
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
 - **Current branch:** `codex/forecast-v2-plan`
-- **Source control:** `main` is at `fe4a47a`; the forecast-v2 proposal and
-  Claude's review are committed on this branch. The leakage-safe analogue
-  back-test and pure-core implementation are ready for review here.
+- **Source control:** `main` is at `fe4a47a`; forecast-v2 research, core logic
+  and Claude's review are committed on this branch. Shadow-mode runtime changes
+  are verified locally and awaiting Claude review at the pushed branch tip.
 - **Build status:** passing — `npm run verify`
-- **Test status:** passing — 334 tests across 14 files
+- **Test status:** passing — 343 tests across 16 files
 - **Deployed:** `0c179f0`, Worker version
   `4dc919b4-5c32-4689-91f6-9d09110a49d8`, at
   `https://octoprice.alanclinch.workers.dev`. D1 is in WEUR, migration 0007 is
@@ -103,27 +103,32 @@ GitHub remote or a real device:
 
 ## Latest Agent Work — 2026-08-28
 
-- **Work completed:** accepted Claude's four forecast-v2 proposal findings;
-  built a leakage-safe 90-day fundamentals-analogue experiment; selected the
-  configuration on 47 days and evaluated it on a separate 43-day holdout; then
-  extracted the selected residual-demand correction into pure core code with
-  missing/malformed-input safeguards. No production or user-visible forecast
-  behaviour changed.
-- **Files:** `packages/core/src/forecast-analogue.ts`, its test and export;
-  `docs/research/backtest-fundamentals-analogue.mjs`; `docs/forecasting.md`;
-  this handoff.
-- **Verification:** `npm run verify` passes (334 tests across 14 files). The
-  reproducible live-data script selected 12 analogues with 0.75 residual
-  shrinkage. On the untouched holdout, v2 improved MAE 3.47p→2.91p, cheapest
-  3h regret 0.557p→0.439p/kWh and within-60-minute timing 62.8%→69.8%.
-  Production-shaped inference measured 0.09 ms median and 0.19 ms p95; a
-  compact 90-day prepared payload measured about 157 KiB.
-- **Outstanding:** this is validated research and core calculation only. It is
-  not deployed, does not collect live target features, persist prepared days or
-  forecast vintages, and does not affect the estimates shown to users.
-- **Suggested next action:** Claude reviews this implementation once. If no
-  blocking finding remains, Codex builds compact prepared-day persistence and
-  runs v2 in production shadow mode before any visible model switch.
+- **Review target:** the shadow-mode implementation following Claude's review
+  commit `271113a` on `codex/forecast-v2-plan`; use the branch tip Codex has
+  pushed rather than an older conversation snapshot.
+- **Implemented:** migration 0008; tariff-isolated compact prepared-day rows;
+  immutable paired v1/v2 forecast runs and outcome scores; issue-time Elexon
+  demand-minus-wind collection; incremental 118-day region-C history and
+  90-day prepared-curve catch-up; tomorrow-only v2 generation; and alternating
+  bounded shadow/v1 cache turns on the existing isolated forecast Cron. There
+  is deliberately no API/UI read path for v2.
+- **Claude finding addressed:** inverse-distance flooring is now relative to
+  median candidate distance and has a scale-invariance regression test. The
+  46/50-period path explicitly returns no v2 when same-length analogues are
+  unavailable. Missing immutable history advances after three attempts;
+  transient fetch failures do not consume that budget.
+- **Verification:** `npm run verify` passes: format, lint, typecheck, 343 tests
+  across 16 files, and all workspace builds. Collector tests cover London issue
+  cut-offs across both clock changes, wind interpolation, missing periods and
+  post-cut-off rejection. Persistence tests cover tariff isolation,
+  idempotency and scoring.
+- **Deployment:** not deployed. Apply migration 0008 before deploying the code,
+  and deploy only after review, merge to `main` and CI. The first private v2 run
+  is expected roughly 35 hours after enablement because catch-up is intentionally
+  limited to one small unit per shadow turn.
+- **Claude review request:** verify D1 SQL parity, Elexon issue-vintage
+  semantics, cursor/three-attempt behaviour, paired-run immutability and the
+  guarantee that no v2 data reaches the public forecast response.
 
 ## Proposed Forecast Model V2 — Codex, 2026-08-28
 
@@ -286,7 +291,12 @@ correct the comment.
 Also worth noting: the 90-day lookback consumes 90 of the 100 prepared rows the
 budget allows, so there is little headroom if the window ever grows.
 
-Nothing here blocks proceeding to prepared-day persistence and shadow mode.
+**Codex resolution:** finding 4 is fixed with a median-relative floor and a
+scale-invariance test. Finding 1 now has explicit production/core tests for the
+safe no-v2 result, while the requested October back-test remains a promotion
+gate. Findings 2 and 3 also remain promotion gates: shadow mode stores tomorrow
+only, the visible following day stays on v1, and no v1 uncertainty band is
+attached to v2. None of those three blocks collecting private shadow evidence.
 
 
 ### Forecast V2 proposal review — Claude, 2026-08-28
@@ -970,7 +980,7 @@ so neither agent re-raises them.
    subscription, or have failed. The ready message now speaks only about
    prices and leaves alerts to the alerts card, which reports actual state.
 
-## Status: experimental forecast enabled; history backfill in progress
+## Status: visible v1 enabled; private v2 shadow awaiting review
 
 Alan resumed forecasting development on 2026-08-27 with Codex as implementer
 and Claude as reviewer. The existing application remains deployed and stable;
@@ -989,24 +999,21 @@ throughout and cannot drive alerts or cheapest-window advice.
 
 ## Currently In Progress
 
-- Claude's final re-review approved all three fixes and explicitly found
-  nothing blocking merge or staged rollout. Its new transient-outage note is
-  low severity and did not delay enablement.
-- `c63d379` was fast-forwarded to `main`; local `npm run verify` and GitHub CI
-  run 33151865731 passed with 330 tests.
-- The disabled staged deployment succeeded as Worker version
-  `46712db1-e50c-46aa-8cc6-3877ee01123a`. Cloudflare accepted both Cron
-  expressions; `/api/health` and the app shell returned 200.
-- Enablement commit `330bba7` passed local verification and GitHub CI run
-  33152043906, then deployed as Worker version
-  `0f28fe6b-630e-4ec0-8b0b-11964f9b2746` with the flag true. Both live routes
-  remain healthy.
-- The first live forecast invocation advanced reference-region C's cursor to
-  `2026-08-01`, proving backfill is running. Production has one active region
-  N plus reference region C, so the initial 56-day backfill and first cache
-  should take at most about 4 hours 40 minutes from the 08:37 BST first run.
+- The visible `seasonal-naive-v1` baseline remains the deployed model and is
+  unaffected by this branch.
+- Codex has implemented and locally verified private v2 shadow collection,
+  persistence and scoring. It still needs a review-ready commit and push,
+  Claude review, merge/CI, migration 0008 and deployment.
+- After deployment, allow roughly 35 hours for deliberately incremental
+  catch-up before expecting the first paired v1/v2 tomorrow run.
 
 ## Forecasting
+
+The current branch adds a tomorrow-only `fundamentals-analogue-v2` private
+shadow alongside the visible v1. It uses leakage-safe earliest Elexon national
+demand minus transmission-wind curves, 12 analogues and 0.75 shrinkage. It does
+not use the Carbon Intensity archive, does not change the API, and does not
+promote v2. See the latest-work section and `docs/forecasting.md` section 10.
 
 Stages 1-4 and the implemented archive/baseline are recorded in
 `docs/forecasting.md`. Carbon Intensity remains insert-only because its
@@ -1067,19 +1074,20 @@ model against it. Test ENTSO-E alongside those steps rather than blocking them.
 
 ## Next Recommended Work
 
-1. After roughly 13:20 BST, confirm the first region-N cache exists and the
-   signed-in price timeline displays estimates for tomorrow and the following
-   day.
-2. Capture OctoAgile Advisor and comparison-app forecasts at the same issue time, then
-   compare each half-hour against the eventual confirmed Octopus prices.
-3. **Confirm the new Android badge visually.** Send another test notification
+1. Claude reviews the shadow-mode commit once, recording only unresolved
+   actionable findings in this file.
+2. After approval, merge to `main`, wait for CI, apply migration 0008, deploy,
+   and confirm the private cursors advance without changing the public response.
+3. Once paired shadow runs accumulate, compare v1/v2 and comparison apps at the
+   same issue time against eventual confirmed Octopus prices.
+4. **Confirm the new Android badge visually.** Send another test notification
    after the updated service worker is active and confirm the tray shows the
    system-tinted Price Pulse mark rather than a white square. Push delivery
    itself has been confirmed on a real Android device.
-4. **Watch several real Octopus publication cycles** (DESIGN.md section 42,
+5. **Watch several real Octopus publication cycles** (DESIGN.md section 42,
    step 21) before calling the MVP released. Confirm the daily notification
    arrives once, at a sensible time, and does not repeat.
-5. Then Phase Two (DESIGN.md section 39). The rules engine, the window
+6. Then Phase Two (DESIGN.md section 39). The rules engine, the window
    calculator and the provider interface are already general enough for
    Telegram, Home Assistant and EV-charging features without redesign.
 

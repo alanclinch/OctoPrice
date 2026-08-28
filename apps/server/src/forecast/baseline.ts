@@ -26,12 +26,14 @@ import {
 import type { Store } from '../db/store.ts';
 import { describeError, type Logger } from '../logger.ts';
 import type { PriceService, TariffSelection } from '../prices/service.ts';
+import { runAnalogueShadowWork } from './analogue.ts';
 
 export const FORECAST_HISTORY_DAYS = 28;
 const BACKFILL_STATE_PREFIX = 'forecast_history_cursor:';
 const BACKFILL_ATTEMPT_STATE_PREFIX = 'forecast_history_attempt:';
 const FORECAST_CACHE_PREFIX = 'forecast_baseline_cache:';
 const FORECAST_CACHE_CURSOR = 'forecast_baseline_cache_cursor';
+const FORECAST_BACKGROUND_TURN = 'forecast_background_turn';
 export const FORECAST_BACKFILL_MAX_ATTEMPTS = 3;
 export const FORECAST_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
 
@@ -328,15 +330,43 @@ export async function refreshOneBaselineForecast(options: {
   }
 }
 
-/** Backfills first; once history is complete, refreshes one cached forecast. */
+/**
+ * Backfills first; once history is complete, alternates visible v1 cache work
+ * with one bounded, private v2 shadow unit. Shadow data is never read by the
+ * public forecast API.
+ */
 export async function runForecastBackgroundJob(options: {
   store: Store;
   priceService: PriceService;
   logger: Logger;
   now?: () => Date;
+  shadowWork?: typeof runAnalogueShadowWork;
 }): Promise<void> {
-  const backfill = await runForecastHistoryBackfill(options);
-  if (!backfill.ran) await refreshOneBaselineForecast(options);
+  const now = (options.now ?? (() => new Date()))();
+  const shared = { ...options, now: () => now };
+  const backfill = await runForecastHistoryBackfill(shared);
+  if (backfill.ran) return;
+
+  const turn = await options.store.getState(FORECAST_BACKGROUND_TURN);
+  if (turn !== 'shadow') {
+    await refreshOneBaselineForecast(shared);
+    await options.store.setState(FORECAST_BACKGROUND_TURN, 'shadow');
+    return;
+  }
+
+  const shadowWork = options.shadowWork ?? runAnalogueShadowWork;
+  try {
+    await shadowWork({
+      store: options.store,
+      priceService: options.priceService,
+      logger: options.logger,
+      now,
+    });
+  } catch (error) {
+    options.logger.warn('Forecast shadow turn failed', describeError(error));
+  } finally {
+    await options.store.setState(FORECAST_BACKGROUND_TURN, 'baseline');
+  }
 }
 
 /** Builds two days of estimates from stored confirmed prices only. */

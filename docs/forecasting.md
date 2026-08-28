@@ -941,12 +941,13 @@ also stops the historical backfill job and cache refresh.
 
 ## 10. Validated in research: fundamentals analogue correction
 
-The first proposed replacement has now been implemented as pure core logic and
-tested retrospectively, but it is **not connected to production data or shown
-to users**. `fundamentals-analogue-v2` corrects the seasonal baseline rather
-than replacing it:
+The first proposed replacement has now been implemented as pure core logic,
+tested retrospectively and connected to the forecast Cron in **private shadow
+mode**. It is not read by the API or shown to users.
+`fundamentals-analogue-v2` corrects the seasonal baseline rather than replacing
+it:
 
-1. For the target day, derive a half-hourly residual-demand curve from NESO's
+1. For the target day, derive a half-hourly residual-demand curve from Elexon's
    national demand forecast minus transmission-connected wind forecast.
    Embedded wind and solar are retained as candidate features but are not
    subtracted again: they already suppress the measured national demand, so
@@ -1006,10 +1007,13 @@ extend validation across seasons.
 
 ### Promotion and resource gates
 
-V2 may replace the visible baseline only if an identical-period comparison
-beats v1 on both three-hour regret and within-60-minute timing, without
-worsening MAE. The committed historical holdout clears that gate; shadow-mode
-live results must clear it again.
+V2 may replace the visible baseline only if a paired identical-day comparison
+shows lower three-hour regret with a 95% confidence interval excluding zero,
+without worsening MAE. Within-60-minute timing remains a monitored product
+metric, but is not a binding gate until enough discordant days accumulate. On
+the 43-day holdout, paired bootstrap intervals were −0.795p to −0.326p for MAE
+and −0.272p/kWh to −0.006p/kWh for regret. The timing improvement was based on
+only three discordant days and its interval touched zero.
 
 Production must read compact prepared day rows rather than 10,000 half-hour
 input rows. Budgets established before production work are:
@@ -1023,7 +1027,28 @@ input rows. Budgets established before production work are:
   0.19 ms p95 for 90 candidates and 48 corrected values on the development
   machine.
 
-The next implementation step is prepared-day persistence, live forecast
-vintages and shadow scoring. Confirmed-price precedence, the independent kill
-switch and the rule that missing required inputs produce no v2 forecast remain
-binding.
+### Production shadow mode
+
+Migration `0008_forecast_shadow.sql` adds compact prepared-day rows, keyed by
+reference tariff and pricing date, plus immutable paired forecast runs. After
+the existing v1 history catch-up completes, the five-minute forecast Cron
+alternates between refreshing the visible v1 cache and one bounded v2 shadow
+unit. It first extends region-C confirmed history to 118 days, then prepares 90
+historical feature curves, and thereafter keeps those cursors current. At the
+normal cadence the initial catch-up takes roughly 35 hours rather than trying
+thousands of D1 writes in one free-tier invocation.
+
+At or after 14:00 Europe/London on D-1, the worker records paired v1 and v2
+tomorrow forecasts with the exact Elexon publication vintages used. Once the
+target day has complete confirmed region-C prices, both runs receive MAE,
+cheapest-three-hour regret and within-60-minute scores. Insert uniqueness makes
+the issue-time run immutable. A missing or incomplete input records no v2 run;
+transient network failures retry, while an immutable missing historical day is
+skipped only after three attempts so one date cannot stall the cursor.
+
+The public API has no read path for these tables. The visible estimate remains
+`seasonal-naive-v1`, including the following-day horizon. Before promotion, v2
+still needs live shadow evidence, an extended back-test through the 25 October
+2026 clock change, and calibrated v2-specific uncertainty. A 46- or 50-period
+target with too few same-length analogue days deliberately produces no v2;
+visible v1 fallback must remain labelled v1.

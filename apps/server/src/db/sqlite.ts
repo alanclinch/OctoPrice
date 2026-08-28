@@ -29,11 +29,15 @@ import type {
 } from '@octoprice/core';
 import { FALLBACK_AGILE_PRODUCT_CODE } from '@octoprice/core';
 import type {
+  ForecastRunScore,
   NewForecastInput,
+  NewForecastRun,
   NewSubscription,
   NewUser,
   NotificationLogInput,
+  PreparedForecastDay,
   Store,
+  StoredForecastRun,
 } from './store.ts';
 
 /**
@@ -88,6 +92,73 @@ interface PriceRow {
   valid_to: string;
   price_inc_vat: number;
   price_exc_vat: number;
+}
+
+interface PreparedForecastDayRow {
+  tariff_code: string;
+  pricing_date: string;
+  issue_cutoff: string;
+  residual_demand: string;
+  baseline_prices: string | null;
+  actual_prices: string | null;
+  input_vintages: string;
+  prepared_at: string;
+}
+
+interface ForecastRunRow {
+  id: string;
+  model: string;
+  tariff_code: string;
+  target_date: string;
+  generated_at: string;
+  issue_cutoff: string;
+  periods: string;
+  input_vintages: string;
+}
+
+function parseNumberArray(value: string): number[] {
+  const parsed: unknown = JSON.parse(value);
+  if (
+    !Array.isArray(parsed) ||
+    !parsed.every((item) => typeof item === 'number' && Number.isFinite(item))
+  ) {
+    throw new Error('Stored forecast array is malformed');
+  }
+  return parsed;
+}
+
+function parseStringArray(value: string): string[] {
+  const parsed: unknown = JSON.parse(value);
+  if (!Array.isArray(parsed) || !parsed.every((item) => typeof item === 'string')) {
+    throw new Error('Stored forecast vintage array is malformed');
+  }
+  return parsed;
+}
+
+function toPreparedForecastDay(row: PreparedForecastDayRow): PreparedForecastDay {
+  return {
+    tariffCode: row.tariff_code,
+    date: row.pricing_date,
+    issueCutoff: row.issue_cutoff,
+    residualDemand: parseNumberArray(row.residual_demand),
+    baselinePrices: row.baseline_prices ? parseNumberArray(row.baseline_prices) : null,
+    actualPrices: row.actual_prices ? parseNumberArray(row.actual_prices) : null,
+    inputVintages: parseStringArray(row.input_vintages),
+    preparedAt: row.prepared_at,
+  };
+}
+
+function toStoredForecastRun(row: ForecastRunRow): StoredForecastRun {
+  return {
+    id: row.id,
+    model: row.model,
+    tariffCode: row.tariff_code,
+    targetDate: row.target_date,
+    generatedAt: row.generated_at,
+    issueCutoff: row.issue_cutoff,
+    periods: parseNumberArray(row.periods),
+    inputVintages: parseStringArray(row.input_vintages),
+  };
 }
 
 interface RuleRow {
@@ -652,6 +723,101 @@ export class SqliteStore implements Store {
       .prepare('DELETE FROM forecast_inputs WHERE target_start < ?')
       .run(before.toISOString());
     return Number(result.changes);
+  }
+
+  // --- Forecast shadow evaluation -----------------------------------------
+
+  upsertPreparedForecastDay(day: PreparedForecastDay): void {
+    this.db
+      .prepare(
+        `INSERT INTO forecast_prepared_days
+           (tariff_code, pricing_date, issue_cutoff, residual_demand, baseline_prices,
+            actual_prices, input_vintages, prepared_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (tariff_code, pricing_date) DO UPDATE SET
+           issue_cutoff = excluded.issue_cutoff,
+           residual_demand = excluded.residual_demand,
+           baseline_prices = excluded.baseline_prices,
+           actual_prices = excluded.actual_prices,
+           input_vintages = excluded.input_vintages,
+           prepared_at = excluded.prepared_at`,
+      )
+      .run(
+        day.tariffCode,
+        day.date,
+        day.issueCutoff,
+        JSON.stringify(day.residualDemand),
+        day.baselinePrices ? JSON.stringify(day.baselinePrices) : null,
+        day.actualPrices ? JSON.stringify(day.actualPrices) : null,
+        JSON.stringify(day.inputVintages),
+        day.preparedAt,
+      );
+  }
+
+  listPreparedForecastDays(
+    tariffCode: string,
+    from: string,
+    toExclusive: string,
+  ): PreparedForecastDay[] {
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM forecast_prepared_days
+         WHERE tariff_code = ? AND pricing_date >= ? AND pricing_date < ?
+         ORDER BY pricing_date ASC`,
+      )
+      .all(tariffCode, from, toExclusive) as unknown as PreparedForecastDayRow[];
+    return rows.map(toPreparedForecastDay);
+  }
+
+  insertForecastRun(run: NewForecastRun): boolean {
+    const result = this.db
+      .prepare(
+        `INSERT INTO forecast_runs
+           (id, model, tariff_code, target_date, generated_at, issue_cutoff,
+            periods, input_vintages)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (model, tariff_code, target_date, issue_cutoff) DO NOTHING`,
+      )
+      .run(
+        randomUUID(),
+        run.model,
+        run.tariffCode,
+        run.targetDate,
+        run.generatedAt,
+        run.issueCutoff,
+        JSON.stringify(run.periods),
+        JSON.stringify(run.inputVintages),
+      );
+    return Number(result.changes) > 0;
+  }
+
+  listUnscoredForecastRuns(beforeDate: string, limit: number): StoredForecastRun[] {
+    const rows = this.db
+      .prepare(
+        `SELECT id, model, tariff_code, target_date, generated_at, issue_cutoff,
+                periods, input_vintages
+         FROM forecast_runs
+         WHERE scored_at IS NULL AND target_date < ?
+         ORDER BY target_date ASC, generated_at ASC
+         LIMIT ?`,
+      )
+      .all(beforeDate, limit) as unknown as ForecastRunRow[];
+    return rows.map(toStoredForecastRun);
+  }
+
+  scoreForecastRun(id: string, score: ForecastRunScore): void {
+    this.db
+      .prepare(
+        `UPDATE forecast_runs
+         SET scored_at = ?, mae_pence = ?, cheapest_3h_regret = ?, within_60_minutes = ?
+         WHERE id = ? AND scored_at IS NULL`,
+      )
+      .run(score.scoredAt, score.maePence, score.cheapest3hRegret, bool(score.within60Minutes), id);
+  }
+
+  countForecastRuns(): number {
+    const row = this.db.prepare('SELECT COUNT(*) AS n FROM forecast_runs').get() as { n: number };
+    return row.n;
   }
 
   // --- Worker state --------------------------------------------------------

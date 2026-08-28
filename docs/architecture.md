@@ -207,6 +207,13 @@ used by the Node timer; most invocations are deliberate no-ops outside the
 offset by two minutes, handles forecast history and cache generation without
 sharing the core trigger's CPU allowance.
 
+Once the visible baseline history is current, that forecast trigger alternates
+v1 cache refreshes with one bounded `fundamentals-analogue-v2` shadow unit. The
+shadow path incrementally stores compact region-C prepared days and immutable
+paired v1/v2 runs, then scores them after official prices arrive. Those tables
+have no API read path: confirmed prices and the visible v1 cache remain isolated
+from experimental v2 failures.
+
 Fastify remains the local Node HTTP adapter. It is not bundled into the Worker
 because its router uses runtime code generation, which Workers disallow.
 

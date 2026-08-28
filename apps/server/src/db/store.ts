@@ -66,6 +66,38 @@ export interface NewForecastInput {
   payload: Record<string, number | string>;
 }
 
+export interface PreparedForecastDay {
+  tariffCode: string;
+  date: string;
+  issueCutoff: string;
+  residualDemand: number[];
+  baselinePrices: number[] | null;
+  actualPrices: number[] | null;
+  inputVintages: string[];
+  preparedAt: string;
+}
+
+export interface NewForecastRun {
+  model: string;
+  tariffCode: string;
+  targetDate: string;
+  generatedAt: string;
+  issueCutoff: string;
+  periods: number[];
+  inputVintages: string[];
+}
+
+export interface StoredForecastRun extends NewForecastRun {
+  id: string;
+}
+
+export interface ForecastRunScore {
+  scoredAt: string;
+  maePence: number;
+  cheapest3hRegret: number;
+  within60Minutes: boolean;
+}
+
 export interface Store {
   // --- Users -------------------------------------------------------------
 
@@ -159,6 +191,20 @@ export interface Store {
    * database is capped at 500 MB, so the archive cannot grow indefinitely.
    */
   pruneForecastInputsBefore(before: Date): StoreResult<number>;
+
+  // --- Forecast shadow evaluation ---------------------------------------
+
+  upsertPreparedForecastDay(day: PreparedForecastDay): StoreResult<void>;
+  listPreparedForecastDays(
+    tariffCode: string,
+    from: string,
+    toExclusive: string,
+  ): StoreResult<PreparedForecastDay[]>;
+  /** Inserts one immutable issue vintage; false means it already existed. */
+  insertForecastRun(run: NewForecastRun): StoreResult<boolean>;
+  listUnscoredForecastRuns(beforeDate: string, limit: number): StoreResult<StoredForecastRun[]>;
+  scoreForecastRun(id: string, score: ForecastRunScore): StoreResult<void>;
+  countForecastRuns(): StoreResult<number>;
 
   // --- Worker state ------------------------------------------------------
 
