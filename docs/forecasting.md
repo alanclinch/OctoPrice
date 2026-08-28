@@ -19,6 +19,7 @@ The headline measurements are reproducible rather than narrative. See
 | ------ | ---------- |
 | `fit-regional-coefficients.mjs` | Finding 1.1, and warns if the relationship stops being exact |
 | `bench-inference.mjs` | The Worker CPU budget table in section 4.6 |
+| `backtest-fundamentals-analogue.mjs` | Section 10's leakage-safe v1/v2 comparison, model selection and resource measurements |
 
 Each records its own product codes, date ranges, VAT treatment, alignment and
 regression method, so a later reader can disagree with the method rather than
@@ -935,3 +936,94 @@ prices still return normally.
 defaults it off; production was enabled only after review and a staged disabled
 deployment confirmed Cloudflare accepted the isolated trigger. Turning it off
 also stops the historical backfill job and cache refresh.
+
+---
+
+## 10. Validated in research: fundamentals analogue correction
+
+The first proposed replacement has now been implemented as pure core logic and
+tested retrospectively, but it is **not connected to production data or shown
+to users**. `fundamentals-analogue-v2` corrects the seasonal baseline rather
+than replacing it:
+
+1. For the target day, derive a half-hourly residual-demand curve from NESO's
+   national demand forecast minus transmission-connected wind forecast.
+   Embedded wind and solar are retained as candidate features but are not
+   subtracted again: they already suppress the measured national demand, so
+   doing so would double-count their effect.
+2. Rank up to 90 previous days by curve distance with a small recency penalty.
+3. Select 12 analogue days. At each half-hour, take the inverse-distance and
+   recency-weighted median of `confirmed price - seasonal baseline` on those
+   days.
+4. Add 75% of that residual to the target seasonal baseline. The shrinkage,
+   neighbour count and feature choice were selected on the tuning block only.
+
+The pure implementation is `packages/core/src/forecast-analogue.ts`. It has no
+I/O or clock reads and returns no forecast for incomplete target curves, too
+few complete candidate days, invalid parameters or non-finite values.
+
+### Leakage controls
+
+`docs/research/backtest-fundamentals-analogue.mjs` fixes its forecast issue time
+at 14:00 Europe/London on D-1 and checks source publication times against that
+cut-off. It uses:
+
+- the earliest Elexon national-demand and transmission-wind forecasts, which
+  were published before the cut-off;
+- the last NESO embedded-wind and embedded-solar archive vintage no later than
+  the cut-off, selected by `Forecast_Datetime`;
+- the tested NESO period conversion, which treats `TIME_GMT` as the period end;
+- only confirmed region-C Agile prices that were available to each historical
+  seasonal-baseline forecast.
+
+Candidate feature sets, neighbour counts and shrinkage values were compared on
+47 issue days from 29 May through 14 July 2026. The selected configuration was
+then passed through the extracted core implementation and scored once on 43
+untouched issue days from 15 July through 26 August.
+
+### Holdout result
+
+All measures are for tomorrow's region-C forecast. Three-hour regret is the
+actual average cost of the window selected by the forecast minus the actual
+optimal window's average cost.
+
+| Measure | `seasonal-naive-v1` | `fundamentals-analogue-v2` | Change |
+| ------- | -------------------: | -------------------------: | -----: |
+| MAE | 3.47p/kWh | **2.91p/kWh** | **−16.0%** |
+| Mean bias | −1.43p/kWh | **−0.83p/kWh** | closer to zero |
+| Cheapest 3h regret | 0.557p/kWh | **0.439p/kWh** | **−21.2%** |
+| Cheapest 3h start within 60 minutes | 62.8% | **69.8%** | **+7.0 points** |
+| Exact cheapest 3h start | 14.0% | **16.3%** | **+2.3 points** |
+
+Across the tuning and holdout blocks together, the fixed selected configuration
+scored 3.25p MAE over 90 issue days. That combined figure is descriptive only;
+it is not an independent holdout because the first 47 days selected the model.
+
+The result is strong enough to justify shadow-mode implementation, not strong
+enough to replace v1 immediately. The untouched holdout is 43 days, and all
+dates are summer 2026. Live forecast vintages must now confirm the pipeline and
+extend validation across seasons.
+
+### Promotion and resource gates
+
+V2 may replace the visible baseline only if an identical-period comparison
+beats v1 on both three-hour regret and within-60-minute timing, without
+worsening MAE. The committed historical holdout clears that gate; shadow-mode
+live results must clear it again.
+
+Production must read compact prepared day rows rather than 10,000 half-hour
+input rows. Budgets established before production work are:
+
+- at most 100 prepared rows and 512 KiB of prepared payload per inference;
+- at most 3 ms p95 incremental analogue CPU and 8 ms p95 for the complete
+  forecast calculation;
+- one compact historical day measured about 1,749 bytes, or about 157 KiB for
+  90 days before SQLite page/index overhead;
+- the production-shaped pure-core benchmark measured 0.09 ms median and
+  0.19 ms p95 for 90 candidates and 48 corrected values on the development
+  machine.
+
+The next implementation step is prepared-day persistence, live forecast
+vintages and shadow scoring. Confirmed-price precedence, the independent kill
+switch and the rule that missing required inputs produce no v2 forecast remain
+binding.

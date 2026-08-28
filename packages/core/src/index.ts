@@ -15,3 +15,4 @@ export * from './windows.ts';
 export * from './notifications.ts';
 export * from './defaults.ts';
 export * from './forecast.ts';
+export * from './forecast-analogue.ts';

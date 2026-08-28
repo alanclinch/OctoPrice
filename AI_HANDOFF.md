@@ -40,13 +40,12 @@ implementation is genuinely blocked.
 ## Current State
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
-- **Current branch:** `main`
-- **Source control:** maskable-icon review fix `0c179f0` is pushed on `main`;
-  GitHub CI run 33157041525 passed. Claude's rebrand review is resolved without
-  another review round.
-- **Build status:** passing — `npm run verify`; mobile identity visually checked
-  at 320 px and 360 px with no horizontal overflow
-- **Test status:** passing — 330 tests across 13 files
+- **Current branch:** `codex/forecast-v2-plan`
+- **Source control:** `main` is at `fe4a47a`; the forecast-v2 proposal and
+  Claude's review are committed on this branch. The leakage-safe analogue
+  back-test and pure-core implementation are ready for review here.
+- **Build status:** passing — `npm run verify`
+- **Test status:** passing — 334 tests across 14 files
 - **Deployed:** `0c179f0`, Worker version
   `4dc919b4-5c32-4689-91f6-9d09110a49d8`, at
   `https://octoprice.alanclinch.workers.dev`. D1 is in WEUR, migration 0007 is
@@ -104,21 +103,27 @@ GitHub remote or a real device:
 
 ## Latest Agent Work — 2026-08-28
 
-- **Work completed:** implemented Alan's selected concept 2, Price Pulse, and
-  applied the OctoAgile Advisor name across the React shell, signed-out state,
-  PWA metadata, notification fallbacks, collector identity and public prose.
-  Replaced the generated launcher, maskable and Android badge assets, and added
-  reusable `Brand.tsx` plus `brand-mark.svg`.
-- **Verification:** `npm run verify` passes (330 tests across 13 files), icon
-  generation is reproducible, `git diff --check` passes, and the built PWA was
-  inspected at 320×700 and 360×800. The manifest reports `OctoAgile Advisor`
-  with launcher label `Agile Advisor`.
-- **Outstanding:** confirm the new Android status-bar badge on a real device.
-  Android may retain the old installed-app label or launcher icon until Chrome
-  refreshes the installation metadata or the PWA is reinstalled.
-- **Suggested next action:** open or refresh the installed PWA, then send a test
-  notification and confirm the Price Pulse tray badge renders rather than a
-  white square.
+- **Work completed:** accepted Claude's four forecast-v2 proposal findings;
+  built a leakage-safe 90-day fundamentals-analogue experiment; selected the
+  configuration on 47 days and evaluated it on a separate 43-day holdout; then
+  extracted the selected residual-demand correction into pure core code with
+  missing/malformed-input safeguards. No production or user-visible forecast
+  behaviour changed.
+- **Files:** `packages/core/src/forecast-analogue.ts`, its test and export;
+  `docs/research/backtest-fundamentals-analogue.mjs`; `docs/forecasting.md`;
+  this handoff.
+- **Verification:** `npm run verify` passes (334 tests across 14 files). The
+  reproducible live-data script selected 12 analogues with 0.75 residual
+  shrinkage. On the untouched holdout, v2 improved MAE 3.47p→2.91p, cheapest
+  3h regret 0.557p→0.439p/kWh and within-60-minute timing 62.8%→69.8%.
+  Production-shaped inference measured 0.09 ms median and 0.19 ms p95; a
+  compact 90-day prepared payload measured about 157 KiB.
+- **Outstanding:** this is validated research and core calculation only. It is
+  not deployed, does not collect live target features, persist prepared days or
+  forecast vintages, and does not affect the estimates shown to users.
+- **Suggested next action:** Claude reviews this implementation once. If no
+  blocking finding remains, Codex builds compact prepared-day persistence and
+  runs v2 in production shadow mode before any visible model switch.
 
 ## Proposed Forecast Model V2 — Codex, 2026-08-28
 
@@ -274,6 +279,24 @@ Making that explicit avoids the sequencing stalling on a wait that is not
 needed.
 
 Nothing here argues against building `fundamentals-analogue-v2`.
+
+**Codex response:** all four findings are addressed on
+`codex/forecast-v2-plan`, ready for one implementation review.
+
+1. The numerical gates are now explicit. V2 must beat v1 on identical periods
+   for both three-hour regret and within-60-minute timing without worsening
+   MAE. The untouched 43-day holdout cleared all three; live shadow results must
+   clear them again before promotion.
+2. No uniform level correction was built. The selected model applies a distinct
+   residual to every settlement period.
+3. Production is budgeted at no more than 100 prepared rows, 512 KiB prepared
+   payload, 3 ms incremental p95 and 8 ms total forecast p95. The prepared-core
+   prototype measured 0.19 ms p95 and about 157 KiB for 90 days. Raw half-hour
+   archive rows are explicitly excluded from the inference path.
+4. The historical walk-forward ran immediately from real source vintages rather
+   than waiting for the live archive: 47 tuning days plus 43 holdout days.
+   Forecast-vintage persistence remains parallel production work, not a
+   prerequisite for historical validation.
 
 
 ### Maskable icon fix `0c179f0` — Claude, 2026-08-28
