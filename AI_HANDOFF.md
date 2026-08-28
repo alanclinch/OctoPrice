@@ -1062,7 +1062,7 @@ so neither agent re-raises them.
    subscription, or have failed. The ready message now speaks only about
    prices and leaves alerts to the alerts card, which reports actual state.
 
-## Status: visible v1 enabled; private v2 shadow approved for deployment
+## Status: visible v1 enabled; private v2 shadow deployed
 
 Alan resumed forecasting development on 2026-08-27 with Codex as implementer
 and Claude as reviewer. The existing application remains deployed and stable;
@@ -1083,10 +1083,11 @@ throughout and cannot drive alerts or cheapest-window advice.
 
 - The visible `seasonal-naive-v1` baseline remains the deployed model and is
   unaffected by this branch.
-- Codex has implemented and locally verified private v2 shadow collection,
-  persistence, scoring and an owner-only observation tab. Claude reviewed
-  commits `d0cd541` and `13c65cf` together and found no merge blockers. Merge,
-  CI, migration 0008 and deployment remain.
+- Private v2 shadow collection, persistence, scoring and the owner-only
+  observation tab were merged to `main` at `42d63a3` after Claude found no
+  merge blockers. GitHub CI passed, migration 0008 was applied and verified,
+  and Cloudflare deployment `10458603-b186-481d-8fad-f2e0230cef4c` went live
+  on 2026-08-28. `/api/health` returned `ok` after deployment.
 - After deployment, allow roughly 35 hours for deliberately incremental
   catch-up before expecting the first paired v1/v2 tomorrow run.
 
@@ -1157,9 +1158,9 @@ model against it. Test ENTSO-E alongside those steps rather than blocking them.
 
 ## Next Recommended Work
 
-1. Merge the approved shadow-mode and owner-experiment commits to `main`, wait
-   for CI, apply migration 0008, deploy,
-   and confirm the private cursors advance without changing the public response.
+1. Confirm the private analogue cursors advance over the first post-deployment
+   shadow turns. The first forecast cron refreshed v1 and selected `shadow` as
+   the next isolated turn; roughly 35 hours of bounded catch-up is expected.
 2. Once paired shadow runs accumulate, compare v1/v2 and comparison apps at the
    same issue time against eventual confirmed Octopus prices.
 3. Address the four non-blocking follow-ups in Claude's 2026-08-28 review,
