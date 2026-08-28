@@ -108,7 +108,8 @@ Non-secret production values live under `vars` in `wrangler.jsonc`:
 - `POLL_START`, `POLL_INTERVAL_MINUTES`, and `POLL_CUTOFF`
 - `LOG_LEVEL`
 - `FORECAST_BASELINE_ENABLED` — independent switch for the experimental
-  estimate and its history backfill; defaults to `false`
+  estimate and its history backfill; the application default is `false`, while
+  production is explicitly enabled after the staged trigger check
 
 The core Cron Trigger runs every five minutes, all day. Each invocation does
 two things of very different cost:

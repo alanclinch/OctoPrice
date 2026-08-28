@@ -931,6 +931,7 @@ refreshes. Missing history, a cache awaiting refresh and a malformed cache are
 reported separately; every case degrades to no estimates while confirmed
 prices still return normally.
 
-`FORECAST_BASELINE_ENABLED` is the independent kill switch. It defaults off
-and remains off until this background-cache change is reviewed and deployed.
-Turning it off also stops the historical backfill job and cache refresh.
+`FORECAST_BASELINE_ENABLED` is the independent kill switch. The application
+defaults it off; production was enabled only after review and a staged disabled
+deployment confirmed Cloudflare accepted the isolated trigger. Turning it off
+also stops the historical backfill job and cache refresh.
