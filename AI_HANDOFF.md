@@ -122,6 +122,66 @@ GitHub remote or a real device:
 
 ## Open Review Findings
 
+### OctoAgile Advisor rebrand `c780556` — Claude, 2026-08-28
+
+Reviewed after the fact, since the rebrand is already merged and deployed.
+Checked rather than assumed:
+
+- **PWA identity survives the rename.** `start_url` and `scope` are both still
+  `/` and the manifest has no `id`, so identity falls back to `start_url` and
+  existing installs relabel instead of being orphaned. That is the thing a
+  rename usually breaks, and it was handled.
+- **The name is applied consistently** across the manifest, `index.html`, the
+  service worker push fallback, the notification test text, the API client and
+  the docs. The Carbon Intensity User-Agent became `OctoAgileAdvisor/0.1` while
+  keeping the real repository URL, which is right for their terms.
+- **Contrast passes AA everywhere it matters.** Light accent `#5c43e6` on
+  surface 6.18:1 and on background 5.71:1, white on accent 6.18:1, dark accent
+  `#8b7cff` on surface 4.99:1. The icon's violet on the dark ground is 3.90:1,
+  which is fine for decorative shapes.
+- **The header lockup fits.** Measured in a browser against the real stylesheet
+  at 320 px with the longest realistic subtitle (`South Scotland · Christopher`):
+  brand lockup 218 px plus an 88 px Install button inside 320 px, no horizontal
+  overflow, subtitle on one line, icon loading and rendering at 38x38. The
+  `white-space: nowrap` on `.brand-name` is safe at that width.
+- **The affiliation disclaimer is the right call.** `OctoAgile` leans on both
+  Octopus Energy's brand and their Agile tariff name, so the footer line
+  "Independent app · not affiliated with Octopus Energy" matters. Worth keeping
+  visible if the identity is ever revisited.
+
+Three findings, none urgent.
+
+**1. Medium — the install description promises forecasts that are switched off.**
+The manifest and `<meta name="description">` now read "Independent Agile
+electricity price forecasts, alerts and half-hourly guidance", leading with
+forecasts. `FORECAST_BASELINE_ENABLED` is false in production and the
+background-cache work is still unmerged on `codex/forecast-background-cache`,
+so nothing forecast-related is reachable. Anyone installing the PWA sees that
+promise on the install prompt and in their launcher. It is also baked into the
+generated manifest, so correcting it later needs a redeploy and a manifest
+refetch. Suggest describing what the app does today and adding forecasting to
+the text in the same change that enables the flag.
+
+**2. Low — the maskable icon breaks the safe zone the generator says it keeps.**
+`generate-icons.mjs` states "The mark is kept inside the central safe area so it
+survives every launcher mask", but `renderIcon(512, { maskable: true })` uses
+the same geometry and only drops the rounded-corner background. Against the
+standard central-80% circle (radius 0.4 from centre), the pointer tip at
+(0.91, 0.635) sits at radius 0.4317 — a 16.2 px overshoot at 512 px — and bar
+one's bottom-left corner at 0.4188 overshoots by 9.6 px. About 1.05% of the
+mark area falls outside, and the part at risk is the arrow tip, which is the
+distinguishing element of the mark. Either inset the mark for the maskable
+variant (roughly a 0.92 scale about the centre) or bring the pointer inboard,
+and correct the comment either way.
+
+**3. Low — the commit message names a different app than the commit.** The
+subject of `c780556` is "Rebrand app as OctoAgile Advisor" while its body says
+"Introduce the selected Price Pulse identity". "Price Pulse" survives only as
+the brand mark's aria-label. Since git is the source of truth for this project,
+that reads as though the app were renamed to Price Pulse. Not worth rewriting a
+merged commit; noted here so the record is unambiguous.
+
+
 ### Re-review of `3a728ba` — Claude, 2026-08-28
 
 All three findings from the `1aa8476` review are fixed. `npm run verify` exits 0
