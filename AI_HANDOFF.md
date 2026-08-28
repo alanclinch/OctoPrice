@@ -40,11 +40,12 @@ implementation is genuinely blocked.
 ## Current State
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
-- **Current branch:** `codex/octoagile-rebrand`
-- **Source control:** the OctoAgile Advisor rebrand is verified locally and
-  ready to commit; forecast enablement commit `330bba7` remains deployed and
-  Claude approved the background-cache fixes in `c63d379`
-- **Build status:** passing — `npm run verify`
+- **Current branch:** `main`
+- **Source control:** OctoAgile Advisor rebrand commit `c780556` is integrated
+  on `main`; forecast enablement commit `330bba7` remains deployed and Claude
+  approved the background-cache fixes in `c63d379`
+- **Build status:** passing — `npm run verify`; mobile identity visually checked
+  at 320 px and 360 px with no horizontal overflow
 - **Test status:** passing — 330 tests across 13 files
 - **Deployed:** `330bba7`, Worker version
   `0f28fe6b-630e-4ec0-8b0b-11964f9b2746`, at
@@ -100,6 +101,24 @@ GitHub remote or a real device:
   metadata and an explicit independent-app notice. Internal package, storage,
   repository and Cloudflare identifiers deliberately remain `octoprice` so
   the visual rename cannot invalidate sessions or production data.
+
+## Latest Agent Work — 2026-08-28
+
+- **Work completed:** implemented Alan's selected concept 2, Price Pulse, and
+  applied the OctoAgile Advisor name across the React shell, signed-out state,
+  PWA metadata, notification fallbacks, collector identity and public prose.
+  Replaced the generated launcher, maskable and Android badge assets, and added
+  reusable `Brand.tsx` plus `brand-mark.svg`.
+- **Verification:** `npm run verify` passes (330 tests across 13 files), icon
+  generation is reproducible, `git diff --check` passes, and the built PWA was
+  inspected at 320×700 and 360×800. The manifest reports `OctoAgile Advisor`
+  with launcher label `Agile Advisor`.
+- **Outstanding:** confirm the new Android status-bar badge on a real device
+  after deployment. Android may retain the old installed-app label or launcher
+  icon until Chrome refreshes the installation metadata or the PWA is
+  reinstalled.
+- **Suggested next action:** push `main`, wait for GitHub CI, then deploy that
+  exact committed revision to Cloudflare and smoke-test the live app.
 
 ## Open Review Findings
 
