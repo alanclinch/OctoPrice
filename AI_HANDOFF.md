@@ -1062,7 +1062,7 @@ so neither agent re-raises them.
    subscription, or have failed. The ready message now speaks only about
    prices and leaves alerts to the alerts card, which reports actual state.
 
-## Status: visible v1 enabled; private v2 shadow awaiting review
+## Status: visible v1 enabled; private v2 shadow approved for deployment
 
 Alan resumed forecasting development on 2026-08-27 with Codex as implementer
 and Claude as reviewer. The existing application remains deployed and stable;
@@ -1084,9 +1084,9 @@ throughout and cannot drive alerts or cheapest-window advice.
 - The visible `seasonal-naive-v1` baseline remains the deployed model and is
   unaffected by this branch.
 - Codex has implemented and locally verified private v2 shadow collection,
-  persistence, scoring and an owner-only observation tab. It still needs a
-  review-ready commit and push, Claude review, merge/CI, migration 0008 and
-  deployment.
+  persistence, scoring and an owner-only observation tab. Claude reviewed
+  commits `d0cd541` and `13c65cf` together and found no merge blockers. Merge,
+  CI, migration 0008 and deployment remain.
 - After deployment, allow roughly 35 hours for deliberately incremental
   catch-up before expecting the first paired v1/v2 tomorrow run.
 
@@ -1157,12 +1157,13 @@ model against it. Test ENTSO-E alongside those steps rather than blocking them.
 
 ## Next Recommended Work
 
-1. Claude reviews the shadow-mode commit once, recording only unresolved
-   actionable findings in this file.
-2. After approval, merge to `main`, wait for CI, apply migration 0008, deploy,
+1. Merge the approved shadow-mode and owner-experiment commits to `main`, wait
+   for CI, apply migration 0008, deploy,
    and confirm the private cursors advance without changing the public response.
-3. Once paired shadow runs accumulate, compare v1/v2 and comparison apps at the
+2. Once paired shadow runs accumulate, compare v1/v2 and comparison apps at the
    same issue time against eventual confirmed Octopus prices.
+3. Address the four non-blocking follow-ups in Claude's 2026-08-28 review,
+   prioritising restoring the visible v1 cache refresh cadence.
 4. **Confirm the new Android badge visually.** Send another test notification
    after the updated service worker is active and confirm the tray shows the
    system-tinted Price Pulse mark rather than a white square. Push delivery
