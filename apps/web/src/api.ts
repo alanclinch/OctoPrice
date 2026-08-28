@@ -1,5 +1,5 @@
 /**
- * Typed client for the OctoPrice API.
+ * Typed client for the OctoAgile Advisor API.
  *
  * Response shapes reuse the domain models from `@octoprice/core`, which is
  * the main practical benefit of TypeScript on both sides: a change to a price
@@ -112,7 +112,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     });
   } catch {
     // Offline, or the server is not running.
-    throw new ApiError('Could not reach the OctoPrice server', 0);
+    throw new ApiError('Could not reach the OctoAgile Advisor server', 0);
   }
 
   if (response.status === 204) return undefined as T;

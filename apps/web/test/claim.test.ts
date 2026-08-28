@@ -43,7 +43,7 @@ describe('claimAccessToken', () => {
     // page reloading under a new service worker.
     const claim = vi
       .fn()
-      .mockRejectedValueOnce(new ApiError('Could not reach the OctoPrice server', 0))
+      .mockRejectedValueOnce(new ApiError('Could not reach the OctoAgile Advisor server', 0))
       .mockResolvedValue({ user: { id: 'owner' } });
 
     expect(await claimAccessToken('good', { claim, delay: noDelay })).toEqual({
@@ -56,7 +56,7 @@ describe('claimAccessToken', () => {
   it('reports an unreachable server rather than an invalid link', async () => {
     const claim = vi
       .fn()
-      .mockRejectedValue(new ApiError('Could not reach the OctoPrice server', 0));
+      .mockRejectedValue(new ApiError('Could not reach the OctoAgile Advisor server', 0));
     const outcome = await claimAccessToken('good', { claim, delay: noDelay, attempts: 3 });
 
     expect(outcome).toEqual({ kind: 'unreachable' });

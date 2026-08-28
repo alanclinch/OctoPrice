@@ -23,10 +23,10 @@ export default defineConfig({
         type: 'module',
       },
       manifest: {
-        name: 'OctoPrice - Octopus Agile prices',
-        short_name: 'OctoPrice',
+        name: 'OctoAgile Advisor',
+        short_name: 'Agile Advisor',
         description:
-          'Octopus Agile electricity prices, with alerts when tomorrow is published and when prices are cheap or negative.',
+          'Independent Agile electricity price forecasts, alerts and half-hourly guidance.',
         start_url: '/',
         scope: '/',
         display: 'standalone',

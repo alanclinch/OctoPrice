@@ -178,7 +178,7 @@ export function buildTestNotification(userId: string, now: Date): NotificationPa
   return {
     type: 'test',
     dedupeKey: `${userId}:test:${now.toISOString()}`,
-    title: 'OctoPrice test notification',
+    title: 'OctoAgile Advisor test notification',
     body: 'Notifications are working on this device.',
     url: '/settings',
     ruleId: null,

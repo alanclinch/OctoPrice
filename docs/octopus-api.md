@@ -2,7 +2,7 @@
 
 Base URL: `https://api.octopus.energy/v1`
 
-Everything OctoPrice uses is **public and unauthenticated**. An API key is
+Everything OctoAgile Advisor uses is **public and unauthenticated**. An API key is
 only needed for customer account data, which the MVP does not touch.
 
 ## Endpoints in use
@@ -119,7 +119,7 @@ Failures are logged as `OCTOPUS_API_ERROR` and never silently swallowed.
 
 ## Rate limiting
 
-OctoPrice makes a handful of requests a day: two at startup, then one every
+OctoAgile Advisor makes a handful of requests a day: two at startup, then one every
 five minutes during the publication window until the day is complete. This is
 well within any reasonable use of a public endpoint. If you shorten
 `POLL_INTERVAL_MINUTES`, keep that in mind.

@@ -3,9 +3,9 @@
  *
  * Written as a script rather than committing opaque binaries by hand, so the
  * icons can be regenerated or restyled from one place. A tiny PNG encoder is
- * used instead of an image library: the artwork is a flat background and one
- * polygon, which is not worth a dependency. The notification badge is a
- * separate transparent monochrome mark, as required by Android status bars.
+ * used instead of an image library: the artwork is a flat background and six
+ * simple shapes, which is not worth a dependency. The notification badge is
+ * a separate transparent monochrome mark, as required by Android status bars.
  *
  * Run with: npm run generate:icons --workspace @octoprice/web
  */
@@ -18,19 +18,25 @@ import { fileURLToPath } from 'node:url';
 const OUT_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'icons');
 
 const BACKGROUND = [0x10, 0x17, 0x25];
-const BOLT = [0x9a, 0xe6, 0x6e];
+const MINT = [0x35, 0xe5, 0x8a];
+const VIOLET = [0x75, 0x57, 0xff];
 
 /**
- * A lightning bolt in unit coordinates, drawn clockwise from the top.
- * Kept inside the middle 80% so it survives a maskable circular crop.
+ * Five half-hour price bars flow into a forward pointer. The mark is kept
+ * inside the central safe area so it survives every launcher mask.
  */
-const BOLT_SHAPE = [
-  [0.6, 0.1],
-  [0.3, 0.54],
-  [0.47, 0.54],
-  [0.41, 0.9],
-  [0.71, 0.44],
-  [0.53, 0.44],
+const PRICE_BARS = [
+  { x1: 0.15, y1: 0.58, x2: 0.24, y2: 0.73, colour: MINT },
+  { x1: 0.28, y1: 0.46, x2: 0.37, y2: 0.73, colour: MINT },
+  { x1: 0.41, y1: 0.28, x2: 0.5, y2: 0.73, colour: VIOLET },
+  { x1: 0.54, y1: 0.43, x2: 0.63, y2: 0.73, colour: VIOLET },
+  { x1: 0.67, y1: 0.55, x2: 0.76, y2: 0.73, colour: VIOLET },
+];
+const BAR_RADIUS = 0.022;
+const POINTER_SHAPE = [
+  [0.75, 0.5],
+  [0.91, 0.635],
+  [0.75, 0.77],
 ];
 
 // --- PNG encoding -----------------------------------------------------------
@@ -114,6 +120,25 @@ function insideRoundedSquare(x, y, radius) {
   return dx * dx + dy * dy <= radius * radius;
 }
 
+function insideRoundedRect(rect, x, y, radius) {
+  if (x < rect.x1 || x > rect.x2 || y < rect.y1 || y > rect.y2) return false;
+  const dx = Math.max(rect.x1 + radius - x, 0, x - (rect.x2 - radius));
+  const dy = Math.max(rect.y1 + radius - y, 0, y - (rect.y2 - radius));
+  if (dx === 0 || dy === 0) return true;
+  return dx * dx + dy * dy <= radius * radius;
+}
+
+function markColourAt(x, y) {
+  for (const bar of PRICE_BARS) {
+    if (insideRoundedRect(bar, x, y, BAR_RADIUS)) return bar.colour;
+  }
+  return insidePolygon(POINTER_SHAPE, x, y) ? MINT : null;
+}
+
+function insideMark(x, y) {
+  return markColourAt(x, y) !== null;
+}
+
 /**
  * Renders one icon. `maskable` fills the whole square, since the launcher
  * applies its own mask and any corner rounding of ours would be cropped.
@@ -126,7 +151,7 @@ function renderIcon(size, { maskable = false } = {}) {
   for (let py = 0; py < size; py += 1) {
     for (let px = 0; px < size; px += 1) {
       let coverageBackground = 0;
-      let coverageBolt = 0;
+      const colourTotal = [0, 0, 0];
 
       for (let sy = 0; sy < samples; sy += 1) {
         for (let sx = 0; sx < samples; sx += 1) {
@@ -136,19 +161,22 @@ function renderIcon(size, { maskable = false } = {}) {
           const inBackground = maskable || insideRoundedSquare(x, y, cornerRadius);
           if (!inBackground) continue;
           coverageBackground += 1;
-          if (insidePolygon(BOLT_SHAPE, x, y)) coverageBolt += 1;
+          const colour = markColourAt(x, y) ?? BACKGROUND;
+          for (let channel = 0; channel < 3; channel += 1) {
+            colourTotal[channel] += colour[channel];
+          }
         }
       }
 
       const total = samples * samples;
       const alpha = coverageBackground / total;
-      const boltRatio = coverageBackground === 0 ? 0 : coverageBolt / coverageBackground;
 
       const offset = (py * size + px) * 4;
       for (let channel = 0; channel < 3; channel += 1) {
-        rgba[offset + channel] = Math.round(
-          BACKGROUND[channel] * (1 - boltRatio) + BOLT[channel] * boltRatio,
-        );
+        rgba[offset + channel] =
+          coverageBackground === 0
+            ? BACKGROUND[channel]
+            : Math.round(colourTotal[channel] / coverageBackground);
       }
       rgba[offset + 3] = Math.round(alpha * 255);
     }
@@ -159,8 +187,8 @@ function renderIcon(size, { maskable = false } = {}) {
 
 /**
  * Android uses only the alpha channel of notification badges and applies its
- * own colour. A transparent bolt avoids the solid white square produced when
- * a full launcher icon is supplied here.
+ * own colour. A transparent price-pulse mark avoids the solid white square
+ * produced when a full launcher icon is supplied here.
  */
 function renderBadge(size) {
   const rgba = Buffer.alloc(size * size * 4);
@@ -173,7 +201,7 @@ function renderBadge(size) {
         for (let sx = 0; sx < samples; sx += 1) {
           const x = (px + (sx + 0.5) / samples) / size;
           const y = (py + (sy + 0.5) / samples) / size;
-          if (insidePolygon(BOLT_SHAPE, x, y)) coverage += 1;
+          if (insideMark(x, y)) coverage += 1;
         }
       }
 
@@ -190,17 +218,31 @@ function renderBadge(size) {
   return encodePng(size, size, rgba);
 }
 
+function hex(colour) {
+  return `#${colour.map((channel) => channel.toString(16).padStart(2, '0')).join('')}`;
+}
+
+function svgMark() {
+  const coordinate = (value) => (value * 512).toFixed(1);
+  const bars = PRICE_BARS.map(
+    (bar) =>
+      `  <rect x="${coordinate(bar.x1)}" y="${coordinate(bar.y1)}" width="${coordinate(bar.x2 - bar.x1)}" height="${coordinate(bar.y2 - bar.y1)}" rx="${coordinate(BAR_RADIUS)}" fill="${hex(bar.colour)}"/>`,
+  ).join('\n');
+  const pointer = POINTER_SHAPE.map(([x, y]) => `${coordinate(x)},${coordinate(y)}`).join(' ');
+  return `${bars}\n  <polygon points="${pointer}" fill="${hex(MINT)}"/>`;
+}
+
 function svgIcon() {
-  const points = BOLT_SHAPE.map(([x, y]) => `${(x * 512).toFixed(1)},${(y * 512).toFixed(1)}`).join(
-    ' ',
-  );
-  const bg = `#${BACKGROUND.map((c) => c.toString(16).padStart(2, '0')).join('')}`;
-  const bolt = `#${BOLT.map((c) => c.toString(16).padStart(2, '0')).join('')}`;
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="OctoPrice">
-  <rect width="512" height="512" rx="113" fill="${bg}"/>
-  <polygon points="${points}" fill="${bolt}"/>
-</svg>
-`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="OctoAgile Advisor">
+  <rect width="512" height="512" rx="113" fill="${hex(BACKGROUND)}"/>
+${svgMark()}
+</svg>\n`;
+}
+
+function svgBrandMark() {
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="OctoAgile Advisor price pulse">
+${svgMark()}
+</svg>\n`;
 }
 
 mkdirSync(OUT_DIR, { recursive: true });
@@ -211,6 +253,7 @@ const outputs = [
   ['icon-maskable-512.png', renderIcon(512, { maskable: true })],
   ['badge-96.png', renderBadge(96)],
   ['icon.svg', Buffer.from(svgIcon(), 'utf8')],
+  ['brand-mark.svg', Buffer.from(svgBrandMark(), 'utf8')],
 ];
 
 for (const [name, data] of outputs) {

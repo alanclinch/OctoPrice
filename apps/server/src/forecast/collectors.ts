@@ -35,7 +35,7 @@ import { describeError } from '../logger.ts';
  * also simply good manners on a free public API.
  */
 export const COLLECTOR_USER_AGENT =
-  'OctoPrice/0.1 (+https://github.com/alanclinch/OctoPrice) forecasting-input-archive';
+  'OctoAgileAdvisor/0.1 (+https://github.com/alanclinch/OctoPrice) forecasting-input-archive';
 
 /** One observation about one settlement period, as collected. */
 export interface CollectedInput {

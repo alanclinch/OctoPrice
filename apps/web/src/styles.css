@@ -2,8 +2,8 @@
  * Mobile-first styling.
  *
  * The interface is deliberately plain (DESIGN.md sections 12 and 41): the job
- * is to show a price and get out of the way. Colour is reserved for price
- * bands, so it always means something.
+ * is to show a price and get out of the way. Price-band colours remain
+ * semantic; the violet/mint identity is confined to branding and controls.
  *
  * Theme follows the system unless the user has chosen light or dark, which is
  * stamped onto the root element as `data-theme`.
@@ -16,7 +16,7 @@
   --border: #dcdfe6;
   --text: #16191f;
   --text-muted: #5d6470;
-  --accent: #4a3aff;
+  --accent: #5c43e6;
   --accent-contrast: #ffffff;
 
   /* Price bands, cheap to expensive. */
@@ -133,11 +133,36 @@ button {
   padding: calc(12px + env(safe-area-inset-top)) 0 12px;
 }
 
-.app-header h1 {
-  font-size: 1.15rem;
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
 }
 
-.app-header .region {
+.brand-icon {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+}
+
+.brand-copy {
+  min-width: 0;
+}
+
+.brand-name {
+  font-size: 1.05rem;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.brand-name span {
+  color: var(--accent);
+}
+
+.brand-copy .region {
+  display: block;
+  margin-top: 2px;
   color: var(--text-muted);
   font-size: 0.85rem;
 }
@@ -697,11 +722,17 @@ input[type='checkbox'] {
 
 .app-footer {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   gap: 6px;
   padding: 18px 0 4px;
   color: var(--text-muted);
   font-size: 0.8rem;
+}
+
+.footer-disclaimer {
+  flex-basis: 100%;
+  text-align: center;
 }
 
 .app-footer a {
@@ -748,6 +779,31 @@ input[type='checkbox'] {
   text-align: center;
   padding: 28px 0;
   color: var(--text-muted);
+}
+
+@media (max-width: 380px) {
+  .app-header {
+    gap: 8px;
+  }
+
+  .brand-lockup {
+    gap: 7px;
+  }
+
+  .brand-icon {
+    width: 34px;
+    height: 34px;
+    flex-basis: 34px;
+  }
+
+  .brand-name {
+    font-size: 0.96rem;
+  }
+
+  .app-header .btn.compact {
+    padding: 6px 8px;
+    font-size: 0.78rem;
+  }
 }
 
 @media (min-width: 600px) {

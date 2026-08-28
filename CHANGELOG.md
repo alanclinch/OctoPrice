@@ -34,6 +34,12 @@ Octopus publication cycles.
 
 ### Changed
 
+- **OctoPrice is now OctoAgile Advisor.** The new Price Pulse identity turns
+  five half-hour price bars into a forward arrow, with a reproducible SVG/PWA
+  icon set, refreshed violet-and-mint branding, the shorter launcher name
+  “Agile Advisor”, and an explicit independent-app notice. Technical storage,
+  package and deployment identifiers remain unchanged to protect existing
+  sessions and production data.
 - **The app is now private.** Every screen requires an invite link. Anyone
   with the address used to be able to read the dashboard and change the
   region, alert rules and notifications for everybody.

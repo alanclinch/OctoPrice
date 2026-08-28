@@ -16,6 +16,7 @@ import { SettingsView } from './components/SettingsView.tsx';
 import { StatusView } from './components/StatusView.tsx';
 import { PeopleView } from './components/PeopleView.tsx';
 import { SignedOut } from './components/SignedOut.tsx';
+import { Brand } from './components/Brand.tsx';
 import type { JSX } from 'react';
 
 type Tab = 'prices' | 'settings' | 'people' | 'status';
@@ -179,7 +180,7 @@ export function App(): JSX.Element {
       }
       setError(
         caught instanceof ApiError && caught.status === 0
-          ? 'Cannot reach the OctoPrice server. Showing nothing rather than something wrong.'
+          ? 'Cannot reach the OctoAgile Advisor server. Showing nothing rather than something wrong.'
           : caught instanceof Error
             ? caught.message
             : 'Something went wrong.',
@@ -280,7 +281,7 @@ export function App(): JSX.Element {
       />
     );
   }
-  if (!overview) return <p className="error">{error ?? 'Could not load OctoPrice.'}</p>;
+  if (!overview) return <p className="error">{error ?? 'Could not load OctoAgile Advisor.'}</p>;
   const regionCode = isRegionCode(overview.settings.region) ? overview.settings.region : 'C';
   // Asked per person rather than per device: signing in on a phone somebody
   // else has used must not inherit their answer.
@@ -294,13 +295,7 @@ export function App(): JSX.Element {
   return (
     <>
       <header className="app-header">
-        <div>
-          <h1>OctoPrice</h1>
-          <span className="region">
-            {region.area}
-            {user && !user.isOwner ? ` · ${user.name}` : ''}
-          </span>
-        </div>
+        <Brand subtitle={`${region.area}${user && !user.isOwner ? ` · ${user.name}` : ''}`} />
         {showInstall && (
           <button type="button" className="btn compact" onClick={() => void install()}>
             Install app
@@ -341,6 +336,9 @@ export function App(): JSX.Element {
       {tab === 'status' && <StatusView now={now} user={user} />}
 
       <footer className="app-footer">
+        <span className="footer-disclaimer">
+          Independent app · not affiliated with Octopus Energy
+        </span>
         <span>Made by Alan Clinch</span>
         <span aria-hidden="true">·</span>
         <a href="https://github.com/alanclinch/OctoPrice" target="_blank" rel="noreferrer">

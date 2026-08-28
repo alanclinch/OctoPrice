@@ -40,10 +40,13 @@ self.addEventListener('push', (event) => {
   try {
     payload = (event.data?.json() as PushPayload) ?? {};
   } catch {
-    payload = { title: 'OctoPrice', body: event.data?.text() ?? 'New price information' };
+    payload = {
+      title: 'OctoAgile Advisor',
+      body: event.data?.text() ?? 'New price information',
+    };
   }
 
-  const title = payload.title ?? 'OctoPrice';
+  const title = payload.title ?? 'OctoAgile Advisor';
   const url = payload.url ?? '/';
 
   // `renotify` is part of the Notification API but missing from the DOM lib

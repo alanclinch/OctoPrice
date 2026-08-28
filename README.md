@@ -1,13 +1,16 @@
-# OctoPrice
+# OctoAgile Advisor
 
 Know when Octopus Agile electricity is cheap — without having to remember to
 look.
 
-OctoPrice watches the Octopus Energy Agile tariff for your region, notices the
+OctoAgile Advisor watches the Octopus Energy Agile tariff for your region, notices the
 moment tomorrow's half-hourly prices are published, and pushes you a
 notification telling you the cheapest slot, the most expensive slot, and
 whether anything matched the alerts you set up. It installs to an Android home
 screen as an app, and works in any browser.
+
+OctoAgile Advisor is an independent app and is not affiliated with Octopus
+Energy.
 
 > Status: MVP feature-complete. Cloudflare deployment is supported; see
 > `AI_HANDOFF.md` for the current live-deployment state.
@@ -22,7 +25,7 @@ screen as an app, and works in any browser.
 - **Guided setup and installation.** The first visit asks for your electricity
   area, and the header always offers an install action for the PWA.
 - **Publication alerts.** Octopus usually publishes next-day prices around
-  16:00 but is entitled to take until 22:00. OctoPrice polls until the full
+  16:00 but is entitled to take until 22:00. OctoAgile Advisor polls until the full
   day has actually arrived, then tells you.
 - **Your own alert rules.** "Below 7p", "negative", "below 5p for at least two
   hours between 22:00 and 06:00" — all the same rules engine, no hard-coded

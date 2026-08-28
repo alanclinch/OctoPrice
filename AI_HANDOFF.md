@@ -40,9 +40,10 @@ implementation is genuinely blocked.
 ## Current State
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
-- **Current branch:** `main`
-- **Source control:** forecast enablement commit `330bba7` is pushed and
-  deployed; Claude approved the background-cache fixes in `c63d379`
+- **Current branch:** `codex/octoagile-rebrand`
+- **Source control:** the OctoAgile Advisor rebrand is verified locally and
+  ready to commit; forecast enablement commit `330bba7` remains deployed and
+  Claude approved the background-cache fixes in `c63d379`
 - **Build status:** passing — `npm run verify`
 - **Test status:** passing — 330 tests across 13 files
 - **Deployed:** `330bba7`, Worker version
@@ -93,6 +94,12 @@ GitHub remote or a real device:
   deployment).
 - CI workflow written (`.github/workflows/ci.yml`) — format, lint, typecheck,
   test, build, plus a check that the generated icons are reproducible.
+- OctoPrice rebranded to **OctoAgile Advisor** with the selected Price Pulse
+  mark (five half-hour bars flowing into a forward arrow), violet/mint brand
+  accents, a reproducible SVG/PNG/maskable/Android-badge asset set, updated PWA
+  metadata and an explicit independent-app notice. Internal package, storage,
+  repository and Cloudflare identifiers deliberately remain `octoprice` so
+  the visual rename cannot invalidate sessions or production data.
 
 ## Open Review Findings
 
@@ -701,7 +708,7 @@ model against it. Test ENTSO-E alongside those steps rather than blocking them.
 1. After roughly 13:20 BST, confirm the first region-N cache exists and the
    signed-in price timeline displays estimates for tomorrow and the following
    day.
-2. Capture OctoPrice and comparison-app forecasts at the same issue time, then
+2. Capture OctoAgile Advisor and comparison-app forecasts at the same issue time, then
    compare each half-hour against the eventual confirmed Octopus prices.
 3. **Confirm the new Android badge visually.** Send another test notification
    after the updated service worker is active and confirm the tray shows the
@@ -722,9 +729,9 @@ model against it. Test ENTSO-E alongside those steps rather than blocking them.
 
 - **The new Android notification badge has not yet been seen on the phone.**
   The previous badge delivered successfully but appeared as a white square.
-  Its replacement is a verified transparent lightning-bolt alpha mask and is
-  served live, but still needs one real notification to confirm Android's
-  rendering.
+  Its replacement is a verified transparent Price Pulse alpha mask, but still
+  needs one real notification after the rebrand is deployed to confirm
+  Android's rendering.
 - **`node:sqlite` prints an experimental warning on Node 24.** Harmless, but
   noisy in local development; production uses D1.
 - **Product discovery has only been exercised for `AGILE-24-10-01`**, the

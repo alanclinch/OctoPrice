@@ -6,6 +6,7 @@
  */
 
 import type { JSX } from 'react';
+import { Brand } from './Brand.tsx';
 
 export function SignedOut({
   reason,
@@ -15,7 +16,7 @@ export function SignedOut({
   if (reason === 'unreachable') {
     return (
       <div className="card" style={{ marginTop: 32 }}>
-        <h2>OctoPrice</h2>
+        <Brand level={2} />
         <p>Could not reach the server to sign you in.</p>
         <p className="muted small">
           Your link is still good. Pull down to refresh, or open it again in a moment.
@@ -29,7 +30,7 @@ export function SignedOut({
 
   return (
     <div className="card" style={{ marginTop: 32 }}>
-      <h2>OctoPrice</h2>
+      <Brand level={2} />
       <p>
         {reason === 'invalid'
           ? 'That link will not sign you in. It may have been replaced by a newer one.'
