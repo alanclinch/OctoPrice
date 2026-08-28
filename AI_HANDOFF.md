@@ -225,6 +225,80 @@ Before changing the user-visible model:
 
 ## Open Review Findings
 
+### Shadow mode `d0cd541` and owner experiment `13c65cf` — Claude, 2026-08-28
+
+`npm run verify` passes with 347 tests across 16 files. Both passes reviewed
+together; the sequencing is right, and keeping the October back-test, the
+second horizon and calibrated uncertainty as promotion gates rather than
+blockers on collecting private evidence is the correct call.
+
+Checked rather than assumed:
+
+- **The live shadow path cannot leak, which was the thing most likely to be
+  wrong.** `generateTomorrowShadowRuns` fires any time after 14:00, including
+  20:00 when tomorrow's confirmed prices are already stored, so the v1 vintage
+  could easily have been contaminated. It is not:
+  `buildReferenceBaselineDay` bounds its history query to
+  `[issueDate - 28, endOfLondonDay(issueDate)]` and passes
+  `now: analogueIssueCutoff(date)`, so the target day is unreachable regardless
+  of when the turn runs. The post-cut-off rejection of Elexon and NESO
+  observations has its own test, and the 14:00 cut-off is tested across both
+  clock changes.
+- **Isolation holds.** `/api/overview` touches only `safeBaselineForecast` and
+  the v1 cache — no analogue or shadow reference. Shadow work runs in its own
+  turn, wrapped in `try`/`catch`, with the turn flag reset in `finally`, so a
+  shadow failure cannot take the visible path with it.
+- **Access control is real, not cosmetic.** `resolveUser` returns 401 before
+  routing, then `/api/forecast-experiment` returns 403 for a non-owner, both
+  before any data is read. Tested for anonymous, non-owner and owner, plus a
+  test that the overview response carries no experiment payload. The UI gates
+  the tab as well, which is defence in depth rather than the gate itself.
+- **Finding 4 from the previous review is properly fixed**: the inverse-distance
+  floor is now `median * 1e-6` computed over all candidates before slicing, with
+  a scale-invariance regression test. The clock-change path returns no v2 and
+  has an explicit test.
+- **Storage is bounded.** Prepared days are keyed `(tariff_code, pricing_date)`
+  at roughly 1.75 KB each, and `forecast_runs` is unique per
+  `(model, tariff, target_date, issue_cutoff)` with one fixed cut-off per day,
+  so it grows about two rows a day for the reference tariff. No retention policy
+  is needed at that rate.
+
+Four findings, none blocking the merge.
+
+**1. Medium — alternating turns halve the visible v1 cache refresh rate.**
+Before this pass, `runForecastBackgroundJob` refreshed one tariff's cache on
+every forecast Cron invocation once backfill was caught up. It now alternates
+baseline and shadow turns, so a full cycle takes roughly `10 x N` minutes for N
+active tariffs instead of `5 x N`. Because cached forecasts are invalidated at
+the London day boundary, the window each midnight in which users see
+"Experimental estimates are being refreshed" rather than estimates doubles with
+it. A private experiment should not make the visible feature slower to recover.
+Suggest either giving shadow work its own Cron minute offset, or taking a
+shadow turn only when no tariff's cache is currently stale.
+
+**2. Low/Medium — the `Secure` cookie flag became conditional inside a commit
+about a forecast tab.** Production is safe and I verified why:
+`worker.ts` hardcodes `NODE_ENV: 'production'` in `configFor`, so
+`requiresSecureCookie` is always true on the deployed Worker. The concern is the
+fallback direction — `NODE_ENV` defaults to `'development'` in the schema, so
+the guard fails open, and anyone running the Node/Fastify path without setting
+it would serve session cookies without `Secure`. An explicit opt-in such as
+`ALLOW_INSECURE_COOKIE=true` would fail closed instead. Worth separating auth
+changes from feature commits, too; this one is easy to miss under that subject.
+
+**3. Low — the 100-row budget is enforced by silently abandoning the run.**
+`if (... || candidates.length > 100) return false` produces no pair and no
+signal beyond a `false`. It cannot trigger with `ANALOGUE_CANDIDATE_DAYS = 90`,
+but if the lookback is ever raised the shadow would quietly stop generating
+evidence. Trim to the nearest candidates instead, or log when the budget binds.
+
+**4. Low — a non-owner who opens `/forecast` gets a blank page.** `initialTab`
+maps the path before any owner check, and the render is gated on
+`user?.isOwner`, so the body renders nothing while the nav omits the tab. The
+existing `/people` handling has the same shape, so this is not introduced here;
+falling back to `prices` for a non-owner would fix both.
+
+
 ### Fundamentals-analogue implementation `3b2b48b` — Claude, 2026-08-28
 
 `npm run verify` passes with 334 tests across 14 files, and I reproduced the
