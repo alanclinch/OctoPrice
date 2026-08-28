@@ -1,9 +1,10 @@
 /**
  * Seasonal-naive forecast orchestration.
  *
- * Network history backfill runs only after the confirmed-price cron work. API
- * requests perform database reads and pure calculations; they never wait on
- * Octopus. Any missing input yields no forecast rather than a degraded one.
+ * Network history backfill and forecast calculation run on their own Cron.
+ * API requests only read a prepared cache; they never wait on Octopus or
+ * calculate an estimate. Any missing input yields no forecast rather than a
+ * degraded one.
  */
 
 import {
@@ -28,19 +29,72 @@ import type { PriceService, TariffSelection } from '../prices/service.ts';
 
 export const FORECAST_HISTORY_DAYS = 28;
 const BACKFILL_STATE_PREFIX = 'forecast_history_cursor:';
+const BACKFILL_ATTEMPT_STATE_PREFIX = 'forecast_history_attempt:';
 const FORECAST_CACHE_PREFIX = 'forecast_baseline_cache:';
 const FORECAST_CACHE_CURSOR = 'forecast_baseline_cache_cursor';
+export const FORECAST_BACKFILL_MAX_ATTEMPTS = 3;
 export const FORECAST_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000;
-export const FORECAST_BACKGROUND_CRON = '2-59/5 * * * *';
-
-export function isForecastBackgroundCron(cron: string): boolean {
-  return cron === FORECAST_BACKGROUND_CRON;
-}
 
 export interface ForecastBackfillResult {
   ran: boolean;
   stored: number;
   tariffs: number;
+}
+
+interface ForecastBackfillTask {
+  tariff: TariffSelection;
+  date: PricingDate;
+  key: string;
+}
+
+async function recordBackfillFailure(
+  options: { store: Store; logger: Logger },
+  task: ForecastBackfillTask,
+): Promise<boolean> {
+  const attemptKey = `${BACKFILL_ATTEMPT_STATE_PREFIX}${task.tariff.tariffCode}`;
+
+  try {
+    const value = await options.store.getState(attemptKey);
+    let previousAttempts = 0;
+    if (value) {
+      try {
+        const parsed: unknown = JSON.parse(value);
+        if (
+          typeof parsed === 'object' &&
+          parsed !== null &&
+          'date' in parsed &&
+          parsed.date === task.date &&
+          'attempts' in parsed &&
+          typeof parsed.attempts === 'number' &&
+          Number.isInteger(parsed.attempts) &&
+          parsed.attempts >= 0
+        ) {
+          previousAttempts = parsed.attempts;
+        }
+      } catch {
+        // A malformed counter is safely replaced below.
+      }
+    }
+
+    const attempts = previousAttempts + 1;
+    await options.store.setState(attemptKey, JSON.stringify({ date: task.date, attempts }));
+    if (attempts < FORECAST_BACKFILL_MAX_ATTEMPTS) return false;
+
+    await options.store.setState(task.key, addDays(task.date, 1));
+    options.logger.warn('Skipping unavailable forecast history day after repeated attempts', {
+      tariffCode: task.tariff.tariffCode,
+      date: task.date,
+      attempts,
+    });
+    return true;
+  } catch (error) {
+    options.logger.error('Could not record forecast history backfill attempt', {
+      tariffCode: task.tariff.tariffCode,
+      date: task.date,
+      ...describeError(error),
+    });
+    return false;
+  }
 }
 
 function referenceTariff(productCode: string): TariffSelection {
@@ -77,7 +131,7 @@ export async function runForecastHistoryBackfill(options: {
     tariffs.set(reference.tariffCode, reference);
   }
 
-  const candidates: { tariff: TariffSelection; date: PricingDate; key: string }[] = [];
+  const candidates: ForecastBackfillTask[] = [];
   for (const tariff of tariffs.values()) {
     const key = `${BACKFILL_STATE_PREFIX}${tariff.tariffCode}`;
     const cursor = await options.store.getState(key);
@@ -107,7 +161,8 @@ export async function runForecastHistoryBackfill(options: {
         tariffCode: task.tariff.tariffCode,
         date: task.date,
       });
-      return { ran: true, stored: 0, tariffs: 0 };
+      const advanced = await recordBackfillFailure(options, task);
+      return { ran: true, stored: 0, tariffs: advanced ? 1 : 0 };
     }
 
     const refreshed = await options.priceService.storedDay(task.date, task.tariff.tariffCode);
@@ -117,7 +172,8 @@ export async function runForecastHistoryBackfill(options: {
         date: task.date,
         periods: refreshed.length,
       });
-      return { ran: true, stored, tariffs: 0 };
+      const advanced = await recordBackfillFailure(options, task);
+      return { ran: true, stored, tariffs: advanced ? 1 : 0 };
     }
 
     await options.store.setState(task.key, addDays(task.date, 1));
@@ -133,7 +189,8 @@ export async function runForecastHistoryBackfill(options: {
       date: task.date,
       ...describeError(error),
     });
-    return { ran: true, stored: 0, tariffs: 0 };
+    const advanced = await recordBackfillFailure(options, task);
+    return { ran: true, stored: 0, tariffs: advanced ? 1 : 0 };
   }
 }
 
@@ -143,7 +200,7 @@ export interface BaselineForecast {
   historyDays: number;
   periods: ForecastPricePeriod[];
   unavailableReason:
-    'disabled' | 'failed' | 'insufficient-history' | 'regional-transform-failed' | null;
+    'disabled' | 'failed' | 'stale' | 'insufficient-history' | 'regional-transform-failed' | null;
 }
 
 interface CachedBaselineForecast {
@@ -219,16 +276,17 @@ export async function readBaselineForecastCache(options: {
   const value = await options.store.getState(cacheKey(options.tariff.tariffCode));
   if (!value) return unavailableBaselineForecast('insufficient-history');
   const cached = parseCachedForecast(value);
-  const generatedAt = cached ? Date.parse(cached.generatedAt) : Number.NaN;
+  if (!cached) return unavailableBaselineForecast('failed');
+  const generatedAt = Date.parse(cached.generatedAt);
+  if (!Number.isFinite(generatedAt) || cached.tariffCode !== options.tariff.tariffCode) {
+    return unavailableBaselineForecast('failed');
+  }
   if (
-    !cached ||
-    !Number.isFinite(generatedAt) ||
-    cached.tariffCode !== options.tariff.tariffCode ||
-    londonDateOf(new Date(cached.generatedAt)) !== londonDateOf(options.now) ||
+    londonDateOf(new Date(generatedAt)) !== londonDateOf(options.now) ||
     generatedAt > options.now.getTime() + 60_000 ||
     options.now.getTime() - generatedAt > FORECAST_CACHE_MAX_AGE_MS
   ) {
-    return unavailableBaselineForecast('insufficient-history');
+    return unavailableBaselineForecast('stale');
   }
   return cached.forecast;
 }

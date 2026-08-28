@@ -185,6 +185,13 @@ A missing, malformed, stale or failed cache returns no estimates rather than
 failing the overview, and `FORECAST_BASELINE_ENABLED` can disable both display
 and background work.
 
+An unavailable historical tariff-day is tried three times before its cursor
+advances. This prevents a date from before a product launch from starving all
+other tariffs indefinitely; missing days simply reduce the observations
+available to the deliberately conservative baseline. Cron expressions are
+defined in code and checked against `wrangler.jsonc`; an unrecognised trigger
+is logged and ignored rather than falling through to price and alert work.
+
 Forecasts appear only in the price table and chart. They do not enter the
 current/next card, publication status, alerts, rules or cheapest-window
 calculator. A confirmed timestamp is removed from the forecast result before
@@ -206,8 +213,8 @@ because its router uses runtime code generation, which Workers disallow.
 ## Request flow
 
 1. The PWA calls `GET /api/overview` on load, on focus, and once a minute.
-2. The API reads the store and calculates any experimental estimate from that
-   stored history; it never triggers a fetch from Octopus.
+2. The API reads confirmed prices and a prepared experimental-estimate cache;
+   it never triggers an Octopus fetch or calculates an estimate.
 3. The poller writes to the store on its own schedule.
 
 Keeping reads and fetches separate means a slow or failing Octopus API cannot

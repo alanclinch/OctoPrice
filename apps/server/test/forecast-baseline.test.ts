@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import {
   addDays,
   buildTariffCode,
@@ -12,23 +13,37 @@ import { OctopusClient } from '../src/octopus/client.ts';
 import { PriceService, type TariffSelection } from '../src/prices/service.ts';
 import {
   FORECAST_CACHE_MAX_AGE_MS,
-  FORECAST_BACKGROUND_CRON,
+  FORECAST_BACKFILL_MAX_ATTEMPTS,
   FORECAST_HISTORY_DAYS,
   buildBaselineForecast,
   readBaselineForecastCache,
   refreshOneBaselineForecast,
-  isForecastBackgroundCron,
   runForecastBackgroundJob,
   runForecastHistoryBackfill,
 } from '../src/forecast/baseline.ts';
+import {
+  CORE_CRON,
+  FORECAST_BACKGROUND_CRON,
+  scheduledJobForCron,
+} from '../src/scheduler/crons.ts';
 import { makeRateRecords, ratesResponse, silentLogger } from './helpers.ts';
 
 const NOW = new Date('2026-01-15T17:00:00.000Z');
 const PRODUCT = 'AGILE-24-10-01';
 
 it('recognises only the staggered forecast Cron', () => {
-  expect(isForecastBackgroundCron(FORECAST_BACKGROUND_CRON)).toBe(true);
-  expect(isForecastBackgroundCron('*/5 * * * *')).toBe(false);
+  expect(scheduledJobForCron(FORECAST_BACKGROUND_CRON)).toBe('forecast');
+  expect(scheduledJobForCron(CORE_CRON)).toBe('core');
+  expect(scheduledJobForCron('3 * * * *')).toBe('unknown');
+});
+
+it('keeps the Worker Cron configuration tied to the forecast router', () => {
+  const wrangler = readFileSync(new URL('../../../wrangler.jsonc', import.meta.url), 'utf8');
+  const cronBlock = /"crons"\s*:\s*\[([^\]]*)\]/.exec(wrangler)?.[1] ?? '';
+  const crons = [...cronBlock.matchAll(/"([^"]+)"/g)].map((match) => match[1]);
+
+  expect(crons).toContain(CORE_CRON);
+  expect(crons).toContain(FORECAST_BACKGROUND_CRON);
 });
 
 function historyRates(date: string): ReturnType<typeof makeRateRecords> {
@@ -184,6 +199,48 @@ describe('forecast history backfill', () => {
     expect(first).toMatchObject({ ran: true, tariffs: 0 });
     expect(calls).toBe(2);
   });
+
+  it('skips a repeatedly unavailable day so another tariff can continue', async () => {
+    await store.getSettings('default');
+    await store.updateSettings('default', { region: 'N' });
+    const referenceCode = buildTariffCode(PRODUCT, 'C');
+    const targetCode = buildTariffCode(PRODUCT, 'N');
+    const oldest = addDays(londonDateOf(NOW), -FORECAST_HISTORY_DAYS);
+    const fetchFn = (async (input: RequestInfo | URL) => {
+      const url = String(input);
+      const from = new URL(url).searchParams.get('period_from');
+      const date = londonDateOf(new Date(from as string));
+      const rates = url.includes(referenceCode) ? [] : historyRates(date);
+      return new Response(JSON.stringify(ratesResponse(rates)), {
+        headers: { 'content-type': 'application/json' },
+      });
+    }) as typeof fetch;
+    const priceService = new PriceService({
+      store,
+      client: new OctopusClient({ logger: silentLogger(), fetchFn }),
+      logger: silentLogger(),
+      forcedProductCode: PRODUCT,
+      now: () => NOW,
+    });
+
+    for (let attempt = 0; attempt < FORECAST_BACKFILL_MAX_ATTEMPTS; attempt += 1) {
+      await runForecastHistoryBackfill({
+        store,
+        priceService,
+        logger: silentLogger(),
+        now: () => NOW,
+      });
+    }
+    await runForecastHistoryBackfill({
+      store,
+      priceService,
+      logger: silentLogger(),
+      now: () => NOW,
+    });
+
+    expect(store.getState(`forecast_history_cursor:${referenceCode}`)).toBe(addDays(oldest, 1));
+    expect(store.getState(`forecast_history_cursor:${targetCode}`)).toBe(addDays(oldest, 1));
+  });
 });
 
 describe('baseline forecast assembly', () => {
@@ -305,7 +362,7 @@ describe('baseline forecast assembly', () => {
     });
   });
 
-  it('refuses malformed, expired or previous-day cache entries', async () => {
+  it('distinguishes missing, malformed and stale cache entries', async () => {
     await store.getSettings('default');
     const tariff: TariffSelection = {
       productCode: PRODUCT,
@@ -314,10 +371,15 @@ describe('baseline forecast assembly', () => {
     };
     const key = `forecast_baseline_cache:${tariff.tariffCode}`;
 
-    await store.setState(key, '{broken');
     await expect(readBaselineForecastCache({ store, tariff, now: NOW })).resolves.toMatchObject({
       periods: [],
       unavailableReason: 'insufficient-history',
+    });
+
+    await store.setState(key, '{broken');
+    await expect(readBaselineForecastCache({ store, tariff, now: NOW })).resolves.toMatchObject({
+      periods: [],
+      unavailableReason: 'failed',
     });
 
     await store.setState(
@@ -337,7 +399,30 @@ describe('baseline forecast assembly', () => {
     );
     await expect(readBaselineForecastCache({ store, tariff, now: NOW })).resolves.toMatchObject({
       periods: [],
-      unavailableReason: 'insufficient-history',
+      unavailableReason: 'stale',
+    });
+
+    const shortlyAfterMidnight = new Date('2026-01-15T00:30:00.000Z');
+    await store.setState(
+      key,
+      JSON.stringify({
+        version: 1,
+        tariffCode: tariff.tariffCode,
+        generatedAt: '2026-01-14T23:45:00.000Z',
+        forecast: {
+          model: 'seasonal-naive-v1',
+          referenceRegion: 'C',
+          historyDays: FORECAST_HISTORY_DAYS,
+          periods: [],
+          unavailableReason: 'insufficient-history',
+        },
+      }),
+    );
+    await expect(
+      readBaselineForecastCache({ store, tariff, now: shortlyAfterMidnight }),
+    ).resolves.toMatchObject({
+      periods: [],
+      unavailableReason: 'stale',
     });
   });
 });

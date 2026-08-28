@@ -856,6 +856,11 @@ its own 10 ms Workers Free CPU budget. Failures are logged and never affect
 confirmed prices or alerts. API requests read one prepared D1 cache value and
 never wait on an upstream service or calculate a forecast.
 
+An empty, incomplete or failed historical day is retried three times. The job
+then advances past it so a date from before a product launch cannot block every
+tariff forever. The model still requires at least three comparable observations
+per target slot; skipping unavailable history cannot quietly weaken that gate.
+
 The calculation follows the binding regional finding in section 1:
 
 1. Forecast reference region C from the median of up to eight recent prices
@@ -919,11 +924,12 @@ only on the staggered forecast Cron. Reading and validating its 96-period cache
 costs about 0.07–0.08 ms median and at most 0.14 ms p95 in repeated runs,
 before the asynchronous D1 wait.
 
-The cache is accepted only for the current London day and for six hours
-after generation. The overview removes any timestamp that has since acquired
-an official price, preserving confirmed-price precedence even between cache
-refreshes. Any cache exception degrades to no estimates while confirmed prices
-still return normally.
+The cache is accepted only for the current London day and for six hours after
+generation. The overview removes any timestamp that has since acquired an
+official price, preserving confirmed-price precedence even between cache
+refreshes. Missing history, a cache awaiting refresh and a malformed cache are
+reported separately; every case degrades to no estimates while confirmed
+prices still return normally.
 
 `FORECAST_BASELINE_ENABLED` is the independent kill switch. It defaults off
 and remains off until this background-cache change is reviewed and deployed.

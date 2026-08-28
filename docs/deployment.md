@@ -124,6 +124,10 @@ two things of very different cost:
 When `FORECAST_BASELINE_ENABLED=true`, a second trigger runs at minutes 2, 7,
 12 and so on. It incrementally backfills history and prepares cached estimates
 without sharing an invocation or CPU budget with confirmed prices and alerts.
+Both expressions are defined in `apps/server/src/scheduler/crons.ts`, and a
+test requires `wrangler.jsonc` to contain them. The Worker ignores and logs any
+unknown Cron expression so configuration drift cannot accidentally run core
+price and alert work more often.
 
 ## Local Cloudflare runtime
 

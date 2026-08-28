@@ -194,7 +194,9 @@ export function PricesView({ overview, now, display }: PricesViewProps): JSX.Ele
               ? 'Experimental estimates are temporarily unavailable. Confirmed prices are unaffected.'
               : overview.forecast.unavailableReason === 'disabled'
                 ? 'Experimental estimates are currently switched off.'
-                : 'Experimental estimates will appear after enough recent price history has been collected.'}
+                : overview.forecast.unavailableReason === 'stale'
+                  ? 'Experimental estimates are being refreshed. Confirmed prices are unaffected.'
+                  : 'Experimental estimates will appear after enough recent price history has been collected.'}
           </p>
         )}
       </div>

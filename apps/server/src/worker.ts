@@ -13,7 +13,8 @@ import { AlertDispatcher } from './alerts/dispatcher.ts';
 import { PricePoller } from './scheduler/poller.ts';
 import { handleApiRequest } from './api/handler.ts';
 import { runArchive, runScheduledJobs } from './forecast/archive.ts';
-import { isForecastBackgroundCron, runForecastBackgroundJob } from './forecast/baseline.ts';
+import { runForecastBackgroundJob } from './forecast/baseline.ts';
+import { scheduledJobForCron } from './scheduler/crons.ts';
 
 interface Env {
   DB: D1Database;
@@ -203,10 +204,15 @@ export default {
     // Forecast history and calculation have their own invocation and their
     // own 10 ms Free-plan CPU budget. They must never share the confirmed
     // price/alert invocation below or run on an HTTP request.
-    if (isForecastBackgroundCron(controller.cron)) {
+    const scheduledJob = scheduledJobForCron(controller.cron);
+    if (scheduledJob === 'forecast') {
       if (config.forecastBaselineEnabled) {
         context.waitUntil(runForecastBackgroundJob({ store, priceService, logger }));
       }
+      return;
+    }
+    if (scheduledJob === 'unknown') {
+      logger.warn('Ignoring unrecognised Cron trigger', { cron: controller.cron });
       return;
     }
 

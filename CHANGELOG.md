@@ -40,6 +40,12 @@ Octopus publication cycles.
 
 ### Fixed
 
+- Forecast history collection no longer gets stuck forever when an old date
+  is unavailable for a newly launched tariff. It retries three times, skips
+  that date, and lets other regions continue. Unknown Cron expressions are
+  ignored rather than accidentally running price and alert work.
+- A cache waiting for its next background refresh now says exactly that,
+  instead of incorrectly saying more historical prices need to be collected.
 - **Notifications now actually arrive.** No notification of any kind had ever
   been sent in production. Octopus publishes a day only up to about 23:00
   local and delivers the remainder later, so a day never reached the
