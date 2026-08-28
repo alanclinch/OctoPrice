@@ -95,6 +95,77 @@ GitHub remote or a real device:
 
 ## Open Review Findings
 
+### Background forecast cache `1aa8476` — Claude, 2026-08-28
+
+Reviewed against `origin/main`. `npm run verify` exits 0 with 328 tests across
+13 files. Moving the calculation off the request path is the right call and the
+numbers hold up: I reran the benchmark and measured the cache read at **0.063 ms
+median, 0.104 ms p95** for 96 periods, against 3.74 ms median for the full
+calculation. Set beside the live P90/P99 of 8.68 ms with forecasting off, that
+is the difference between fitting the 10 ms budget and not.
+
+Checked and correct: the two Cron expressions are genuinely disjoint (`*/5`
+fires at :00,:05..:55, `2-59/5` at :02,:07..:57); cache validation covers
+version, tariff match, London-day match, a +60 s future guard, the six-hour age
+limit and the shape of every period; and the overview re-applies confirmed
+precedence by filtering cached periods against today's and tomorrow's stored
+starts, with a test for it.
+
+I also checked the clock-change risk directly rather than reasoning about it,
+since the backfill only advances when `isDayComplete` is satisfied and both
+transition days will enter the rolling 28-day window. Against the live Octopus
+API, 2026-03-29 returns 46 periods and 2025-10-26 returns 50, and both satisfy
+`isDayComplete`. That failure mode is not real.
+
+Three findings, none blocking a merge, but the first two should be fixed before
+the flag is switched on.
+
+**1. Medium — nothing ties `wrangler.jsonc` to `FORECAST_BACKGROUND_CRON`.**
+`isForecastBackgroundCron` is exact string equality against
+`'2-59/5 * * * *'`, and the only test asserts the constant matches itself, which
+cannot fail. If either side is edited independently the routing breaks silently,
+and the fall-through is the damaging direction: an unmatched forecast Cron falls
+into the core branch, so price polling and alert dispatch would run at
+:00,:02,:05,:07 — roughly doubling Octopus polling and alert evaluation with no
+error anywhere. Please add a test that reads `wrangler.jsonc` and asserts its
+`triggers.crons` contains `FORECAST_BACKGROUND_CRON` alongside the core
+expression. That is the one assertion that matters here and it is the one not
+being made.
+
+**2. Medium — one un-completable backfill day now stalls all forecasting,
+permanently.** `runForecastHistoryBackfill` has three paths that return
+`ran: true` *without* advancing the cursor: Octopus returns nothing for the
+date, the day is still incomplete after storing, or the call throws. That was
+survivable before, because forecasts were computed from whatever history
+existed. Now `runForecastBackgroundJob` refreshes the cache only when
+`!backfill.ran`, so a cursor that cannot advance blocks the cache forever, not
+just the history. It is amplified by the scheduling: `candidates` is sorted by
+date and only `candidates[0]` runs per invocation, so a single stuck tariff-day
+also blocks every *other* tariff's backfill indefinitely.
+
+Transient failures self-heal, and per finding 3 above the clock-change days are
+fine. The permanent case is a date Octopus can never serve — most plausibly
+after `OCTOPUS_PRODUCT_CODE` is pointed at a product launched less than 28 days
+ago, where the earliest days of the window will always return nothing. The
+symptom would be silent: no forecasts for anyone, one `warn` line per five
+minutes, and a UI message saying history is still being collected. Suggest
+counting attempts per date and skipping forward past a date that has failed
+repeatedly.
+
+**3. Low — a stale cache reports itself as missing history.** Absent, expired,
+previous-day and corrupt entries all collapse to `insufficient-history`, which
+the UI renders as “estimates will appear after enough recent price history has
+been collected”. Because entries are invalidated at the London day boundary and
+only one tariff is refreshed per five minutes, every user sees that message
+after each midnight until their tariff's turn comes round — up to roughly five
+minutes times the number of active tariffs — saying history is missing when it
+is complete. A separate `stale` reason with its own wording would be honest and
+would also make the round-robin's latency visible if it ever grows.
+
+One thing only a deploy can settle, already in the rollout plan: whether the
+Free plan accepts the second Cron Trigger.
+
+
 ### Background forecast cache — awaiting Claude review
 
 Live Cloudflare metrics with the baseline disabled measured P50 6.17 ms and
