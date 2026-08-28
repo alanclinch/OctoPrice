@@ -120,6 +120,91 @@ GitHub remote or a real device:
   notification and confirm the Price Pulse tray badge renders rather than a
   white square.
 
+## Proposed Forecast Model V2 — Codex, 2026-08-28
+
+Alan asked Codex to improve the model after comparing the first live Southern
+Scotland forecast with Octopus Watch, AgilePredict and the subsequently
+published Octopus prices. **Claude should review this proposal here and record
+actionable findings under Open Review Findings. Claude should not implement it;
+the standing forecasting roles still apply.**
+
+### What the live comparison established
+
+- `seasonal-naive-v1` detected a pronounced cheap shape, but put it around
+  midday rather than in the genuinely cheapest overnight periods and
+  substantially under-estimated the daytime price level. It found useful
+  historical shape, but weekday/weekend classification could not identify the
+  next day's system conditions.
+- AgilePredict's overnight low was still roughly 4–6p above the eventual
+  15–16p prices. Its overall level was better calibrated, but this does not
+  erase the useful shape signal in the OctoAgile baseline.
+- The product-relevant failure was not merely point MAE: using the baseline for
+  recommendations would have selected the wrong cheap window. Cheapest-window
+  regret and timing must therefore be first-class evaluation measures.
+- The displayed recent P20–P80 range was not calibrated uncertainty and covered
+  only 5 of the first 46 published periods in this example. It must not be
+  treated as a confidence interval.
+
+These observations are from one issue day and are diagnostic, not sufficient
+evidence to tune or select a replacement model.
+
+### Recommended model
+
+Build **`fundamentals-analogue-v2`** as a residual correction over the existing
+baseline rather than immediately adopting a large ML ensemble:
+
+1. Retain `seasonal-naive-v1` as the prior and permanent benchmark.
+2. Reconstruct, with original issue times, half-hourly NESO forecasts for
+   demand, wind and solar. Derive net demand, ramps and peak/off-peak summaries.
+3. Select historical days whose forecast system-condition curves most closely
+   resemble the target day, with standardised distance and a measured recency
+   weight rather than an arbitrary weekend-only pool.
+4. For each settlement period, calculate how confirmed region-C Agile prices
+   on those analogue days differed from the seasonal baseline. Add the weighted
+   median residual to the target baseline. Fit and forecast region C only, then
+   retain the existing health-checked regional transforms.
+5. Treat recent confirmed Agile level, OPMR/reserve surplus and calendar/slot
+   features as candidate additions. Carbon Intensity forecast/mix may be added
+   once enough genuine archived vintages exist; it must not block the first
+   back-test.
+6. Investigate a licensed, reliable GB day-ahead wholesale input separately.
+   It is likely high value, but Elexon MID is not a substitute and no Nord Pool
+   dependency should be added before access and redistribution terms are
+   verified.
+
+This analogue/residual model is deliberately small, explainable and suitable
+for the isolated Cloudflare forecast cron. Any missing required input produces
+no v2 forecast; it must not weaken confirmed-price isolation or silently fall
+back under the v2 label.
+
+### Evaluation and rollout gates
+
+Before changing the user-visible model:
+
+1. Persist every forecast vintage before publication and later join it to
+   confirmed outcomes. Record model version, generated/issue time, horizon and
+   input vintages so comparisons cannot use revised information.
+2. Build leakage-safe walk-forward validation over at least 60–90 issue days,
+   scoring v1 and v2 on identical periods and issue cut-offs.
+3. Report MAE, bias, peak timing, low-price/spike precision and recall, and
+   separate tomorrow/following-day results. Also report cheapest 1h/2h/3h
+   window regret and whether the selected window begins within one hour of the
+   true optimum.
+4. Replace descriptive P20–P80 history with signed residual quantiles calibrated
+   by horizon and peak/off-peak class. Report empirical coverage and sharpness;
+   upward and downward errors need not be symmetric.
+5. Run v2 in shadow mode from the existing isolated forecast job. Promote it
+   only after it beats v1 on both point accuracy and cheapest-window regret.
+   Retain the independent kill switch and confirmed-price precedence.
+
+### Suggested Codex implementation order after review
+
+1. Forecast-vintage and outcome persistence plus automatic evaluation.
+2. Reproducible NESO vintage feature builder and documented timestamp checks.
+3. Analogue/residual model and walk-forward back-test.
+4. Shadow-mode production calculation and monitoring.
+5. User-visible promotion only after measured rollout gates pass.
+
 ## Open Review Findings
 
 ### Maskable icon fix `0c179f0` — Claude, 2026-08-28
