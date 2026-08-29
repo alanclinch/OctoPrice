@@ -125,8 +125,10 @@ two things of very different cost:
 When `FORECAST_BASELINE_ENABLED=true`, a second trigger runs at minutes 2, 7,
 12 and so on. It incrementally backfills history and prepares cached estimates
 without sharing an invocation or CPU budget with confirmed prices and alerts.
-After that history is current it alternates visible baseline refreshes with one
-bounded private analogue-shadow unit. Migration 0008 must be applied before
+After that history is current it normally alternates visible baseline refreshes
+with one bounded private analogue-shadow unit. A missing or stale visible cache
+takes priority, so active tariffs recover at the full five-minute cadence while
+the private turn remains queued. Migration 0008 must be applied before
 deploying that worker revision; the shadow tables are not exposed through the
 API and do not change the estimate users see.
 Both expressions are defined in `apps/server/src/scheduler/crons.ts`, and a

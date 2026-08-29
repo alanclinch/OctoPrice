@@ -191,8 +191,9 @@ export async function runForecastHistoryBackfill(options: {
       date: task.date,
       ...describeError(error),
     });
-    const advanced = await recordBackfillFailure(options, task);
-    return { ran: true, stored: 0, tariffs: advanced ? 1 : 0 };
+    // A thrown request may succeed on the next turn. Only stable upstream
+    // answers (empty or persistently incomplete days) spend the skip budget.
+    return { ran: true, stored: 0, tariffs: 0 };
   }
 }
 
@@ -269,6 +270,19 @@ function parseCachedForecast(value: string): CachedBaselineForecast | null {
   return parsed as unknown as CachedBaselineForecast;
 }
 
+function isCurrentCache(value: string | null, tariffCode: string, now: Date): boolean {
+  if (!value) return false;
+  const cached = parseCachedForecast(value);
+  if (!cached || cached.tariffCode !== tariffCode) return false;
+  const generatedAt = Date.parse(cached.generatedAt);
+  return (
+    Number.isFinite(generatedAt) &&
+    londonDateOf(new Date(generatedAt)) === londonDateOf(now) &&
+    generatedAt <= now.getTime() + 60_000 &&
+    now.getTime() - generatedAt <= FORECAST_CACHE_MAX_AGE_MS
+  );
+}
+
 /** Reads a recent same-day estimate prepared by the forecast-only Cron. */
 export async function readBaselineForecastCache(options: {
   store: Store;
@@ -299,6 +313,8 @@ export async function refreshOneBaselineForecast(options: {
   priceService: PriceService;
   logger: Logger;
   now?: () => Date;
+  /** Refresh only when at least one active tariff has no current cache. */
+  staleOnly?: boolean;
 }): Promise<{ ran: boolean; tariffCode: string | null }> {
   const tariffs = (await options.priceService.distinctTariffs()).sort((a, b) =>
     a.tariffCode.localeCompare(b.tariffCode),
@@ -307,8 +323,23 @@ export async function refreshOneBaselineForecast(options: {
 
   const previous = await options.store.getState(FORECAST_CACHE_CURSOR);
   const index = previous ? tariffs.findIndex((tariff) => tariff.tariffCode === previous) : -1;
-  const tariff = tariffs[(index + 1) % tariffs.length] as TariffSelection;
   const now = (options.now ?? (() => new Date()))();
+  const ordered = tariffs.map(
+    (_, offset) => tariffs[(index + 1 + offset) % tariffs.length] as TariffSelection,
+  );
+  let tariff = ordered[0] as TariffSelection;
+
+  if (options.staleOnly) {
+    const values = await Promise.all(
+      ordered.map((candidate) => options.store.getState(cacheKey(candidate.tariffCode))),
+    );
+    const staleIndex = values.findIndex(
+      (value, candidateIndex) =>
+        !isCurrentCache(value, (ordered[candidateIndex] as TariffSelection).tariffCode, now),
+    );
+    if (staleIndex < 0) return { ran: false, tariffCode: null };
+    tariff = ordered[staleIndex] as TariffSelection;
+  }
 
   try {
     const forecast = await buildBaselineForecast({ store: options.store, tariff, now });
@@ -353,6 +384,12 @@ export async function runForecastBackgroundJob(options: {
     await options.store.setState(FORECAST_BACKGROUND_TURN, 'shadow');
     return;
   }
+
+  // A private shadow turn must not leave a user waiting on a missing or stale
+  // visible estimate. Drain stale active tariffs at the normal five-minute
+  // cadence, keeping the shadow turn queued until every visible cache is current.
+  const staleRefresh = await refreshOneBaselineForecast({ ...shared, staleOnly: true });
+  if (staleRefresh.tariffCode !== null) return;
 
   const shadowWork = options.shadowWork ?? runAnalogueShadowWork;
   try {

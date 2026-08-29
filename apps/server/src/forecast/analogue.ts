@@ -30,6 +30,7 @@ import type { PriceService, TariffSelection } from '../prices/service.ts';
 const ELEXON_API = 'https://data.elexon.co.uk/bmrs/api/v1';
 const ANALOGUE_PRICE_HISTORY_DAYS = 118;
 export const ANALOGUE_CANDIDATE_DAYS = 90;
+export const ANALOGUE_CANDIDATE_LIMIT = 100;
 const ANALOGUE_PRICE_CURSOR_PREFIX = 'forecast_analogue_price_cursor:';
 const ANALOGUE_PRICE_ATTEMPT_PREFIX = 'forecast_analogue_price_attempt:';
 const ANALOGUE_DAY_CURSOR_PREFIX = 'forecast_analogue_day_cursor:';
@@ -65,6 +66,13 @@ interface ForecastValue {
 export interface ResidualDemandForecast {
   values: number[];
   inputVintages: string[];
+}
+
+/** Keeps the nearest (most recent) prepared days within the inference row budget. */
+export function limitAnalogueCandidates(
+  candidates: readonly PreparedForecastDay[],
+): PreparedForecastDay[] {
+  return candidates.slice(-ANALOGUE_CANDIDATE_LIMIT);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -463,8 +471,14 @@ export async function generateTomorrowShadowRuns(options: {
         targetDate,
       ),
     ]);
-    if (!features || !prices || candidates.length > 100) return false;
-    const complete = candidates.filter(
+    if (!features || !prices) return false;
+    if (candidates.length > ANALOGUE_CANDIDATE_LIMIT) {
+      options.logger.warn('Trimming analogue candidates to the inference row budget', {
+        candidates: candidates.length,
+        limit: ANALOGUE_CANDIDATE_LIMIT,
+      });
+    }
+    const complete = limitAnalogueCandidates(candidates).filter(
       (day) => day.baselinePrices !== null && day.actualPrices !== null,
     );
     const v2 = forecastAnaloguePrices({

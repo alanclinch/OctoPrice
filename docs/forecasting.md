@@ -1032,8 +1032,10 @@ input rows. Budgets established before production work are:
 Migration `0008_forecast_shadow.sql` adds compact prepared-day rows, keyed by
 reference tariff and pricing date, plus immutable paired forecast runs. After
 the existing v1 history catch-up completes, the five-minute forecast Cron
-alternates between refreshing the visible v1 cache and one bounded v2 shadow
-unit. It first extends region-C confirmed history to 118 days, then prepares 90
+normally alternates between refreshing the visible v1 cache and one bounded v2
+shadow unit. Missing or stale visible caches take priority at the normal
+five-minute cadence; the queued shadow turn resumes when all active tariffs are
+current. It first extends region-C confirmed history to 118 days, then prepares 90
 historical feature curves, and thereafter keeps those cursors current. At the
 normal cadence the initial catch-up takes roughly 35 hours rather than trying
 thousands of D1 writes in one free-tier invocation.

@@ -99,6 +99,21 @@ describe('access control', () => {
       expect(session.json().user.name).toBe('Mum');
     });
 
+    it('omits Secure on local HTTP only after an explicit opt-in', async () => {
+      const local = await createTestApp(undefined, { allowInsecureCookie: true });
+      try {
+        const { token } = await local.invite('Local tester');
+        const claimed = await local.injectAnonymous({
+          method: 'POST',
+          url: '/api/session/claim',
+          payload: { token },
+        });
+        expect(claimed.headers['set-cookie']).not.toContain('Secure');
+      } finally {
+        await local.built.close();
+      }
+    });
+
     it('rejects a claim with a token that was never issued', async () => {
       const response = await context.injectAnonymous({
         method: 'POST',

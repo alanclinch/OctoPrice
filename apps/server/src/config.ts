@@ -13,6 +13,11 @@ const clockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Expected HH:mm'
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+  /** Explicit local-HTTP opt-in; production cookies fail closed by default. */
+  ALLOW_INSECURE_COOKIE: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
 
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   HOST: z.string().default('0.0.0.0'),
@@ -75,6 +80,7 @@ export interface VapidConfig {
 
 export interface AppConfig {
   nodeEnv: 'development' | 'test' | 'production';
+  allowInsecureCookie: boolean;
   port: number;
   host: string;
   logLevel: 'debug' | 'info' | 'warn' | 'error';
@@ -129,6 +135,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
 
   return {
     nodeEnv: e.NODE_ENV,
+    allowInsecureCookie: e.ALLOW_INSECURE_COOKIE,
     port: e.PORT,
     host: e.HOST,
     logLevel: e.LOG_LEVEL,

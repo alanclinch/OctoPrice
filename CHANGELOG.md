@@ -52,6 +52,10 @@ Octopus publication cycles.
 
 ### Fixed
 
+- Missing or stale visible forecasts are refreshed before private model
+  catch-up, protected owner URLs no longer leave non-owners on a blank page,
+  and transient Octopus outages no longer consume the permanent-history skip
+  budget. Local HTTP session cookies now require an explicit opt-in.
 - Forecast history collection no longer gets stuck forever when an old date
   is unavailable for a newly launched tariff. It retries three times, skips
   that date, and lets other regions continue. Unknown Cron expressions are
