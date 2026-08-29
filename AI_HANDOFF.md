@@ -1158,9 +1158,10 @@ model against it. Test ENTSO-E alongside those steps rather than blocking them.
 
 ## Next Recommended Work
 
-1. Confirm the private analogue cursors advance over the first post-deployment
-   shadow turns. The first forecast cron refreshed v1 and selected `shadow` as
-   the next isolated turn; roughly 35 hours of bounded catch-up is expected.
+1. Let the deliberately bounded private catch-up complete. The first production
+   shadow turn succeeded, advanced the region-C price cursor to 2026-05-03 with
+   zero retries, and handed the next turn back to `baseline`. Roughly 35 hours
+   is expected before the first paired v1/v2 tomorrow run.
 2. Once paired shadow runs accumulate, compare v1/v2 and comparison apps at the
    same issue time against eventual confirmed Octopus prices.
 3. Address the four non-blocking follow-ups in Claude's 2026-08-28 review,
