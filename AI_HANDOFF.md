@@ -225,6 +225,52 @@ Before changing the user-visible model:
 
 ## Open Review Findings
 
+### Shadow deployment `de7f296` / `351f5be` — Claude, 2026-08-29
+
+These three commits change no code; the branch merged exactly as reviewed, and
+all four findings from 2026-08-28 are correctly still open with the cache
+cadence prioritised. So this pass checked the deployment claims rather than a
+diff.
+
+Verified against production and the live upstreams:
+
+- `/api/health` returns `ok`. Anonymous requests to `/api/overview` and
+  `/api/forecast-experiment` both return 401, so the owner-only endpoint is not
+  reachable without a session in the deployed Worker.
+- **The "roughly 35 hours" catch-up estimate is arithmetically sound.**
+  `runAnalogueShadowWork` performs exactly one unit per shadow turn, shadow
+  turns take every second forecast Cron invocation, so one unit per 10 minutes.
+  118 price-history days plus 90 prepared days is 208 units, or 34.7 hours.
+- **The catch-up will not silently stall for want of data**, which was the risk
+  that estimate hides: preparation burns three attempts and skips a day it
+  cannot build. I probed `collectResidualDemandForecast` at 118, 90, 60 and 1
+  days back, and all four return complete 48-period curves with every input
+  vintage earlier than the 14:00 issue cut-off. Elexon retention covers the
+  whole window the catch-up needs.
+
+Two notes, no new blocking findings.
+
+**1. Finding 1 from the previous review is now live, and the catch-up is
+exactly when it bites.** For the duration of the ~35 hours every shadow turn is
+consumed by backfill, so the visible v1 cache refreshes only on baseline turns —
+one tariff per 10 minutes rather than per 5. It is self-limiting and ends when
+the catch-up does, which is a fair reason not to rush a fix, but it is worth
+knowing that the degradation is happening now rather than hypothetically.
+
+**2. The model feeds on Elexon's *earliest* vintage, not the freshest one
+available at the cut-off.** `collectResidualDemandForecast` reads
+`/forecast/.../earliest/stream`, and the probe confirms it: for a 2026-05-30
+13:00Z cut-off the input vintages are from 2026-05-29 and 2026-05-30 03:30Z,
+roughly nine hours before the cut-off. That is conservative, leakage-safe and
+consistent between the back-test and production, so nothing here is wrong. But
+it does discard information that would legitimately have existed at 14:00 on
+D-1, and the accuracy gates are close enough that it matters: the paired
+bootstrap put the regret improvement's 95% CI at [-0.272, -0.006], barely
+excluding zero. Using the latest vintage at or before the cut-off is available
+headroom, and worth evaluating as an explicit variant before concluding what v2
+can achieve.
+
+
 ### Shadow mode `d0cd541` and owner experiment `13c65cf` — Claude, 2026-08-28
 
 `npm run verify` passes with 347 tests across 16 files. Both passes reviewed
