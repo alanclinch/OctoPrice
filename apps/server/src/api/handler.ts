@@ -131,7 +131,7 @@ function queryObject(query: URLSearchParams): Record<string, string> {
 }
 
 function requiresSecureCookie(config: AppConfig, origin: string): boolean {
-  return config.nodeEnv !== 'development' || origin.startsWith('https://');
+  return !config.allowInsecureCookie || origin.startsWith('https://');
 }
 
 /** Shapes one pricing day the way every price endpoint returns it. */

@@ -20,7 +20,11 @@ import { SignedOut } from './components/SignedOut.tsx';
 import { Brand } from './components/Brand.tsx';
 import type { JSX } from 'react';
 
-type Tab = 'prices' | 'forecast' | 'settings' | 'people' | 'status';
+export type Tab = 'prices' | 'forecast' | 'settings' | 'people' | 'status';
+
+export function tabForUser(tab: Tab, isOwner: boolean): Tab {
+  return !isOwner && (tab === 'forecast' || tab === 'people') ? 'prices' : tab;
+}
 
 /** Whether this device is signed in, and if not, why not. */
 type AuthState = 'checking' | 'signed-in' | 'no-link' | 'bad-link' | 'claim-failed';
@@ -248,6 +252,12 @@ export function App(): JSX.Element {
     };
   }, []);
 
+  useEffect(() => {
+    if (!user || tabForUser(tab, user.isOwner) === tab) return;
+    setTab('prices');
+    window.history.replaceState({}, '', '/');
+  }, [tab, user]);
+
   const install = async (): Promise<void> => {
     if (!installPrompt) {
       setInstallHelp('Open your browser menu and choose “Install app” or “Add to Home Screen”.');
@@ -293,6 +303,7 @@ export function App(): JSX.Element {
 
   const display = { hour12: overview.settings.hour12 };
   const region = getRegion(regionCode);
+  const activeTab = tabForUser(tab, user?.isOwner === true);
 
   return (
     <>
@@ -321,7 +332,7 @@ export function App(): JSX.Element {
             key={value}
             role="tab"
             type="button"
-            aria-selected={tab === value}
+            aria-selected={activeTab === value}
             onClick={() => setTab(value)}
           >
             {label}
@@ -331,13 +342,13 @@ export function App(): JSX.Element {
 
       {error && <p className="error">{error}</p>}
 
-      {tab === 'prices' && <PricesView overview={overview} now={now} display={display} />}
-      {tab === 'forecast' && user?.isOwner && <ForecastView display={display} />}
-      {tab === 'settings' && (
+      {activeTab === 'prices' && <PricesView overview={overview} now={now} display={display} />}
+      {activeTab === 'forecast' && user?.isOwner && <ForecastView display={display} />}
+      {activeTab === 'settings' && (
         <SettingsView settings={overview.settings} onSettingsChange={onSettingsChange} />
       )}
-      {tab === 'people' && user?.isOwner && <PeopleView />}
-      {tab === 'status' && <StatusView now={now} user={user} />}
+      {activeTab === 'people' && user?.isOwner && <PeopleView />}
+      {activeTab === 'status' && <StatusView now={now} user={user} />}
 
       <footer className="app-footer">
         <span className="footer-disclaimer">

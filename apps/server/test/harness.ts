@@ -89,10 +89,11 @@ export async function createTestApp(
   rates: number[] = tomorrowPrices(),
   // Building the poller does not start it, so this is safe in tests and lets
   // them exercise the real dispatch gate rather than calling past it.
-  options: { scheduler?: boolean; forecastBaseline?: boolean } = {},
+  options: { scheduler?: boolean; forecastBaseline?: boolean; allowInsecureCookie?: boolean } = {},
 ): Promise<TestContext> {
   const config = loadConfig({
     NODE_ENV: 'test',
+    ALLOW_INSECURE_COOKIE: options.allowInsecureCookie ? 'true' : 'false',
     DATABASE_URL: ':memory:',
     DEFAULT_REGION: 'C',
     ENABLE_SCHEDULER: options.scheduler ? 'true' : 'false',

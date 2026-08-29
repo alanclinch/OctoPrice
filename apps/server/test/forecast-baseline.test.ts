@@ -164,6 +164,32 @@ describe('forecast history backfill', () => {
     expect(calls).toBe(2);
   });
 
+  it('does not spend the permanent skip budget on transient request failures', async () => {
+    await store.getSettings('default');
+    const tariffCode = buildTariffCode(PRODUCT, 'C');
+    const backfillHistory = vi.fn(async () => {
+      throw new Error('temporary outage');
+    });
+    const priceService = {
+      distinctTariffs: async () => [{ productCode: PRODUCT, tariffCode, region: 'C' as const }],
+      storedDay: async () => [],
+      backfillHistory,
+    } as unknown as PriceService;
+
+    for (let attempt = 0; attempt < FORECAST_BACKFILL_MAX_ATTEMPTS; attempt += 1) {
+      await runForecastHistoryBackfill({
+        store,
+        priceService,
+        logger: silentLogger(),
+        now: () => NOW,
+      });
+    }
+
+    expect(backfillHistory).toHaveBeenCalledTimes(FORECAST_BACKFILL_MAX_ATTEMPTS);
+    expect(store.getState(`forecast_history_cursor:${tariffCode}`)).toBeNull();
+    expect(store.getState(`forecast_history_attempt:${tariffCode}`)).toBeNull();
+  });
+
   it('retries a historical day that was returned incomplete', async () => {
     await store.getSettings('default');
     let calls = 0;
@@ -393,6 +419,56 @@ describe('baseline forecast assembly', () => {
       shadowWork,
     });
     expect(shadowWork).toHaveBeenCalledOnce();
+
+    await runForecastBackgroundJob({
+      store,
+      priceService,
+      logger: silentLogger(),
+      now: () => NOW,
+      shadowWork,
+    });
+    expect(shadowWork).toHaveBeenCalledOnce();
+  });
+
+  it('refreshes a stale visible cache before spending the queued shadow turn', async () => {
+    await store.getSettings('default');
+    await store.upsertPrices(storedHistory('C'));
+    const priceService = new PriceService({
+      store,
+      client: new OctopusClient({ logger: silentLogger() }),
+      logger: silentLogger(),
+      forcedProductCode: PRODUCT,
+      now: () => NOW,
+    });
+    const tariff = await priceService.tariff('default');
+    await store.setState(`forecast_history_cursor:${tariff.tariffCode}`, londonDateOf(NOW));
+    const shadowWork = vi.fn(async () => {});
+
+    await runForecastBackgroundJob({
+      store,
+      priceService,
+      logger: silentLogger(),
+      now: () => NOW,
+      shadowWork,
+    });
+    const key = `forecast_baseline_cache:${tariff.tariffCode}`;
+    const stored = await store.getState(key);
+    if (!stored) throw new Error('test cache was not written');
+    const stale = JSON.parse(stored) as { generatedAt: string; [key: string]: unknown };
+    stale.generatedAt = '2026-01-14T17:00:00.000Z';
+    await store.setState(key, JSON.stringify(stale));
+
+    await runForecastBackgroundJob({
+      store,
+      priceService,
+      logger: silentLogger(),
+      now: () => NOW,
+      shadowWork,
+    });
+    expect(shadowWork).not.toHaveBeenCalled();
+    await expect(readBaselineForecastCache({ store, tariff, now: NOW })).resolves.toMatchObject({
+      unavailableReason: null,
+    });
 
     await runForecastBackgroundJob({
       store,

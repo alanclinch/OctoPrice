@@ -40,21 +40,21 @@ implementation is genuinely blocked.
 ## Current State
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
-- **Current branch:** `main`
-- **Source control:** `main` is at `ae67439` and matches `origin/main`. The
-  mandatory read-only Claude CLI review workflow is active. Forecast deployment
-  follow-ups remain separately committed and pushed at `8144762` on
-  `codex/forecast-review-followups`; they have not been merged into `main`.
-- **Build status:** passing — `npm run verify`
-- **Test status:** passing — 347 tests across 16 files
+- **Current branch:** `codex/integrate-forecast-followups`
+- **Source control:** `main` is at `43594ca` and matches `origin/main`. The five
+  forecast deployment follow-ups from `8144762` have been brought onto this
+  integration branch while preserving the mandatory Claude CLI workflow.
+- **Build status:** pending on the integration branch; the source commit passed
+  `npm run verify` before integration.
+- **Test status:** pending on the integration branch; the source commit passed
+  353 tests across 17 files.
 - **Deployed:** forecast shadow code `42d63a3`, Worker version
   `10458603-b186-481d-8fad-f2e0230cef4c`, at
   `https://octoprice.alanclinch.workers.dev`. D1 is in WEUR, migration 0008 is
   applied, both five-minute triggers are active and
   `FORECAST_BASELINE_ENABLED=true`.
 - **Git remote:** public GitHub repository at
-  `https://github.com/alanclinch/OctoPrice`; `main` is pushed. Local verification
-  passes at `ae67439`; GitHub CI for that revision has not been checked.
+  `https://github.com/alanclinch/OctoPrice`; `main` is pushed at `43594ca`.
 
 ## Current Architecture
 
@@ -107,13 +107,25 @@ GitHub remote or a real device:
 - **Workflow:** every project turn must now finish with an independent,
   read-only Claude CLI review. The exact launcher path, tool allowlist, bounded
   repair loop and final-response requirements are recorded in `AGENTS.md`.
-- **Git:** commit `ae67439` was independently reviewed, fast-forwarded to
-  `main` and pushed. The working tree was clean after the merge.
-- **Verification:** `npm run verify` passes on `main`: format, lint, typecheck,
-  347 tests across 16 files, and all workspace builds.
-- **Outstanding development:** the forecast deployment follow-ups at `8144762`
-  remain on `codex/forecast-review-followups` and were deliberately not folded
-  into this workflow-only merge.
+- **Integration target:** the five bounded fixes from `8144762` are now on
+  `codex/integrate-forecast-followups`, based on current `main`. This is not a
+  new model or promotion.
+- **Visible-cache priority:** a queued shadow turn first refreshes any missing,
+  previous-day or expired active-tariff cache. It keeps the shadow turn queued
+  until every visible cache is current, restoring five-minute recovery without
+  combining visible and private calculation in one invocation.
+- **Fail-closed cookies:** HTTP cookies lose `Secure` only when
+  `ALLOW_INSECURE_COOKIE=true` is explicitly set. `NODE_ENV=development` alone
+  no longer weakens them; `.env.example` opts in for the documented local HTTP
+  runtime.
+- **Other fixes:** oversized analogue candidates are trimmed to the nearest 100
+  and logged rather than silently aborting; non-owners entering `/forecast` or
+  `/people` fall back to Prices; thrown Octopus history requests retry without
+  consuming the three-attempt permanent-missing budget.
+- **Next action:** run `npm run verify`, then give Claude one focused review of
+  these five fixes after its usage limit resets. Do not merge or deploy before
+  that review passes. The deployed shadow model, inputs and cursors are
+  unchanged.
 
 ## Previous Agent Work — 2026-08-28
 
@@ -321,40 +333,18 @@ Checked rather than assumed:
   so it grows about two rows a day for the reference tariff. No retention policy
   is needed at that rate.
 
-Four findings, none blocking the merge.
+The four non-blocking findings are resolved on
+`codex/forecast-review-followups` and covered by `npm run verify`:
 
-**1. Medium — alternating turns halve the visible v1 cache refresh rate.**
-Before this pass, `runForecastBackgroundJob` refreshed one tariff's cache on
-every forecast Cron invocation once backfill was caught up. It now alternates
-baseline and shadow turns, so a full cycle takes roughly `10 x N` minutes for N
-active tariffs instead of `5 x N`. Because cached forecasts are invalidated at
-the London day boundary, the window each midnight in which users see
-"Experimental estimates are being refreshed" rather than estimates doubles with
-it. A private experiment should not make the visible feature slower to recover.
-Suggest either giving shadow work its own Cron minute offset, or taking a
-shadow turn only when no tariff's cache is currently stale.
-
-**2. Low/Medium — the `Secure` cookie flag became conditional inside a commit
-about a forecast tab.** Production is safe and I verified why:
-`worker.ts` hardcodes `NODE_ENV: 'production'` in `configFor`, so
-`requiresSecureCookie` is always true on the deployed Worker. The concern is the
-fallback direction — `NODE_ENV` defaults to `'development'` in the schema, so
-the guard fails open, and anyone running the Node/Fastify path without setting
-it would serve session cookies without `Secure`. An explicit opt-in such as
-`ALLOW_INSECURE_COOKIE=true` would fail closed instead. Worth separating auth
-changes from feature commits, too; this one is easy to miss under that subject.
-
-**3. Low — the 100-row budget is enforced by silently abandoning the run.**
-`if (... || candidates.length > 100) return false` produces no pair and no
-signal beyond a `false`. It cannot trigger with `ANALOGUE_CANDIDATE_DAYS = 90`,
-but if the lookback is ever raised the shadow would quietly stop generating
-evidence. Trim to the nearest candidates instead, or log when the budget binds.
-
-**4. Low — a non-owner who opens `/forecast` gets a blank page.** `initialTab`
-maps the path before any owner check, and the render is gated on
-`user?.isOwner`, so the body renders nothing while the nav omits the tab. The
-existing `/people` handling has the same shape, so this is not introduced here;
-falling back to `prices` for a non-owner would fix both.
+1. Missing or stale visible caches take priority over a queued shadow turn and
+   recover one active tariff per five minutes. Fresh caches keep the bounded
+   alternating cadence, so private work remains isolated.
+2. `Secure` now fails closed. Only the explicit
+   `ALLOW_INSECURE_COOKIE=true` local-HTTP opt-in removes it.
+3. An oversized candidate set is logged and trimmed to the nearest 100 days
+   rather than silently abandoning the run.
+4. Non-owners entering `/forecast` or `/people` immediately render Prices and
+   the URL is repaired to `/`.
 
 
 ### Fundamentals-analogue implementation `3b2b48b` — Claude, 2026-08-28
@@ -640,7 +630,7 @@ reasons with their own wording, and `parseCachedForecast` still refuses to
 accept `stale` or `failed` from a stored entry, so the read-path reasons cannot
 be persisted.
 
-One new low finding:
+One low finding, resolved on `codex/forecast-review-followups`:
 
 **Transient Octopus failures spend the same skip budget as genuinely missing
 days.** `recordBackfillFailure` is called from all three paths, including the
@@ -653,6 +643,10 @@ samples per slot, with `MIN_FORECAST_SAMPLES` still guarding) and this is
 display-only, which is why it is low. The clean split is to count only the
 answers that will not change — `stored === 0` and a day that stays incomplete —
 toward the skip budget, and let a thrown request retry without spending it.
+
+**Resolved:** the thrown-request path now logs and retries without reading or
+writing the permanent-attempt counter. A regression test runs three transient
+failures and proves neither cursor nor counter advances.
 
 Also worth a line, not a finding: the `wrangler.jsonc` test asserts both
 expressions are present but not the converse, so a third trigger added later
@@ -1216,14 +1210,15 @@ model against it. Test ENTSO-E alongside those steps rather than blocking them.
 
 ## Next Recommended Work
 
-1. Let the deliberately bounded private catch-up complete. The first production
+1. Claude performs one focused review of
+   `codex/forecast-review-followups`. After approval, merge, wait for CI, deploy
+   and verify the existing catch-up cursor continues advancing.
+2. Let the deliberately bounded private catch-up complete. The first production
    shadow turn succeeded, advanced the region-C price cursor to 2026-05-03 with
    zero retries, and handed the next turn back to `baseline`. Roughly 35 hours
    is expected before the first paired v1/v2 tomorrow run.
-2. Once paired shadow runs accumulate, compare v1/v2 and comparison apps at the
+3. Once paired shadow runs accumulate, compare v1/v2 and comparison apps at the
    same issue time against eventual confirmed Octopus prices.
-3. Address the four non-blocking follow-ups in Claude's 2026-08-28 review,
-   prioritising restoring the visible v1 cache refresh cadence.
 4. **Confirm the new Android badge visually.** Send another test notification
    after the updated service worker is active and confirm the tray shows the
    system-tinted Price Pulse mark rather than a white square. Push delivery

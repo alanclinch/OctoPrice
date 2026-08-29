@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { londonDayPeriodStarts } from '@octoprice/core';
-import { analogueIssueCutoff, collectResidualDemandForecast } from '../src/forecast/analogue.ts';
+import {
+  ANALOGUE_CANDIDATE_LIMIT,
+  analogueIssueCutoff,
+  collectResidualDemandForecast,
+  limitAnalogueCandidates,
+} from '../src/forecast/analogue.ts';
+import type { PreparedForecastDay } from '../src/db/store.ts';
 import { fakeFetch } from './helpers.ts';
 
 const DATE = '2026-08-29';
@@ -33,6 +39,27 @@ function windRows() {
 }
 
 describe('fundamentals analogue input collection', () => {
+  it('trims an oversized inference set to the nearest prepared days', () => {
+    const candidates = Array.from(
+      { length: ANALOGUE_CANDIDATE_LIMIT + 5 },
+      (_, index): PreparedForecastDay => ({
+        tariffCode: 'reference',
+        date: `day-${String(index).padStart(3, '0')}`,
+        issueCutoff: PUBLISHED,
+        residualDemand: [],
+        baselinePrices: [],
+        actualPrices: [],
+        inputVintages: [],
+        preparedAt: PUBLISHED,
+      }),
+    );
+
+    const limited = limitAnalogueCandidates(candidates);
+    expect(limited).toHaveLength(ANALOGUE_CANDIDATE_LIMIT);
+    expect(limited[0]?.date).toBe('day-005');
+    expect(limited.at(-1)?.date).toBe('day-104');
+  });
+
   it('resolves the 14:00 London issue instant across clock changes', () => {
     expect(analogueIssueCutoff('2026-03-29').toISOString()).toBe('2026-03-28T14:00:00.000Z');
     expect(analogueIssueCutoff('2026-10-25').toISOString()).toBe('2026-10-24T13:00:00.000Z');
