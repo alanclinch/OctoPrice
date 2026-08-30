@@ -137,6 +137,64 @@ covered by tests that must keep passing.
 | How is it deployed?             | `docs/deployment.md`            |
 | What changed for users?         | `CHANGELOG.md`                  |
 
+## Mandatory independent Claude review
+
+Every user turn concerning this project must use this workflow, including
+small code, documentation and configuration changes:
+
+1. Understand the user's request and perform the requested work.
+2. Run the appropriate tests, checks, linting or other validation.
+3. Before the final response, invoke the locally installed Claude Code CLI for
+   an independent review. This review is mandatory and must not be replaced by
+   a Codex self-review or by `AI_HANDOFF.md`.
+4. Claude is a read-only reviewer. Never grant it Edit, Write or any other
+   file-modification tool. Use `--permission-mode dontAsk` and only the tools
+   listed in the command below.
+5. Give Claude the original user request and a concise description of the work
+   completed in the current turn. Tell it to inspect the current Git diff and
+   relevant surrounding code.
+6. Independently assess Claude's findings. Do not accept them automatically.
+7. If Claude identifies a valid problem caused by the current work, fix it,
+   rerun the relevant validation, and invoke the read-only Claude review again.
+   Normally use no more than two review rounds; exceed that only for a clear
+   critical defect.
+8. Only then provide the final response.
+
+The Codex execution environment does not inherit the npm global-bin directory,
+so invoke Claude through this verified full path:
+
+```powershell
+"<DYNAMIC REVIEW PROMPT>" | `
+  & 'C:\Users\alanc\AppData\Roaming\npm\claude.cmd' -p `
+    --permission-mode dontAsk `
+    --allowedTools "Read,Glob,Grep,Bash(git status *),Bash(git diff *),Bash(git log *)"
+```
+
+The dynamic review prompt must include the current user's original request and
+the implementer's concise work summary, followed by this instruction:
+
+> You are acting only as an independent code reviewer. Do not modify any files.
+> Review the work completed for the current user request. Inspect the current
+> git diff and relevant surrounding files. Look for bugs, regressions, incorrect
+> assumptions, security issues, architectural problems, edge cases, missing or
+> inadequate tests and anything that fails to fully satisfy the request. Be
+> concise and specific. If there are no material issues, finish with REVIEW:
+> PASS. If there are material issues, finish with REVIEW: FAIL.
+
+If the Claude command fails, do not claim that Claude was unavailable without
+attempting it. Preserve and report the exact command failure in the final
+response. Never allow Claude to edit the project as part of this workflow.
+
+The final response must clearly state:
+
+- what was done;
+- which validation and tests passed;
+- that Claude reviewed the work;
+- what Claude found;
+- whether Codex agreed with those findings;
+- what changed as a result, if anything; and
+- the final review status.
+
 ## Before you finish work
 
 1. `npm run verify`.
