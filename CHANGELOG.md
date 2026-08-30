@@ -40,11 +40,14 @@ Octopus publication cycles.
 ### Changed
 
 - **The identity now has a real place in the app.** The tiny Price Pulse mark
-  has left the header. A new octopus advisor illustration fills the live-price
-  card instead: its tentacle traces a cheap-price valley into a charging plug,
-  making the brand visible without pushing the half-hour price table down or
-  obscuring the current price. The same branded card works in light and dark
-  themes, while the header is now a cleaner text wordmark.
+  has left the header. A coral octopus advisor in running trainers fills the
+  live-price card and follows a separate mint low-price trail, making the brand
+  visible without pushing the half-hour price table down or obscuring the
+  current price. The same branded card works in light and dark themes, while
+  the header is now a cleaner text wordmark.
+- **Publication progress now speaks in useful terms.** The normal Octopus
+  release through about 23:00 is shown as ready for planning, with its actual
+  coverage time, instead of exposing the misleading `46/48` technical count.
 - **OctoPrice is now OctoAgile Advisor.** The new Price Pulse identity turns
   five half-hour price bars into a forward arrow, with a reproducible SVG/PWA
   icon set, refreshed violet-and-mint branding, the shorter launcher name

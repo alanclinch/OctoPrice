@@ -38,6 +38,10 @@ export interface DayPayload {
   periods: PricePeriod[];
   summary: DaySummary | null;
   complete: boolean;
+  /** Enough contiguous prices from local midnight have arrived for planning. */
+  ready: boolean;
+  /** Exclusive local-day coverage boundary, expressed as an ISO UTC instant. */
+  coveredUntil: string | null;
   expectedPeriodCount: number;
 }
 

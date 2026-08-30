@@ -47,7 +47,7 @@ normal-price periods are not important unless they change that decision.
 ## Current State
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
-- **Current branch:** `main`
+- **Current branch:** `codex/trainer-octopus-status`
 - **Source control:** `main` includes reviewed application/workflow revision
   `fb6b289`; the current handoff-only follow-up records its deployment and
   changes no runtime files. The mandatory Claude CLI workflow remains active.
@@ -110,6 +110,18 @@ GitHub remote or a real device:
 
 ## Latest Agent Work — 2026-08-30
 
+- **Trainer mascot and useful publication status (review-ready):** Alan rejected
+  the purple abstract hero and the perpetual-looking `46/48` status. The
+  current-price card now uses a transparent coral octopus in white/teal running
+  trainers, pointing towards a separate mint falling-price line. API day
+  payloads expose the existing coverage model as `ready` and `coveredUntil`
+  alongside strict completeness. The price-tools card therefore treats the
+  normal contiguous release through about 23:00 as ready and shows `To 23:00`
+  rather than `46/48`; genuinely partial releases say that prices are arriving.
+  `npm run verify` passes with 353 tests across 17 files. Claude's mandatory
+  read-only review found no material issues and returned `REVIEW: PASS`; the
+  handoff omission it noted has been addressed here. This branch still needs
+  committing, merging to `main`, CI, automatic deployment and a live check.
 - **Standing deployment authorisation:** Alan asked Codex to deploy the current
   brand redesign and, in future, to deploy automatically whenever reviewed
   application work is pushed to `main`. `AGENTS.md` now makes deployment plus

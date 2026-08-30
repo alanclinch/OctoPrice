@@ -56,11 +56,20 @@ export function PricesView({ overview, now, display }: PricesViewProps): JSX.Ele
     visibleConfirmedPeriods,
     windowMinutes,
   );
-  const tomorrowStatus = overview.tomorrow.complete
+  const tomorrowStatus = overview.tomorrow.ready
     ? "Tomorrow's prices are ready"
     : overview.tomorrow.periods.length > 0
-      ? "Tomorrow's prices are updating"
+      ? "Tomorrow's prices are arriving"
       : 'Prices usually update around 4pm';
+  const tomorrowCoverage = overview.tomorrow.ready
+    ? overview.tomorrow.complete
+      ? 'Full day'
+      : overview.tomorrow.coveredUntil
+        ? `To ${clock(overview.tomorrow.coveredUntil, display)}`
+        : 'Ready'
+    : overview.tomorrow.periods.length > 0
+      ? `${overview.tomorrow.periods.length} prices`
+      : 'Waiting';
 
   function toggleTool(tool: PriceTool): void {
     const nextTool = openTool === tool ? null : tool;
@@ -79,10 +88,8 @@ export function PricesView({ overview, now, display }: PricesViewProps): JSX.Ele
       <div className="card price-tools-card">
         <div className="price-availability">
           <span>{tomorrowStatus}</span>
-          <span className={`pill ${overview.tomorrow.complete ? 'ready' : 'waiting'}`}>
-            {overview.tomorrow.complete
-              ? 'Complete'
-              : `${overview.tomorrow.periods.length}/${overview.tomorrow.expectedPeriodCount}`}
+          <span className={`pill ${overview.tomorrow.ready ? 'ready' : 'waiting'}`}>
+            {tomorrowCoverage}
           </span>
         </div>
         <div className="price-tool-buttons" aria-label="Optional price tools">

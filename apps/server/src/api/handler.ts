@@ -35,7 +35,6 @@ import {
   startOfLondonDay,
   userSettingsInputSchema,
   webPushSubscriptionSchema,
-  expectedPeriodCount,
   DEFAULT_ALERT_RULES,
   type PricingDate,
   type User,
@@ -137,12 +136,15 @@ function requiresSecureCookie(config: AppConfig, origin: string): boolean {
 /** Shapes one pricing day the way every price endpoint returns it. */
 async function describeDay(priceService: PriceService, date: PricingDate, tariffCode: string) {
   const periods = await priceService.storedDay(date, tariffCode);
+  const coverage = describeDayCoverage(periods, date);
   return {
     date,
     periods,
     summary: summariseDay(periods, date),
-    complete: isDayComplete(periods, date),
-    expectedPeriodCount: expectedPeriodCount(date),
+    complete: coverage.complete,
+    ready: coverage.publishable,
+    coveredUntil: coverage.coveredUntil,
+    expectedPeriodCount: coverage.expectedPeriodCount,
   };
 }
 

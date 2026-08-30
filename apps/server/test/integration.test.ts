@@ -129,6 +129,13 @@ describe('the real Octopus publication shape', () => {
       expect(result.complete).toBe(false);
       expect(result.publishable).toBe(true);
       expect(result.missingCount).toBe(2);
+
+      const response = await context.inject({ method: 'GET', url: '/api/overview' });
+      expect(response.json().tomorrow).toMatchObject({
+        complete: false,
+        ready: true,
+        coveredUntil: '2026-01-16T23:00:00.000Z',
+      });
     } finally {
       await context.built.close();
     }
@@ -562,6 +569,8 @@ describe('HTTP API', () => {
     expect(body.periods).toHaveLength(48);
     expect(body.summary.minPence).toBe(-2);
     expect(body.complete).toBe(true);
+    expect(body.ready).toBe(true);
+    expect(body.coveredUntil).toBe('2026-01-17T00:00:00.000Z');
   });
 
   it('rejects a malformed date', async () => {
