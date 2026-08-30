@@ -47,20 +47,20 @@ normal-price periods are not important unless they change that decision.
 ## Current State
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
-- **Current branch:** `codex/trainer-octopus-status`
-- **Source control:** `main` includes reviewed application/workflow revision
-  `fb6b289`; the current handoff-only follow-up records its deployment and
-  changes no runtime files. The mandatory Claude CLI workflow remains active.
+- **Current branch:** `main`
+- **Source control:** `main` includes reviewed application revision `000bc9b`;
+  the current handoff-only follow-up records its deployment and changes no
+  runtime files. The mandatory Claude CLI workflow remains active.
 - **Build status:** passing on `main` — `npm run verify`
 - **Test status:** passing — 353 tests across 17 files
-- **Deployed:** `main` revision `fb6b289`, Worker version
-  `8b04fa37-df77-439d-938d-c960294d30a8`, at
+- **Deployed:** `main` revision `000bc9b`, Worker version
+  `1cbc3d97-77ce-4f84-9ad7-9ebea82f0eee`, at
   `https://octoprice.alanclinch.workers.dev`. D1 is in WEUR, migration 0008 is
   applied, both five-minute triggers are active and
   `FORECAST_BASELINE_ENABLED=true`.
 - **Git remote:** public GitHub repository at
-  `https://github.com/alanclinch/OctoPrice`; application revision `fb6b289`
-  passed GitHub CI run `33328962293`.
+  `https://github.com/alanclinch/OctoPrice`; application revision `000bc9b`
+  passed GitHub CI run `33330574869`.
 
 ## Current Architecture
 
@@ -110,7 +110,7 @@ GitHub remote or a real device:
 
 ## Latest Agent Work — 2026-08-30
 
-- **Trainer mascot and useful publication status (review-ready):** Alan rejected
+- **Trainer mascot and useful publication status:** Alan rejected
   the purple abstract hero and the perpetual-looking `46/48` status. The
   current-price card now uses a transparent coral octopus in white/teal running
   trainers, pointing towards a separate mint falling-price line. API day
@@ -120,8 +120,11 @@ GitHub remote or a real device:
   rather than `46/48`; genuinely partial releases say that prices are arriving.
   `npm run verify` passes with 353 tests across 17 files. Claude's mandatory
   read-only review found no material issues and returned `REVIEW: PASS`; the
-  handoff omission it noted has been addressed here. This branch still needs
-  committing, merging to `main`, CI, automatic deployment and a live check.
+  handoff omission it noted was addressed before a second read-only review also
+  returned `REVIEW: PASS`. Revision `000bc9b` passed GitHub CI run
+  `33330574869` and is live as Worker version
+  `1cbc3d97-77ce-4f84-9ad7-9ebea82f0eee`; the production page, health endpoint,
+  new application bundle and exact 199,890-byte PNG all returned HTTP 200.
 - **Standing deployment authorisation:** Alan asked Codex to deploy the current
   brand redesign and, in future, to deploy automatically whenever reviewed
   application work is pushed to `main`. `AGENTS.md` now makes deployment plus
