@@ -18,36 +18,39 @@ export interface NowCardProps {
 
 export function NowCard({ current, next, display }: NowCardProps): JSX.Element {
   return (
-    <div className="card">
-      <h2>Now</h2>
+    <div className="card now-card">
+      <img className="now-card-art" src="/images/octo-advisor-hero.png" alt="" aria-hidden="true" />
+      <div className="now-card-copy">
+        <h2>Now</h2>
 
-      {current ? (
-        <>
-          <div className={`now-price ${bandClass(current.valueIncVat)}`}>
-            {pence(current.valueIncVat, 2)}
-            <span className="unit">/kWh</span>
-          </div>
-          <div className="now-meta now-price-change">
-            <span>Until {clock(current.validTo, display)}</span>
-            {next && (
-              <>
-                <span aria-hidden="true">·</span>
-                <span>
-                  then{' '}
-                  <strong className={bandClass(next.valueIncVat)}>
-                    {pence(next.valueIncVat, 2)}
-                  </strong>
-                </span>
-              </>
-            )}
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="now-price muted">--</div>
-          <div className="now-meta">No price stored for right now.</div>
-        </>
-      )}
+        {current ? (
+          <>
+            <div className={`now-price ${bandClass(current.valueIncVat)}`}>
+              {pence(current.valueIncVat, 2)}
+              <span className="unit">/kWh</span>
+            </div>
+            <div className="now-meta now-price-change">
+              <span>Until {clock(current.validTo, display)}</span>
+              {next && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span>
+                    then{' '}
+                    <strong className={bandClass(next.valueIncVat)}>
+                      {pence(next.valueIncVat, 2)}
+                    </strong>
+                  </span>
+                </>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="now-price muted">--</div>
+            <div className="now-meta">No price stored for right now.</div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

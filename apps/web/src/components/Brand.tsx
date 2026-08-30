@@ -13,7 +13,6 @@ export function Brand({
 
   return (
     <div className="brand-lockup">
-      <img className="brand-icon" src="/icons/icon.svg" alt="" aria-hidden="true" />
       <div className="brand-copy">
         <Heading className="brand-name">
           OctoAgile <span>Advisor</span>

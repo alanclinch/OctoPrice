@@ -47,8 +47,8 @@ normal-price periods are not important unless they change that decision.
 ## Current State
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
-- **Current branch:** `main`
-- **Source control:** `main` is at `59f3bbd` and matches `origin/main`. The five
+- **Current branch:** `codex/brand-hero-redesign`
+- **Source control:** `main` is at `7d2df5d` and matches `origin/main`. The five
   forecast deployment follow-ups are merged, while the mandatory Claude CLI
   workflow remains active.
 - **Build status:** passing on `main` — `npm run verify`
@@ -110,6 +110,16 @@ GitHub remote or a real device:
 
 ## Latest Agent Work — 2026-08-30
 
+- **Brand hero redesign:** Alan did not like the Price Pulse graphic or its
+  token use as a tiny header icon. The header is now a text wordmark and a new
+  octopus-advisor illustration is embedded prominently in the current-price
+  card. Its mint tentacle marks a cheap-price valley and finishes as a charging
+  plug. The project copy is a 768×512 transparent PNG (178 KB); both 390×844
+  light and dark phone views were checked with no console warnings or errors.
+  `npm run verify` passes with 353 tests across 17 files. Claude's mandatory
+  read-only review found no material issues and returned `REVIEW: PASS`; its
+  observations about the intentional dark card and possible future WebP
+  optimisation were non-blocking.
 - **Workflow:** every project turn must now finish with an independent,
   read-only Claude CLI review. The exact launcher path, tool allowlist, bounded
   repair loop and final-response requirements are recorded in `AGENTS.md`.

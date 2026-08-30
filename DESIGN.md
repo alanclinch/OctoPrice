@@ -307,6 +307,13 @@ First use must ask for the user's electricity area before showing prices. The
 header should name the area in plain language, without exposing its internal
 region code, and provide an obvious PWA installation action.
 
+The visual identity should be part of the useful dashboard, not a token icon
+beside the name. The current-price card carries a large octopus-inspired
+illustration whose highlighted price valley leads to a charging plug: a visual
+shorthand for seeing a cheaper charging opportunity ahead. It remains
+decorative and behind the real price text, so price-band colour and legibility
+always win. The header itself uses a clean text wordmark.
+
 Tomorrow's publication state, the cheapest continuous window and the price
 chart share one compact secondary card. The window and chart are collapsed by
 default, expand in place, and remember whether the user left either tool open.
