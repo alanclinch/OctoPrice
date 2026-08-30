@@ -51,10 +51,8 @@ normal-price periods are not important unless they change that decision.
 - **Source control:** `main` is at `43594ca` and matches `origin/main`. The five
   forecast deployment follow-ups from `8144762` have been brought onto this
   integration branch while preserving the mandatory Claude CLI workflow.
-- **Build status:** pending on the integration branch; the source commit passed
-  `npm run verify` before integration.
-- **Test status:** pending on the integration branch; the source commit passed
-  353 tests across 17 files.
+- **Build status:** passing on the integration branch — `npm run verify`
+- **Test status:** passing — 353 tests across 17 files
 - **Deployed:** forecast shadow code `42d63a3`, Worker version
   `10458603-b186-481d-8fad-f2e0230cef4c`, at
   `https://octoprice.alanclinch.workers.dev`. D1 is in WEUR, migration 0008 is
@@ -129,10 +127,11 @@ GitHub remote or a real device:
   and logged rather than silently aborting; non-owners entering `/forecast` or
   `/people` fall back to Prices; thrown Octopus history requests retry without
   consuming the three-attempt permanent-missing budget.
-- **Next action:** run `npm run verify`, then give Claude one focused review of
-  these five fixes after its usage limit resets. Do not merge or deploy before
-  that review passes. The deployed shadow model, inputs and cursors are
-  unchanged.
+- **Verification:** `npm run verify` passes after integration: format, lint,
+  typecheck, 353 tests across 17 files, and all workspace builds.
+- **Next action:** give Claude one focused review of these five fixes. Do not
+  merge or deploy before that review passes. The deployed shadow model, inputs
+  and cursors are unchanged.
 
 ## Previous Agent Work — 2026-08-28
 
