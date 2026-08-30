@@ -37,6 +37,13 @@ The forecasting implementation target is deliberately modest: an
 large machine-learning system. Avoid reopening broad research unless a live
 implementation is genuinely blocked.
 
+Alan's product priority is **useful warning of genuinely cheap upcoming
+slots**: help him decide not to charge the car now because a materially cheaper
+window is coming soon. Optimise and evaluate low-price detection, timing, useful
+lead time and cheapest-window regret ahead of shaving pennies from ordinary
+roughly 25p periods or improving headline whole-day MAE. Small errors during
+normal-price periods are not important unless they change that decision.
+
 ## Current State
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
