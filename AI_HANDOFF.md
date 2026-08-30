@@ -48,19 +48,19 @@ normal-price periods are not important unless they change that decision.
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
 - **Current branch:** `main`
-- **Source control:** `main` is at `727bb0f` and matches `origin/main`. The five
+- **Source control:** `main` is at `59f3bbd` and matches `origin/main`. The five
   forecast deployment follow-ups are merged, while the mandatory Claude CLI
   workflow remains active.
 - **Build status:** passing on `main` — `npm run verify`
 - **Test status:** passing — 353 tests across 17 files
-- **Deployed:** forecast shadow code `42d63a3`, Worker version
-  `10458603-b186-481d-8fad-f2e0230cef4c`, at
+- **Deployed:** `main` revision `59f3bbd`, Worker version
+  `f755fa78-2557-4664-99d0-1af4d9c429a5`, at
   `https://octoprice.alanclinch.workers.dev`. D1 is in WEUR, migration 0008 is
   applied, both five-minute triggers are active and
   `FORECAST_BASELINE_ENABLED=true`.
 - **Git remote:** public GitHub repository at
-  `https://github.com/alanclinch/OctoPrice`; `main` is pushed at `727bb0f` and
-  GitHub CI run `33313548093` passed.
+  `https://github.com/alanclinch/OctoPrice`; `main` is pushed at `59f3bbd` and
+  GitHub CI run `33313755408` passed.
 
 ## Current Architecture
 
@@ -133,10 +133,15 @@ GitHub remote or a real device:
 - **Review and merge:** Claude's focused read-only review found no material
   issues and returned `REVIEW: PASS`. The branch was fast-forwarded to `main`;
   GitHub CI and the Cloudflare deployment dry run both pass.
-- **Next action:** deploy committed `main` revision `727bb0f` only after Alan
-  explicitly authorises the production change, then verify `/api/health`, the
-  visible-cache cadence and continued shadow catch-up cursor progress. The
-  currently deployed shadow model, inputs and cursors are unchanged.
+- **Deployment:** Alan explicitly authorised deployment. Worker
+  `f755fa78-2557-4664-99d0-1af4d9c429a5` is live; the site returns 200 and
+  `/api/health` returns `ok`. Both analogue cursors reached 2026-08-30 with zero
+  pending attempts, 92 prepared days exist through 2026-08-31, and the first
+  paired v1/v2 runs are stored for 2026-08-31.
+- **Next action:** after 31 August prices publish, score that matched-vintage
+  test day with emphasis on low-slot detection, timing, useful lead time and
+  cheapest-window regret. Observe a future stale-cache event to confirm the
+  restored five-minute visible-cache priority under live Cron execution.
 
 ## Previous Agent Work — 2026-08-28
 
