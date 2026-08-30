@@ -86,6 +86,13 @@ npm run dev:web      # PWA dev server
 - Apply D1 migrations before deploying code that depends on them.
 - Deploy only committed `main` revisions after CI passes. Keep tunnel
   credentials and other secrets outside Git.
+- Alan has given standing authorisation to deploy after reviewed
+  application-affecting work is pushed or merged to `main`. Treat the
+  production deployment and live health check as part of completing that same
+  turn; do not ask for separate deploy approval. A later documentation-only
+  commit that records the completed deployment does not trigger another
+  deployment. This does not waive the normal safety checks or authorise an
+  unrequested migration, secret change or destructive production operation.
 
 ## Coding standards
 

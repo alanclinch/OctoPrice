@@ -59,8 +59,8 @@ normal-price periods are not important unless they change that decision.
   applied, both five-minute triggers are active and
   `FORECAST_BASELINE_ENABLED=true`.
 - **Git remote:** public GitHub repository at
-  `https://github.com/alanclinch/OctoPrice`; `main` is pushed at `59f3bbd` and
-  GitHub CI run `33313755408` passed.
+  `https://github.com/alanclinch/OctoPrice`; `main` is pushed at `ea38fd1` and
+  GitHub CI run `33328302795` passed.
 
 ## Current Architecture
 
@@ -110,6 +110,13 @@ GitHub remote or a real device:
 
 ## Latest Agent Work — 2026-08-30
 
+- **Standing deployment authorisation:** Alan asked Codex to deploy the current
+  brand redesign and, in future, to deploy automatically whenever reviewed
+  application work is pushed to `main`. `AGENTS.md` now makes deployment plus
+  a live health check part of completing the same turn once CI is green;
+  migrations, secrets and destructive production changes retain their normal
+  safety checks. A documentation-only commit recording a completed deployment
+  does not recursively trigger another deployment.
 - **Brand hero redesign:** Alan did not like the Price Pulse graphic or its
   token use as a tiny header icon. The header is now a text wordmark and a new
   octopus-advisor illustration is embedded prominently in the current-price
