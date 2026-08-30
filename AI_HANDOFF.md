@@ -40,21 +40,21 @@ implementation is genuinely blocked.
 ## Current State
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
-- **Current branch:** `codex/forecast-v2-plan`
-- **Source control:** `main` is at `fe4a47a`; forecast-v2 research, core logic
-  and Claude's review are committed on this branch. Shadow-mode runtime changes
-  plus the owner Forecast tab are verified locally and awaiting Claude review
-  at the pushed branch tip.
+- **Current branch:** `main`
+- **Source control:** `main` is at `ae67439` and matches `origin/main`. The
+  mandatory read-only Claude CLI review workflow is active. Forecast deployment
+  follow-ups remain separately committed and pushed at `8144762` on
+  `codex/forecast-review-followups`; they have not been merged into `main`.
 - **Build status:** passing — `npm run verify`
 - **Test status:** passing — 347 tests across 16 files
-- **Deployed:** `0c179f0`, Worker version
-  `4dc919b4-5c32-4689-91f6-9d09110a49d8`, at
-  `https://octoprice.alanclinch.workers.dev`. D1 is in WEUR, migration 0007 is
+- **Deployed:** forecast shadow code `42d63a3`, Worker version
+  `10458603-b186-481d-8fad-f2e0230cef4c`, at
+  `https://octoprice.alanclinch.workers.dev`. D1 is in WEUR, migration 0008 is
   applied, both five-minute triggers are active and
   `FORECAST_BASELINE_ENABLED=true`.
 - **Git remote:** public GitHub repository at
-  `https://github.com/alanclinch/OctoPrice`; `main` is pushed and GitHub CI
-  has completed successfully
+  `https://github.com/alanclinch/OctoPrice`; `main` is pushed. Local verification
+  passes at `ae67439`; GitHub CI for that revision has not been checked.
 
 ## Current Architecture
 
@@ -102,7 +102,20 @@ GitHub remote or a real device:
   repository and Cloudflare identifiers deliberately remain `octoprice` so
   the visual rename cannot invalidate sessions or production data.
 
-## Latest Agent Work — 2026-08-28
+## Latest Agent Work — 2026-08-30
+
+- **Workflow:** every project turn must now finish with an independent,
+  read-only Claude CLI review. The exact launcher path, tool allowlist, bounded
+  repair loop and final-response requirements are recorded in `AGENTS.md`.
+- **Git:** commit `ae67439` was independently reviewed, fast-forwarded to
+  `main` and pushed. The working tree was clean after the merge.
+- **Verification:** `npm run verify` passes on `main`: format, lint, typecheck,
+  347 tests across 16 files, and all workspace builds.
+- **Outstanding development:** the forecast deployment follow-ups at `8144762`
+  remain on `codex/forecast-review-followups` and were deliberately not folded
+  into this workflow-only merge.
+
+## Previous Agent Work — 2026-08-28
 
 - **Review target:** the shadow-mode implementation following Claude's review
   commit `271113a` on `codex/forecast-v2-plan`; use the branch tip Codex has
@@ -129,10 +142,9 @@ GitHub remote or a real device:
   idempotency and scoring. A real 390×844 browser check covered all five tabs,
   progress, v1/v2/official curves and the collapsed comparison table with no
   console errors.
-- **Deployment:** not deployed. Apply migration 0008 before deploying the code,
-  and deploy only after review, merge to `main` and CI. The first private v2 run
-  is expected roughly 35 hours after enablement because catch-up is intentionally
-  limited to one small unit per shadow turn.
+- **Deployment at the time:** this work had not yet been deployed. It was
+  subsequently deployed as forecast shadow code `42d63a3` after migration 0008;
+  the current deployment is recorded under **Current State** above.
 - **Claude review request:** verify D1 SQL parity, Elexon issue-vintage
   semantics, cursor/three-attempt behaviour, paired-run immutability and the
   guarantee that only the owner diagnostics endpoint can read v2 while the
