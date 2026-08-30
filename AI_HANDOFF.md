@@ -48,19 +48,19 @@ normal-price periods are not important unless they change that decision.
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
 - **Current branch:** `main`
-- **Source control:** `main` includes reviewed brand redesign `be5a344`. The five
-  forecast deployment follow-ups are merged, while the mandatory Claude CLI
-  workflow remains active.
+- **Source control:** `main` includes reviewed application/workflow revision
+  `fb6b289`; the current handoff-only follow-up records its deployment and
+  changes no runtime files. The mandatory Claude CLI workflow remains active.
 - **Build status:** passing on `main` — `npm run verify`
 - **Test status:** passing — 353 tests across 17 files
-- **Deployed:** `main` revision `59f3bbd`, Worker version
-  `f755fa78-2557-4664-99d0-1af4d9c429a5`, at
+- **Deployed:** `main` revision `fb6b289`, Worker version
+  `8b04fa37-df77-439d-938d-c960294d30a8`, at
   `https://octoprice.alanclinch.workers.dev`. D1 is in WEUR, migration 0008 is
   applied, both five-minute triggers are active and
   `FORECAST_BASELINE_ENABLED=true`.
 - **Git remote:** public GitHub repository at
-  `https://github.com/alanclinch/OctoPrice`; `main` is pushed at `ea38fd1` and
-  GitHub CI run `33328302795` passed.
+  `https://github.com/alanclinch/OctoPrice`; application revision `fb6b289`
+  passed GitHub CI run `33328962293`.
 
 ## Current Architecture
 
@@ -127,7 +127,9 @@ GitHub remote or a real device:
   read-only review found no material issues and returned `REVIEW: PASS`; its
   observations about the intentional dark card and possible future WebP
   optimisation were non-blocking. The reviewed commit `be5a344` was
-  fast-forwarded to `main`; it has not been deployed yet.
+  fast-forwarded to `main` and is live in Worker version
+  `8b04fa37-df77-439d-938d-c960294d30a8`. The production page, health endpoint
+  and exact 177,599-byte hero asset all returned HTTP 200 after deployment.
 - **Workflow:** every project turn must now finish with an independent,
   read-only Claude CLI review. The exact launcher path, tool allowlist, bounded
   repair loop and final-response requirements are recorded in `AGENTS.md`.
