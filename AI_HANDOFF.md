@@ -47,11 +47,11 @@ normal-price periods are not important unless they change that decision.
 ## Current State
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
-- **Current branch:** `codex/integrate-forecast-followups`
-- **Source control:** `main` is at `43594ca` and matches `origin/main`. The five
-  forecast deployment follow-ups from `8144762` have been brought onto this
-  integration branch while preserving the mandatory Claude CLI workflow.
-- **Build status:** passing on the integration branch — `npm run verify`
+- **Current branch:** `main`
+- **Source control:** `main` is at `727bb0f` and matches `origin/main`. The five
+  forecast deployment follow-ups are merged, while the mandatory Claude CLI
+  workflow remains active.
+- **Build status:** passing on `main` — `npm run verify`
 - **Test status:** passing — 353 tests across 17 files
 - **Deployed:** forecast shadow code `42d63a3`, Worker version
   `10458603-b186-481d-8fad-f2e0230cef4c`, at
@@ -59,7 +59,8 @@ normal-price periods are not important unless they change that decision.
   applied, both five-minute triggers are active and
   `FORECAST_BASELINE_ENABLED=true`.
 - **Git remote:** public GitHub repository at
-  `https://github.com/alanclinch/OctoPrice`; `main` is pushed at `43594ca`.
+  `https://github.com/alanclinch/OctoPrice`; `main` is pushed at `727bb0f` and
+  GitHub CI run `33313548093` passed.
 
 ## Current Architecture
 
@@ -129,9 +130,13 @@ GitHub remote or a real device:
   consuming the three-attempt permanent-missing budget.
 - **Verification:** `npm run verify` passes after integration: format, lint,
   typecheck, 353 tests across 17 files, and all workspace builds.
-- **Next action:** give Claude one focused review of these five fixes. Do not
-  merge or deploy before that review passes. The deployed shadow model, inputs
-  and cursors are unchanged.
+- **Review and merge:** Claude's focused read-only review found no material
+  issues and returned `REVIEW: PASS`. The branch was fast-forwarded to `main`;
+  GitHub CI and the Cloudflare deployment dry run both pass.
+- **Next action:** deploy committed `main` revision `727bb0f` only after Alan
+  explicitly authorises the production change, then verify `/api/health`, the
+  visible-cache cadence and continued shadow catch-up cursor progress. The
+  currently deployed shadow model, inputs and cursors are unchanged.
 
 ## Previous Agent Work — 2026-08-28
 
