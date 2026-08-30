@@ -48,9 +48,13 @@ Octopus publication cycles.
 - **Publication progress now speaks in useful terms.** The normal Octopus
   release through about 23:00 is shown as ready for planning, with its actual
   coverage time, instead of exposing the misleading `46/48` technical count.
+- **The interface now follows the mascot's palette.** Dark mode has moved from
+  the old blue-violet surfaces and accents to deep teal-charcoal, coral and
+  mint. The current-price mascot is rendered at half its previous footprint so
+  it supports the live price instead of competing with it.
 - **OctoPrice is now OctoAgile Advisor.** The new Price Pulse identity turns
   five half-hour price bars into a forward arrow, with a reproducible SVG/PWA
-  icon set, refreshed violet-and-mint branding, the shorter launcher name
+  icon set, refreshed coral-and-mint branding, the shorter launcher name
   “Agile Advisor”, and an explicit independent-app notice. Technical storage,
   package and deployment identifiers remain unchanged to protect existing
   sessions and production data. The maskable launcher variant keeps the full

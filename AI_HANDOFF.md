@@ -47,7 +47,7 @@ normal-price periods are not important unless they change that decision.
 ## Current State
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
-- **Current branch:** `main`
+- **Current branch:** `codex/coral-dark-theme`
 - **Source control:** `main` includes reviewed application revision `000bc9b`;
   the current handoff-only follow-up records its deployment and changes no
   runtime files. The mandatory Claude CLI workflow remains active.
@@ -110,6 +110,24 @@ GitHub remote or a real device:
 
 ## Latest Agent Work — 2026-08-30
 
+- **Coral dark-theme correction (review-ready):** Alan found the trainer mascot
+  too large and correctly noted that the interface still used the previous
+  violet theme. The mascot now renders at half its former width in both normal
+  and narrow-phone layouts. Dark mode uses deep teal-charcoal surfaces, coral
+  accents and mint energy cues; the old violet brand values and glow are gone,
+  and the negative-price semantic colour is cyan rather than lavender. Light
+  mode uses matching warm neutral surfaces and a darker accessible coral.
+  A 390×844 dark phone preview measured the art at 42.8% of the card width
+  (previously 86%), with no horizontal overflow or browser warnings.
+  Claude's first read-only review correctly found that the browser/PWA theme
+  metadata and generated launcher icons still carried the old navy/violet
+  palette. The manifest, HTML metadata, reproducible icon generator and full
+  SVG/PNG icon set now use teal-charcoal, coral and mint; the last blue-tinted
+  light shadow is also gone. `npm run verify` passes with 353 tests across 17
+  files, including icon reproducibility. Claude's required second review was
+  attempted but the CLI returned `You've hit your limit · resets 12:30am
+  (Europe/London)`. The completed branch must not merge or deploy until that
+  read-only review passes.
 - **Trainer mascot and useful publication status:** Alan rejected
   the purple abstract hero and the perpetual-looking `46/48` status. The
   current-price card now uses a transparent coral octopus in white/teal running
@@ -177,6 +195,16 @@ GitHub remote or a real device:
   test day with emphasis on low-slot detection, timing, useful lead time and
   cheapest-window regret. Observe a future stale-cache event to confirm the
   restored five-minute visible-cache priority under live Cron execution.
+
+## Currently In Progress
+
+- `codex/coral-dark-theme` contains the verified mascot-sizing and complete
+  coral/mint theme correction. First Claude review: `REVIEW: FAIL` because the
+  PWA metadata and generated icons still used navy/violet; those findings are
+  fixed. Second review is pending solely because the Claude CLI usage limit
+  resets at 00:30 Europe/London. After reset: rerun the read-only review; if it
+  passes, merge to `main`, wait for CI, deploy automatically and perform live
+  page/health/manifest/icon checks.
 
 ## Previous Agent Work — 2026-08-28
 

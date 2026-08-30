@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="OctoAgile Advisor price pulse">
   <rect x="76.8" y="297.0" width="46.1" height="76.8" rx="11.3" fill="#35e58a"/>
   <rect x="143.4" y="235.5" width="46.1" height="138.2" rx="11.3" fill="#35e58a"/>
-  <rect x="209.9" y="143.4" width="46.1" height="230.4" rx="11.3" fill="#7557ff"/>
-  <rect x="276.5" y="220.2" width="46.1" height="153.6" rx="11.3" fill="#7557ff"/>
-  <rect x="343.0" y="281.6" width="46.1" height="92.2" rx="11.3" fill="#7557ff"/>
+  <rect x="209.9" y="143.4" width="46.1" height="230.4" rx="11.3" fill="#ff8a66"/>
+  <rect x="276.5" y="220.2" width="46.1" height="153.6" rx="11.3" fill="#ff8a66"/>
+  <rect x="343.0" y="281.6" width="46.1" height="92.2" rx="11.3" fill="#ff8a66"/>
   <polygon points="384.0,256.0 465.9,325.1 384.0,394.2" fill="#35e58a"/>
 </svg>

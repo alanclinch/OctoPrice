@@ -3,24 +3,24 @@
  *
  * The interface is deliberately plain (DESIGN.md sections 12 and 41): the job
  * is to show a price and get out of the way. Price-band colours remain
- * semantic; the violet/mint identity supports rather than replaces them.
+ * semantic; the coral/mint identity supports rather than replaces them.
  *
  * Theme follows the system unless the user has chosen light or dark, which is
  * stamped onto the root element as `data-theme`.
  */
 
 :root {
-  --bg: #f5f6f8;
-  --surface: #ffffff;
-  --surface-alt: #eef0f4;
-  --border: #dcdfe6;
-  --text: #16191f;
-  --text-muted: #5d6470;
-  --accent: #5c43e6;
+  --bg: #f7f4f0;
+  --surface: #fffdfa;
+  --surface-alt: #f1ebe6;
+  --border: #ddd4cc;
+  --text: #1d1a18;
+  --text-muted: #68605a;
+  --accent: #b6452f;
   --accent-contrast: #ffffff;
 
   /* Price bands, cheap to expensive. */
-  --band-negative: #6d28d9;
+  --band-negative: #087e9f;
   --band-verycheap: #0f8a4d;
   --band-cheap: #4faa2e;
   --band-normal: #d99a13;
@@ -29,23 +29,23 @@
 
   --radius: 14px;
   --gap: 12px;
-  --shadow: 0 1px 2px rgb(16 23 37 / 8%);
+  --shadow: 0 1px 2px rgb(29 26 24 / 8%);
 
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --bg: #101725;
-    --surface: #18202f;
-    --surface-alt: #212a3b;
-    --border: #2c374a;
-    --text: #eef1f6;
-    --text-muted: #9aa4b6;
-    --accent: #8b7cff;
-    --accent-contrast: #101725;
+    --bg: #0c1718;
+    --surface: #132225;
+    --surface-alt: #1b2e31;
+    --border: #294246;
+    --text: #f5f2ec;
+    --text-muted: #a8b8b5;
+    --accent: #ff8a66;
+    --accent-contrast: #1a1110;
 
-    --band-negative: #a78bfa;
+    --band-negative: #3bbcdf;
     --band-verycheap: #34d399;
     --band-cheap: #86d34e;
     --band-normal: #fbbf24;
@@ -59,16 +59,16 @@
 }
 
 :root[data-theme='dark'] {
-  --bg: #101725;
-  --surface: #18202f;
-  --surface-alt: #212a3b;
-  --border: #2c374a;
-  --text: #eef1f6;
-  --text-muted: #9aa4b6;
-  --accent: #8b7cff;
-  --accent-contrast: #101725;
+  --bg: #0c1718;
+  --surface: #132225;
+  --surface-alt: #1b2e31;
+  --border: #294246;
+  --text: #f5f2ec;
+  --text-muted: #a8b8b5;
+  --accent: #ff8a66;
+  --accent-contrast: #1a1110;
 
-  --band-negative: #a78bfa;
+  --band-negative: #3bbcdf;
   --band-verycheap: #34d399;
   --band-cheap: #86d34e;
   --band-normal: #fbbf24;
@@ -229,7 +229,7 @@ button {
 /* --- The headline "now" price ------------------------------------------- */
 
 .now-card {
-  --band-negative: #a78bfa;
+  --band-negative: #3bbcdf;
   --band-verycheap: #34d399;
   --band-cheap: #86d34e;
   --band-normal: #fbbf24;
@@ -243,10 +243,11 @@ button {
   display: flex;
   align-items: center;
   background:
-    radial-gradient(circle at 78% 42%, rgb(117 87 255 / 20%), transparent 42%),
-    linear-gradient(135deg, #101725 0%, #131b2d 62%, #181c39 100%);
-  border-color: rgb(139 124 255 / 28%);
-  box-shadow: 0 10px 28px rgb(16 23 37 / 16%);
+    radial-gradient(circle at 80% 38%, rgb(255 138 102 / 16%), transparent 38%),
+    radial-gradient(circle at 92% 78%, rgb(52 211 153 / 10%), transparent 30%),
+    linear-gradient(135deg, #0b1719 0%, #102327 62%, #162a2d 100%);
+  border-color: rgb(255 138 102 / 30%);
+  box-shadow: 0 10px 28px rgb(7 18 19 / 22%);
 }
 
 .now-card::after {
@@ -254,7 +255,7 @@ button {
   position: absolute;
   z-index: -1;
   inset: 0;
-  background: linear-gradient(90deg, #101725 0%, rgb(16 23 37 / 96%) 36%, transparent 74%);
+  background: linear-gradient(90deg, #0b1719 0%, rgb(11 23 25 / 96%) 40%, transparent 76%);
   pointer-events: none;
 }
 
@@ -262,11 +263,11 @@ button {
   position: absolute;
   z-index: -2;
   top: 50%;
-  right: -24px;
-  width: min(470px, 86%);
+  right: 4px;
+  width: min(235px, 43%);
   height: auto;
   transform: translateY(-50%);
-  opacity: 0.9;
+  opacity: 0.95;
   pointer-events: none;
   user-select: none;
 }
@@ -281,7 +282,7 @@ button {
 .now-card .now-meta,
 .now-card .now-price .unit,
 .now-card .muted {
-  color: #b8c2d7;
+  color: #b7c6c3;
 }
 
 .now-price {
@@ -966,8 +967,8 @@ input[type='checkbox'] {
   }
 
   .now-card-art {
-    right: -46px;
-    width: 96%;
+    right: -4px;
+    width: 48%;
   }
 
   .now-card-copy {

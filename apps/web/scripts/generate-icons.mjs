@@ -18,9 +18,9 @@ import assert from 'node:assert/strict';
 
 const OUT_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'icons');
 
-const BACKGROUND = [0x10, 0x17, 0x25];
+const BACKGROUND = [0x0c, 0x17, 0x18];
 const MINT = [0x35, 0xe5, 0x8a];
-const VIOLET = [0x75, 0x57, 0xff];
+const CORAL = [0xff, 0x8a, 0x66];
 
 /**
  * Five half-hour price bars flow into a forward pointer. The mark is kept
@@ -29,9 +29,9 @@ const VIOLET = [0x75, 0x57, 0xff];
 const PRICE_BARS = [
   { x1: 0.15, y1: 0.58, x2: 0.24, y2: 0.73, colour: MINT },
   { x1: 0.28, y1: 0.46, x2: 0.37, y2: 0.73, colour: MINT },
-  { x1: 0.41, y1: 0.28, x2: 0.5, y2: 0.73, colour: VIOLET },
-  { x1: 0.54, y1: 0.43, x2: 0.63, y2: 0.73, colour: VIOLET },
-  { x1: 0.67, y1: 0.55, x2: 0.76, y2: 0.73, colour: VIOLET },
+  { x1: 0.41, y1: 0.28, x2: 0.5, y2: 0.73, colour: CORAL },
+  { x1: 0.54, y1: 0.43, x2: 0.63, y2: 0.73, colour: CORAL },
+  { x1: 0.67, y1: 0.55, x2: 0.76, y2: 0.73, colour: CORAL },
 ];
 const BAR_RADIUS = 0.022;
 const POINTER_SHAPE = [
