@@ -80,16 +80,9 @@ export function PriceTable({
                 <td>
                   {periodRange(period, display)}
                   {isNow && <span className="muted small"> · now</span>}
-                  {forecast && <span className="forecast-label">Estimate</span>}
                 </td>
                 <td className={`numeric price ${bandClass(period.valueIncVat)}`}>
                   {forecast ? `~${pence(period.valueIncVat, 1)}` : pence(period.valueIncVat, 2)}
-                  {forecast && (
-                    <span className="forecast-range">
-                      {pence(period.lowerIncVat, 1)}–{pence(period.upperIncVat, 1)} middle of recent
-                      prices
-                    </span>
-                  )}
                 </td>
               </tr>
             </Fragment>

@@ -47,12 +47,12 @@ normal-price periods are not important unless they change that decision.
 ## Current State
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
-- **Current branch:** `main`
+- **Current branch:** `codex/friend-invites-clean-forecast`
 - **Source control:** `main` includes reviewed application revision `f419264`;
   the current handoff-only follow-up records its deployment and changes no
   runtime files. The mandatory Claude CLI workflow remains active.
 - **Build status:** passing on `main` — `npm run verify`
-- **Test status:** passing — 353 tests across 17 files
+- **Test status:** passing — 355 tests across 18 files
 - **Deployed:** `main` revision `f419264`, Worker version
   `886287b6-6f38-417d-964b-2a2a3efafccb`, at
   `https://octoprice.alanclinch.workers.dev`. D1 is in WEUR, migration 0008 is
@@ -108,7 +108,18 @@ GitHub remote or a real device:
   repository and Cloudflare identifiers deliberately remain `octoprice` so
   the visual rename cannot invalidate sessions or production data.
 
-## Latest Agent Work — 2026-08-30
+## Latest Agent Work — 2026-08-31
+
+- **Friend invitations and quieter estimates (review-ready):** Creating or
+  reissuing a friend link now shows a ready-to-send, copyable message covering
+  live/upcoming Agile prices, cheapest windows and notifications. Every newly
+  invited person is explicitly initialised in region N (Southern Scotland),
+  while existing users and later region changes are untouched. The half-hour
+  table keeps its single “Experimental estimates from here” separator but no
+  longer repeats an Estimate badge or recent-price range under every forecast
+  row. `npm run verify` passes with 355 tests across 18 files. This branch still
+  needs the mandatory Claude review, merge, CI, automatic deployment and live
+  checks.
 
 - **Coral dark-theme correction:** Alan found the trainer mascot
   too large and correctly noted that the interface still used the previous

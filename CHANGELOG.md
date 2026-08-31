@@ -14,6 +14,11 @@ Octopus publication cycles.
 
 ### Added
 
+- **Ready-to-send friend invitations.** Creating or reissuing a private link
+  now provides a copyable message explaining current and upcoming Agile prices,
+  cheapest windows and price notifications. New friends start in Southern
+  Scotland and can change their own region later.
+
 - **Owner forecast laboratory.** A separate experimental Forecast tab shows
   model-preparation progress, overlays the current baseline, new analogue model
   and official prices, and lists scored accuracy as evidence accumulates. It is
@@ -38,6 +43,10 @@ Octopus publication cycles.
   person.
 
 ### Changed
+
+- **Forecast rows are quieter.** The single “Experimental estimates from here”
+  separator now labels the estimated section without repeating an Estimate
+  badge and historical range below every half-hour price.
 
 - **The identity now has a real place in the app.** The tiny Price Pulse mark
   has left the header. A coral octopus advisor in running trainers fills the

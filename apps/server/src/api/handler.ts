@@ -194,6 +194,7 @@ function publicUser(user: User) {
 
 /** Routes that work without a session. Everything else needs one. */
 const PUBLIC_PATHS = new Set(['/api/health', '/api/session/claim', '/api/regions']);
+const INVITED_USER_DEFAULT_REGION = 'N';
 
 export async function handleApiRequest(
   context: ApiContext,
@@ -624,6 +625,9 @@ export async function handleApiRequest(
         name: parsed.data.name,
         tokenHash: await hashToken(token),
       });
+      // Friends invited from this installation are most likely local to Alan.
+      // They can still change their own region at any time in Settings.
+      await store.updateSettings(created.id, { region: INVITED_USER_DEFAULT_REGION });
       logger.info('Created an invite', { userId: created.id, name: created.name });
 
       // The only time the plain token is ever returned.

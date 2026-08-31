@@ -17,6 +17,24 @@ import { api, type SessionUser } from '../api.ts';
 interface IssuedLink {
   name: string;
   link: string;
+  isNewUser: boolean;
+}
+
+export function buildInviteMessage(name: string, link: string, isNewUser: boolean): string {
+  const closing = isNewUser
+    ? 'Southern Scotland is selected to start. Confirm it—or choose another region—when you open the app. You can change alerts later in Settings.'
+    : 'Your existing region and alert settings are unchanged.';
+
+  return `Hi ${name},
+
+I've invited you to OctoAgile Advisor, an independent app for Octopus Agile electricity prices.
+
+It shows current and upcoming half-hour prices, finds the cheapest continuous times to use electricity or charge a car, and can notify you when tomorrow's Agile prices are published or when prices match your alerts.
+
+Open this private invite link on the phone you want to use:
+${link}
+
+${closing}`;
 }
 
 export function PeopleView(): JSX.Element {
@@ -25,7 +43,7 @@ export function PeopleView(): JSX.Element {
   const [issued, setIssued] = useState<IssuedLink | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<'message' | 'link' | null>(null);
 
   const reload = useCallback(async () => {
     try {
@@ -57,19 +75,20 @@ export function PeopleView(): JSX.Element {
     if (!name.trim()) return;
     await run(async () => {
       const result = await api.createInvite(name.trim());
-      setIssued({ name: result.user.name, link: result.link });
+      setIssued({ name: result.user.name, link: result.link, isNewUser: true });
+      setCopied(null);
       setName('');
     });
   };
 
-  const copy = async (link: string): Promise<void> => {
+  const copy = async (text: string, kind: 'message' | 'link'): Promise<void> => {
     try {
-      await navigator.clipboard.writeText(link);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      await navigator.clipboard.writeText(text);
+      setCopied(kind);
+      setTimeout(() => setCopied(null), 2000);
     } catch {
-      // Clipboard access can be refused; the link is on screen to copy by hand.
-      setCopied(false);
+      // Clipboard access can be refused; the message is on screen to copy by hand.
+      setCopied(null);
     }
   };
 
@@ -96,13 +115,28 @@ export function PeopleView(): JSX.Element {
         {issued && (
           <div className="issued-link">
             <p className="small" style={{ marginTop: 14, marginBottom: 6 }}>
-              <strong>{issued.name}</strong>&rsquo;s link. Send it to them now — it is not shown
-              again.
+              Send this message to <strong>{issued.name}</strong> now — the private link is not
+              shown again.
             </p>
+            <pre className="invite-message">
+              {buildInviteMessage(issued.name, issued.link, issued.isNewUser)}
+            </pre>
             <code className="link-box">{issued.link}</code>
             <div className="btn-row" style={{ marginTop: 8 }}>
-              <button type="button" className="btn" onClick={() => void copy(issued.link)}>
-                {copied ? 'Copied' : 'Copy link'}
+              <button
+                type="button"
+                className="btn primary"
+                onClick={() =>
+                  void copy(
+                    buildInviteMessage(issued.name, issued.link, issued.isNewUser),
+                    'message',
+                  )
+                }
+              >
+                {copied === 'message' ? 'Message copied' : 'Copy message'}
+              </button>
+              <button type="button" className="btn" onClick={() => void copy(issued.link, 'link')}>
+                {copied === 'link' ? 'Link copied' : 'Copy link only'}
               </button>
               <button type="button" className="btn" onClick={() => setIssued(null)}>
                 Done
@@ -142,7 +176,7 @@ export function PeopleView(): JSX.Element {
                   onClick={() =>
                     void run(async () => {
                       const result = await api.reissueLink(person.id);
-                      setIssued({ name: result.user.name, link: result.link });
+                      setIssued({ name: result.user.name, link: result.link, isNewUser: false });
                     })
                   }
                 >

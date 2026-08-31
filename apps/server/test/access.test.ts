@@ -229,6 +229,11 @@ describe('access control', () => {
       expect(rules.length).toBeGreaterThan(0);
       expect(rules.every((rule) => rule.userId === id)).toBe(true);
     });
+
+    it('starts every newly invited person in Southern Scotland', async () => {
+      const { id } = await context.invite('Friend');
+      expect((await context.built.store.getSettings(id)).region).toBe('N');
+    });
   });
 
   describe('owner privileges', () => {
