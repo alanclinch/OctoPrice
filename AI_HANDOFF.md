@@ -47,20 +47,19 @@ normal-price periods are not important unless they change that decision.
 ## Current State
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
-- **Current branch:** `codex/remove-price-subtitle`
-- **Source control:** `main` includes reviewed application revision `5a4c925`;
-  the current handoff-only follow-up records its deployment and changes no
-  runtime files. The mandatory Claude CLI workflow remains active.
+- **Current branch:** `main`
+- **Source control:** `main` includes reviewed application revision `1477c38`.
+  The mandatory Claude CLI workflow remains active.
 - **Build status:** passing on `main` — `npm run verify`
 - **Test status:** passing — 356 tests across 18 files
-- **Deployed:** `main` revision `5a4c925`, Worker version
-  `9f106d7a-87a3-4358-90db-f03e435672c8`, at
+- **Deployed:** `main` revision `1477c38`, Worker version
+  `3f7385fc-a551-470f-9dcf-54214dd3f88e`, at
   `https://octoprice.alanclinch.workers.dev`. D1 is in WEUR, migration 0008 is
   applied, both five-minute triggers are active and
   `FORECAST_BASELINE_ENABLED=true`.
 - **Git remote:** public GitHub repository at
-  `https://github.com/alanclinch/OctoPrice`; application revision `5a4c925`
-  passed GitHub CI run `33375305770`.
+  `https://github.com/alanclinch/OctoPrice`; application revision `1477c38`
+  passed GitHub CI run `33376400101`.
 
 ## Current Architecture
 
@@ -113,7 +112,12 @@ GitHub remote or a real device:
 - **Half-hour price heading simplified:** Removed the redundant dynamic
   subtitle beneath “Half-hour prices”. Forecast rows still have the existing
   “Experimental estimates from here” separator. `npm run verify` passes with
-  356 tests across 18 files. Review and deployment are pending.
+  356 tests across 18 files. Claude's first read-only review passed and noted
+  an unused CSS rule and wrapper; both were removed, verification was rerun,
+  and the final review returned `REVIEW: PASS`. Revision `1477c38` passed
+  GitHub CI run `33376400101` and is live as Worker version
+  `3f7385fc-a551-470f-9dcf-54214dd3f88e`; page, health, exact-bundle and
+  removed-text checks passed.
 
 - **Friend invitations and quieter estimates:** Creating or
   reissuing a friend link now shows a ready-to-send, copyable message covering
