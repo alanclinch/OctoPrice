@@ -47,12 +47,12 @@ normal-price periods are not important unless they change that decision.
 ## Current State
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
-- **Current branch:** `main`
+- **Current branch:** `codex/remove-price-subtitle`
 - **Source control:** `main` includes reviewed application revision `5a4c925`;
   the current handoff-only follow-up records its deployment and changes no
   runtime files. The mandatory Claude CLI workflow remains active.
 - **Build status:** passing on `main` — `npm run verify`
-- **Test status:** passing — 355 tests across 18 files
+- **Test status:** passing — 356 tests across 18 files
 - **Deployed:** `main` revision `5a4c925`, Worker version
   `9f106d7a-87a3-4358-90db-f03e435672c8`, at
   `https://octoprice.alanclinch.workers.dev`. D1 is in WEUR, migration 0008 is
@@ -109,6 +109,11 @@ GitHub remote or a real device:
   the visual rename cannot invalidate sessions or production data.
 
 ## Latest Agent Work — 2026-08-31
+
+- **Half-hour price heading simplified:** Removed the redundant dynamic
+  subtitle beneath “Half-hour prices”. Forecast rows still have the existing
+  “Experimental estimates from here” separator. `npm run verify` passes with
+  356 tests across 18 files. Review and deployment are pending.
 
 - **Friend invitations and quieter estimates:** Creating or
   reissuing a friend link now shows a ready-to-send, copyable message covering

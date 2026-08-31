@@ -44,6 +44,9 @@ Octopus publication cycles.
 
 ### Changed
 
+- Removed the redundant subtitle beneath “Half-hour prices”; the forecast
+  separator already shows where estimates begin.
+
 - **Forecast rows are quieter.** The single “Experimental estimates from here”
   separator now labels the estimated section without repeating an Estimate
   badge and historical range below every half-hour price.

@@ -170,16 +170,7 @@ export function PricesView({ overview, now, display }: PricesViewProps): JSX.Ele
 
       <div className="card">
         <div className="section-heading table-heading">
-          <div>
-            <h2>Half-hour prices</h2>
-            <p className="section-title">
-              {forecastPeriods.length > 0
-                ? 'Estimates follow confirmed prices'
-                : remainingOnly
-                  ? 'Current slot first'
-                  : 'Including elapsed prices'}
-            </p>
-          </div>
+          <h2>Half-hour prices</h2>
           <label className="remaining-toggle">
             <input
               type="checkbox"
