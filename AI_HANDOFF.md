@@ -47,20 +47,20 @@ normal-price periods are not important unless they change that decision.
 ## Current State
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
-- **Current branch:** `codex/coral-dark-theme`
-- **Source control:** `main` includes reviewed application revision `000bc9b`;
+- **Current branch:** `main`
+- **Source control:** `main` includes reviewed application revision `f419264`;
   the current handoff-only follow-up records its deployment and changes no
   runtime files. The mandatory Claude CLI workflow remains active.
 - **Build status:** passing on `main` — `npm run verify`
 - **Test status:** passing — 353 tests across 17 files
-- **Deployed:** `main` revision `000bc9b`, Worker version
-  `1cbc3d97-77ce-4f84-9ad7-9ebea82f0eee`, at
+- **Deployed:** `main` revision `f419264`, Worker version
+  `886287b6-6f38-417d-964b-2a2a3efafccb`, at
   `https://octoprice.alanclinch.workers.dev`. D1 is in WEUR, migration 0008 is
   applied, both five-minute triggers are active and
   `FORECAST_BASELINE_ENABLED=true`.
 - **Git remote:** public GitHub repository at
-  `https://github.com/alanclinch/OctoPrice`; application revision `000bc9b`
-  passed GitHub CI run `33330574869`.
+  `https://github.com/alanclinch/OctoPrice`; application revision `f419264`
+  passed GitHub CI run `33372562791`.
 
 ## Current Architecture
 
@@ -110,7 +110,7 @@ GitHub remote or a real device:
 
 ## Latest Agent Work — 2026-08-30
 
-- **Coral dark-theme correction (review-ready):** Alan found the trainer mascot
+- **Coral dark-theme correction:** Alan found the trainer mascot
   too large and correctly noted that the interface still used the previous
   violet theme. The mascot now renders at half its former width in both normal
   and narrow-phone layouts. Dark mode uses deep teal-charcoal surfaces, coral
@@ -124,10 +124,11 @@ GitHub remote or a real device:
   palette. The manifest, HTML metadata, reproducible icon generator and full
   SVG/PNG icon set now use teal-charcoal, coral and mint; the last blue-tinted
   light shadow is also gone. `npm run verify` passes with 353 tests across 17
-  files, including icon reproducibility. Claude's required second review was
-  attempted but the CLI returned `You've hit your limit · resets 12:30am
-  (Europe/London)`. The completed branch must not merge or deploy until that
-  read-only review passes.
+  files, including icon reproducibility. After the Claude limit reset, the
+  second read-only review found no material issues and returned `REVIEW: PASS`.
+  Revision `f419264` passed GitHub CI run `33372562791` and is live as Worker
+  version `886287b6-6f38-417d-964b-2a2a3efafccb`; live page, health, manifest,
+  coral/mint icon and exact new CSS bundle checks all passed.
 - **Trainer mascot and useful publication status:** Alan rejected
   the purple abstract hero and the perpetual-looking `46/48` status. The
   current-price card now uses a transparent coral octopus in white/teal running
@@ -195,16 +196,6 @@ GitHub remote or a real device:
   test day with emphasis on low-slot detection, timing, useful lead time and
   cheapest-window regret. Observe a future stale-cache event to confirm the
   restored five-minute visible-cache priority under live Cron execution.
-
-## Currently In Progress
-
-- `codex/coral-dark-theme` contains the verified mascot-sizing and complete
-  coral/mint theme correction. First Claude review: `REVIEW: FAIL` because the
-  PWA metadata and generated icons still used navy/violet; those findings are
-  fixed. Second review is pending solely because the Claude CLI usage limit
-  resets at 00:30 Europe/London. After reset: rerun the read-only review; if it
-  passes, merge to `main`, wait for CI, deploy automatically and perform live
-  page/health/manifest/icon checks.
 
 ## Previous Agent Work — 2026-08-28
 
