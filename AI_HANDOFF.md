@@ -127,7 +127,9 @@ GitHub remote or a real device:
   18 files. Mandatory Claude review was attempted but did not run because the
   CLI returned HTTP 401: its OAuth access token has expired and must be
   re-authenticated. This documentation-only diagnosis therefore remains on its
-  branch and is not independently reviewed or merged.
+  branch. Alan re-authenticated Claude Code, `CLAUDE_OK` succeeded and the
+  subsequent read-only review confirmed the diagnosis against the code and
+  returned `REVIEW: PASS`; no changes were requested.
 
 - **Half-hour price heading simplified:** Removed the redundant dynamic
   subtitle beneath “Half-hour prices”. Forecast rows still have the existing
