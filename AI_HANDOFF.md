@@ -47,7 +47,7 @@ normal-price periods are not important unless they change that decision.
 ## Current State
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
-- **Current branch:** `main`
+- **Current branch:** `codex/record-forecast-miss`
 - **Source control:** `main` includes reviewed application revision `1477c38`.
   The mandatory Claude CLI workflow remains active.
 - **Build status:** passing on `main` — `npm run verify`
@@ -107,7 +107,27 @@ GitHub remote or a real device:
   repository and Cloudflare identifiers deliberately remain `octoprice` so
   the visual rename cannot invalidate sessions or production data.
 
-## Latest Agent Work — 2026-08-31
+## Latest Agent Work — 2026-09-05
+
+- **Live cheap-window miss recorded:** Alan reported that the visible v1
+  projection was poor for 5 September and materially higher than other apps
+  for 6 September. This is product-significant, not a normal penny-level
+  error: official Southern Scotland prices for 5 September averaged 12.66p
+  across the 46 published periods and reached -4.40p, while at 12:30 on 5
+  September both AgilePredict and agile-rates.uk forecast a long cheap window
+  for 6 September around 09:00-15:30, reaching roughly 0p to -3.50p. The
+  visible `seasonal-naive-v1` uses only a 28-day weekday/weekend price median,
+  so it cannot react to the wind, solar and demand conditions driving this
+  event. Do not spend the next iteration reducing ordinary-price MAE. Inspect
+  the paired v1/v2 runs for these dates and judge v2 primarily on low-window
+  timing, useful lead time and three-hour regret. The current Wrangler login
+  could deploy but its D1 query returned Cloudflare error 7403, and the clean
+  browser session was not signed into the owner view, so the private v2 curves
+  were not guessed or reported. `npm run verify` passed with 356 tests across
+  18 files. Mandatory Claude review was attempted but did not run because the
+  CLI returned HTTP 401: its OAuth access token has expired and must be
+  re-authenticated. This documentation-only diagnosis therefore remains on its
+  branch and is not independently reviewed or merged.
 
 - **Half-hour price heading simplified:** Removed the redundant dynamic
   subtitle beneath “Half-hour prices”. Forecast rows still have the existing
@@ -1304,15 +1324,17 @@ model against it. Test ENTSO-E alongside those steps rather than blocking them.
 
 ## Next Recommended Work
 
-1. Claude performs one focused review of
-   `codex/forecast-review-followups`. After approval, merge, wait for CI, deploy
-   and verify the existing catch-up cursor continues advancing.
-2. Let the deliberately bounded private catch-up complete. The first production
-   shadow turn succeeded, advanced the region-C price cursor to 2026-05-03 with
-   zero retries, and handed the next turn back to `baseline`. Roughly 35 hours
-   is expected before the first paired v1/v2 tomorrow run.
-3. Once paired shadow runs accumulate, compare v1/v2 and comparison apps at the
-   same issue time against eventual confirmed Octopus prices.
+1. Restore read access to production D1 or use the authenticated owner Forecast
+   tab to capture the paired v1/v2 curves and scores for 5 and 6 September. Do
+   not alter the visible model until that evidence is inspected.
+2. Compare both models with confirmed Southern Scotland prices and the two
+   same-vintage comparison forecasts. Prioritise whether each model found the
+   cheap window, its start-time error, useful lead time and three-hour regret;
+   ordinary-slot MAE is secondary.
+3. If v2 captured the cheap event materially better, plan a bounded promotion
+   path with explicit fallback to v1 and no effect on confirmed prices or
+   alerts. If it also missed, evaluate fresher Elexon vintages and a renewable
+   surplus/net-demand feature before changing model weights.
 4. **Confirm the new Android badge visually.** Send another test notification
    after the updated service worker is active and confirm the tray shows the
    system-tinted Price Pulse mark rather than a white square. Push delivery
