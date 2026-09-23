@@ -84,13 +84,15 @@ npm run dev:web      # PWA dev server
   Trigger. Follow `docs/deployment.md` and `wrangler.jsonc`.
 - The Node/Fastify/SQLite path remains the local development runtime.
 - Apply D1 migrations before deploying code that depends on them.
-- Deploy only committed `main` revisions after CI passes. Keep tunnel
-  credentials and other secrets outside Git.
+- Deploy production only from committed `main` revisions after CI passes.
+  The separate `octoprice-dev` Worker may be deployed from a verified,
+  committed `dev` revision with `--env dev`. Never use bare `wrangler deploy`
+  for a development release. Keep secrets outside Git.
 - `dev` is the long-lived integration branch for ongoing development. Pushing
   or merging work to `dev` must never trigger a production deployment.
 - Do not merge `dev` into `main`, push application work directly to `main`, or
-  deploy a development revision until Alan explicitly says he is happy with
-  the development version and authorises the release to `main`.
+  deploy a development revision to the production Worker until Alan explicitly
+  says he is happy with it and authorises the release to `main`.
 - Alan has given standing authorisation to deploy after reviewed
   application-affecting work is pushed or merged to `main`. Treat the
   production deployment and live health check as part of completing that same

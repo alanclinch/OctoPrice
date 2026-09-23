@@ -35,9 +35,11 @@
     "dev:web": "npm run dev --workspace @octoprice/web",
     "dev:cloudflare": "npm run build --workspace @octoprice/web && wrangler dev",
     "deploy:cloudflare": "npm run build && wrangler deploy",
+    "deploy:cloudflare:dev": "npm run build && npm run build --workspace @octoprice/web -- --mode dev && wrangler deploy --env dev",
     "deploy:cloudflare:dry-run": "npm run build && wrangler deploy --dry-run",
     "d1:migrate:local": "wrangler d1 migrations apply octoprice --local",
     "d1:migrate:remote": "wrangler d1 migrations apply octoprice --remote",
+    "d1:migrate:dev": "wrangler d1 migrations apply octoprice-dev --remote --env dev",
     "generate:vapid": "node apps/server/src/scripts/generate-vapid.ts",
     "issue-link": "node apps/server/src/scripts/issue-link.ts"
   },

@@ -133,6 +133,17 @@ button {
   padding: calc(12px + env(safe-area-inset-top)) 0 12px;
 }
 
+.dev-badge {
+  margin-left: auto;
+  padding: 3px 7px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  color: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
 .brand-lockup {
   display: flex;
   align-items: center;

@@ -309,6 +309,7 @@ export function App(): JSX.Element {
     <>
       <header className="app-header">
         <Brand subtitle={`${region.area}${user && !user.isOwner ? ` · ${user.name}` : ''}`} />
+        {import.meta.env.MODE === 'dev' && <span className="dev-badge">DEV</span>}
         {showInstall && (
           <button type="button" className="btn compact" onClick={() => void install()}>
             Install app

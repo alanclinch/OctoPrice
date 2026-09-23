@@ -194,8 +194,38 @@ Useful event names include `PRICE_CHECK_STARTED`, `PRICE_DATA_NOT_READY`,
 
 ## Updating
 
-Development pushes to `dev` run CI without deploying. When Alan approves a
-release, merge the reviewed `dev` revision into `main`, wait for CI, then
+Development pushes to `dev` run CI without deploying production. To test a
+committed, verified `dev` revision on a phone, use the separate
+`https://octoprice-dev.alanclinch.workers.dev` address:
+
+```bash
+npm run d1:migrate:dev
+npm run verify
+npm run deploy:cloudflare:dev
+```
+
+The `dev` Wrangler environment has its own Worker and D1 database. Its
+`workers.dev` origin also gives it separate cookies, service worker, PWA
+installation and push subscriptions. The app displays a DEV badge and installs
+as “Agile Dev”. Do not copy production user rows, access tokens, push
+subscriptions or VAPID secrets to it. The development database starts with an
+unclaimed owner; issue a one-time owner link with:
+
+```bash
+npm run issue-link -- --env dev --url https://octoprice-dev.alanclinch.workers.dev
+```
+
+The link is written to the ignored `.octoprice-dev-link.txt`. Development push
+notifications require a **different** VAPID pair configured using
+`wrangler secret put <NAME> --env dev`; without that, confirmed prices and forecasts can
+still be tested but development push is unavailable. Do not rotate or reuse the
+production pair. Only deploy from a committed `dev` revision after verification
+and independent review. An ordinary `dev` push does not deploy automatically.
+Never run bare `wrangler deploy` for production after building the dev PWA:
+that would upload the DEV-labelled assets. Use `npm run deploy:cloudflare`,
+which always rebuilds the production assets first.
+
+When Alan approves a release, merge the reviewed `dev` revision into `main`, wait for CI, then
 deploy that committed `main` revision:
 
 ```bash
@@ -209,4 +239,11 @@ npm run deploy:cloudflare
 
 D1 migrations are forward-only. Apply a new migration before code that needs
 the new schema. Existing prices, settings, subscriptions and notification
-deduplication records remain in D1 across Worker deployments.
+deduplication records remain in D1 across Worker deployments. For a seamless
+release, keep the production Worker name and URL, production D1 binding/ID,
+VAPID keys, host-only session cookie, PWA origin and manifest identity unchanged.
+Do not reissue existing users' links. Test any new migration on the development
+database first, then apply it to production before deploying dependent code.
+Existing users should then receive the update through the PWA service worker
+without signing in or reinstalling. Treat changes to those identities or
+existing data as a separate, explicitly planned migration.

@@ -11,6 +11,7 @@
  *
  * Usage:
  *   npm run issue-link -- --url https://your-worker.workers.dev
+ *   npm run issue-link -- --env dev --url https://octoprice-dev.your-subdomain.workers.dev
  *   npm run issue-link -- --local
  *
  * The link is written to a git-ignored file rather than printed, so it does
@@ -19,8 +20,6 @@
 
 import { execFileSync } from 'node:child_process';
 import { rmSync, writeFileSync } from 'node:fs';
-
-const OUTPUT_FILE = '.octoprice-link.txt';
 
 function argument(name: string): string | undefined {
   const index = process.argv.indexOf(`--${name}`);
@@ -35,6 +34,13 @@ function toBase64Url(bytes: Uint8Array): string {
 
 async function main(): Promise<void> {
   const local = process.argv.includes('--local');
+  const environment = argument('env');
+  if (environment !== undefined && environment !== 'dev') {
+    throw new Error('Only --env dev is supported. Omit --env for production.');
+  }
+  if (local && environment) throw new Error('Choose --local or --env dev, not both.');
+  const databaseName = environment ? 'octoprice-dev' : 'octoprice';
+  const outputFile = environment ? '.octoprice-dev-link.txt' : '.octoprice-link.txt';
   const siteUrl = argument('url') ?? process.env.SITE_URL ?? '';
   // Defaults to the owner, which is the whole point of the script.
   const target = argument('user');
@@ -64,7 +70,9 @@ async function main(): Promise<void> {
     const sqlFile = '.octoprice-issue-link.sql';
     writeFileSync(sqlFile, sql, 'utf8');
 
-    process.stdout.write(`Issuing a link against the ${local ? 'local' : 'remote'} database...\n`);
+    process.stdout.write(
+      `Issuing a link against the ${local ? 'local' : databaseName} database...\n`,
+    );
     try {
       execFileSync(
         'npx',
@@ -72,8 +80,9 @@ async function main(): Promise<void> {
           'wrangler',
           'd1',
           'execute',
-          'octoprice',
+          databaseName,
           local ? '--local' : '--remote',
+          ...(environment ? ['--env', environment] : []),
           '--file',
           sqlFile,
           '--yes',
@@ -86,12 +95,12 @@ async function main(): Promise<void> {
   }
 
   const link = siteUrl ? `${siteUrl.replace(/\/$/, '')}/?invite=${token}` : `/?invite=${token}`;
-  writeFileSync(OUTPUT_FILE, `${link}\n`, 'utf8');
+  writeFileSync(outputFile, `${link}\n`, 'utf8');
 
   process.stdout.write(
     [
       '',
-      `Done. The link has been written to ${OUTPUT_FILE}.`,
+      `Done. The link has been written to ${outputFile}.`,
       'Open that file, use the link once, then delete the file.',
       siteUrl ? '' : 'Tip: pass --url https://your-site to get a complete link.',
       '',

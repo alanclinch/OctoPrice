@@ -98,7 +98,9 @@ Trigger; follow `docs/deployment.md` and `wrangler.jsonc`. The Node/Fastify/
 SQLite path remains the local development runtime. Apply D1 migrations before
 deploying code that depends on them.
 
-Deploy only committed `main` revisions after CI passes. Wrangler credentials,
+Deploy production only from committed `main` revisions after CI passes. The
+separate `octoprice-dev` Worker may be deployed from a verified committed
+`dev` revision with `--env dev`; never use bare `wrangler deploy` for it. Wrangler credentials,
 VAPID keys and Cloudflare API tokens stay outside Git.
 
 ## Coding conventions
@@ -145,8 +147,8 @@ This is the most common source of bugs in this project. Read
 - Work directly on `dev` when appropriate, or branch from it as
   `claude/<topic>`, so it is obvious which agent owns the branch. Codex uses
   `codex/<topic>`. Merge completed feature work back into `dev`, not `main`.
-- Never deploy `dev` or merge it to `main` until Alan explicitly says he is
-  happy with the development version and approves its release.
+- Never deploy `dev` to the production Worker or merge it to `main` until Alan
+  explicitly says he is happy with the development version and approves its release.
 - Do not make unrelated changes on `main`.
 - Commit messages: a short imperative subject, a blank line, then why the
   change was made. End with the `Co-Authored-By` trailer.

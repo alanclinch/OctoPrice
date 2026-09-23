@@ -13,6 +13,7 @@ build/
 
 # Access links written by the issue-link script
 .octoprice-link.txt
+.octoprice-dev-link.txt
 
 # Cloudflare credentials and local state
 .wrangler/

@@ -14,6 +14,10 @@ Octopus publication cycles.
 
 ### Added
 
+- **Separate development preview.** Alan can test changes on his phone at a
+  dedicated development address without changing the public app or its users.
+  The preview is labelled DEV and installs separately.
+
 - **Ready-to-send friend invitations.** Creating or reissuing a private link
   now provides a copyable message explaining current and upcoming Agile prices,
   cheapest windows and price notifications. New friends start in Southern

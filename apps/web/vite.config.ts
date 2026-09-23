@@ -7,7 +7,7 @@ import { VitePWA } from 'vite-plugin-pwa';
  * because the worker needs its own `push` and `notificationclick` handlers
  * (DESIGN.md sections 6 and 11) and a generated one cannot provide those.
  */
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
     VitePWA({
@@ -23,8 +23,8 @@ export default defineConfig({
         type: 'module',
       },
       manifest: {
-        name: 'OctoAgile Advisor',
-        short_name: 'Agile Advisor',
+        name: mode === 'dev' ? 'OctoAgile Advisor Dev' : 'OctoAgile Advisor',
+        short_name: mode === 'dev' ? 'Agile Dev' : 'Agile Advisor',
         description:
           'Independent Agile electricity price forecasts, alerts and half-hourly guidance.',
         start_url: '/',
@@ -61,4 +61,4 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: true,
   },
-});
+}));

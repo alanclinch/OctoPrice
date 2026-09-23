@@ -34,4 +34,32 @@
     "POLL_CUTOFF": "22:15",
     "FORECAST_BASELINE_ENABLED": "true",
   },
+  "env": {
+    // Phone-testable preview. This is a different Worker, database and origin;
+    // no production binding or secret is inherited into this environment.
+    "dev": {
+      "workers_dev": true,
+      "preview_urls": false,
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "octoprice-dev",
+          "database_id": "09a83ca4-1c45-4e3a-b713-b63aebb151e1",
+          "migrations_dir": "migrations",
+        },
+      ],
+      "triggers": {
+        "crons": ["*/5 * * * *", "2-59/5 * * * *"],
+      },
+      "vars": {
+        "DEFAULT_REGION": "N",
+        "LOG_LEVEL": "info",
+        "OCTOPUS_BASE_URL": "https://api.octopus.energy/v1",
+        "POLL_START": "16:05",
+        "POLL_INTERVAL_MINUTES": "5",
+        "POLL_CUTOFF": "22:15",
+        "FORECAST_BASELINE_ENABLED": "true",
+      },
+    },
+  },
 }

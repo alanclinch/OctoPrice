@@ -50,7 +50,9 @@ normal-price periods are not important unless they change that decision.
 - **Current branch:** `dev`
 - **Source control:** `main` remains the reviewed production branch and `dev`
   is the long-lived integration branch for ongoing work. Development must not
-  be merged to `main` or deployed until Alan explicitly approves a release.
+  be merged to `main` or deployed to production until Alan explicitly approves
+  a release. A separate `octoprice-dev` Worker and D1 database are being set
+  up for phone testing; `--env dev` is mandatory for that target.
   The mandatory Claude CLI workflow remains active.
 - **Build status:** passing on `dev` — `npm run verify`
 - **Test status:** passing — 356 tests across 18 files
@@ -62,6 +64,26 @@ normal-price periods are not important unless they change that decision.
 - **Git remote:** public GitHub repository at
   `https://github.com/alanclinch/OctoPrice`; application revision `1477c38`
   passed GitHub CI run `33376400101`.
+
+## Development phone preview — current turn
+
+- Alan wants to test `dev` on his phone without touching the production app.
+  The production address, D1 ID, VAPID keys, session cookie and PWA origin must
+  remain stable when he later approves merging to `main`; existing users should
+  neither sign in again nor reinstall.
+- A new WEUR D1 database, `octoprice-dev`
+  (`09a83ca4-1c45-4e3a-b713-b63aebb151e1`), has been created. The `dev`
+  Wrangler environment binds only this DB and will deploy to a distinct Worker
+  and origin. It deliberately has no production VAPID secrets. Dev push will
+  need its own separate key pair before it can be tested.
+- Dev build has a visible DEV badge and a separate PWA manifest name. Scripts
+  for dev deployment, migration and safe dev owner-link issuance are added;
+  deployment instructions and agent rules distinguish dev from production.
+- `npm run verify` passed (357 tests). The dev build and
+  `wrangler deploy --env dev --dry-run` confirmed the dev D1 binding and assets.
+  Claude's first review passed with minor non-blocking notes; the tautological
+  test assertion and bare-deploy documentation note were corrected. Migration,
+  commit/push, dev deploy and live checks are next. Production has not changed.
 
 ## Current Architecture
 
