@@ -597,6 +597,11 @@ button {
   stroke: var(--accent);
 }
 
+.curve-rival {
+  color: var(--band-expensive);
+  stroke: var(--band-expensive);
+}
+
 .curve-actual {
   color: var(--band-verycheap);
   stroke: var(--band-verycheap);

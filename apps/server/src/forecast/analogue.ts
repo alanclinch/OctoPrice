@@ -214,7 +214,7 @@ export async function readAnalogueShadowStatus(
     store.getState(`${ANALOGUE_PRICE_CURSOR_PREFIX}${tariff.tariffCode}`),
     store.getState(`${ANALOGUE_DAY_CURSOR_PREFIX}${tariff.tariffCode}`),
     store.countPreparedForecastDays(tariff.tariffCode),
-    store.listForecastRuns(tariff.tariffCode, 20),
+    store.listForecastRuns(tariff.tariffCode, 80),
   ]);
   return {
     referenceTariffCode: tariff.tariffCode,
@@ -408,37 +408,42 @@ function cheapestWindow(
   return best;
 }
 
-async function scoreOneShadowRun(options: { store: Store; now: Date }): Promise<boolean> {
+export async function scoreOneShadowRun(options: { store: Store; now: Date }): Promise<boolean> {
   const today = londonDateOf(options.now);
-  const [run] = await options.store.listUnscoredForecastRuns(today, 1);
-  if (!run) return false;
-  const actualPeriods = await options.store.getPrices(
-    run.tariffCode,
-    startOfLondonDay(run.targetDate as PricingDate),
-    endOfLondonDay(run.targetDate as PricingDate),
-  );
-  if (!isDayComplete(actualPeriods, run.targetDate as PricingDate)) return false;
-  const actual = actualPeriods.map((period) => period.valueIncVat);
-  if (actual.length !== run.periods.length) return false;
-  const mae =
-    run.periods.reduce(
-      (sum, value, index) => sum + Math.abs(value - (actual[index] as number)),
-      0,
-    ) / actual.length;
-  const predictedWindow = cheapestWindow(run.periods);
-  const actualWindow = cheapestWindow(actual);
-  const chosenActual =
-    actual
-      .slice(predictedWindow.index, predictedWindow.index + 6)
-      .reduce((sum, value) => sum + value, 0) / 6;
-  const startError = Math.abs(predictedWindow.index - actualWindow.index) * 30;
-  await options.store.scoreForecastRun(run.id, {
-    scoredAt: options.now.toISOString(),
-    maePence: mae,
-    cheapest3hRegret: chosenActual - actualWindow.average,
-    within60Minutes: startError <= 60,
-  });
-  return true;
+  // An incomplete day (for example after the owner switches region) must not
+  // pin the scoring queue forever. Prefer newer runs, but inspect a bounded
+  // handful so another tariff's complete run can still be scored this turn.
+  const runs = await options.store.listUnscoredForecastRuns(today, 8);
+  for (const run of runs) {
+    const actualPeriods = await options.store.getPrices(
+      run.tariffCode,
+      startOfLondonDay(run.targetDate as PricingDate),
+      endOfLondonDay(run.targetDate as PricingDate),
+    );
+    if (!isDayComplete(actualPeriods, run.targetDate as PricingDate)) continue;
+    const actual = actualPeriods.map((period) => period.valueIncVat);
+    if (actual.length !== run.periods.length) continue;
+    const mae =
+      run.periods.reduce(
+        (sum, value, index) => sum + Math.abs(value - (actual[index] as number)),
+        0,
+      ) / actual.length;
+    const predictedWindow = cheapestWindow(run.periods);
+    const actualWindow = cheapestWindow(actual);
+    const chosenActual =
+      actual
+        .slice(predictedWindow.index, predictedWindow.index + 6)
+        .reduce((sum, value) => sum + value, 0) / 6;
+    const startError = Math.abs(predictedWindow.index - actualWindow.index) * 30;
+    await options.store.scoreForecastRun(run.id, {
+      scoredAt: options.now.toISOString(),
+      maePence: mae,
+      cheapest3hRegret: chosenActual - actualWindow.average,
+      within60Minutes: startError <= 60,
+    });
+    return true;
+  }
+  return false;
 }
 
 export async function generateTomorrowShadowRuns(options: {

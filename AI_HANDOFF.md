@@ -46,6 +46,20 @@ normal-price periods are not important unless they change that decision.
 
 ## Current State
 
+**2026-09-24 development update:** automatic owner-only AgilePredict comparison
+snapshots for Southern Scotland are implemented on `dev`. The documented API
+returns timestamped half-hour estimates several days ahead; the dev forecast
+Cron selects the latest issue before 14:00 London and stores complete immutable
+days under the N tariff. The Forecast tab shows low slots, issue lead times and
+eventual three-hour window regret against official N prices. Rival data never
+drives alerts, public advice or guest screens. `npm run verify` passes (366
+tests across 22 files). Read-only Claude review found the initial region-key
+error and a scoring-stall risk; both were fixed with tests. The third review
+returned `REVIEW: PASS` with no material findings. One minor follow-up remains:
+`getState` in the collector is outside its error boundary, so a D1 failure
+could skip one v1/v2 forecast Cron tick; the next tick retries. Production/main
+are untouched; commit/push and dev deployment are still pending.
+
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
 - **Current branch:** `dev`
 - **Source control:** `main` remains the reviewed production branch and `dev`
@@ -55,7 +69,7 @@ normal-price periods are not important unless they change that decision.
   up for phone testing; `--env dev` is mandatory for that target.
   The mandatory Claude CLI workflow remains active.
 - **Build status:** passing on `dev` — `npm run verify`
-- **Test status:** passing — 359 tests across 21 files
+- **Test status:** passing — 366 tests across 22 files
 - **Deployed:** `main` revision `1477c38`, Worker version
   `3f7385fc-a551-470f-9dcf-54214dd3f88e`, at
   `https://octoprice.alanclinch.workers.dev`. D1 is in WEUR, migration 0008 is

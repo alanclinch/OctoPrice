@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  AGILEPREDICT_MODEL,
   ANALOGUE_FORECAST_MODEL,
   FORECAST_MODEL,
   getRegion,
   isRegionCode,
+  londonDateOf,
   type PricePeriod,
 } from '@octoprice/core';
 import {
@@ -28,6 +30,7 @@ const PAD = { top: 10, right: 8, bottom: 20, left: 28 };
 function modelLabel(model: string): string {
   if (model === FORECAST_MODEL) return 'Current v1';
   if (model === ANALOGUE_FORECAST_MODEL) return 'New v2';
+  if (model === AGILEPREDICT_MODEL) return 'AgilePredict';
   return model;
 }
 
@@ -134,6 +137,24 @@ function asExperimentPeriods(periods: PricePeriod[]): ForecastExperimentPeriod[]
   }));
 }
 
+function daysAhead(run: ForecastExperimentRun): number {
+  const issueDay = londonDateOf(new Date(run.issueCutoff));
+  return Math.round((Date.parse(run.targetDate) - Date.parse(issueDay)) / 86_400_000);
+}
+
+function lowestPeriod(run: ForecastExperimentRun): ForecastExperimentPeriod | null {
+  return run.periods.reduce<ForecastExperimentPeriod | null>(
+    (lowest, period) =>
+      lowest === null || period.valueIncVat < lowest.valueIncVat ? period : lowest,
+    null,
+  );
+}
+
+function lowestLabel(run: ForecastExperimentRun, display: DisplayOptions): string {
+  const period = lowestPeriod(run);
+  return period ? `${periodRange(period, display)} · ${pence(period.valueIncVat)}` : '—';
+}
+
 export function ForecastView({
   overview,
   now,
@@ -165,23 +186,42 @@ export function ForecastView({
     void load();
   }, [load]);
 
-  const latestDate = payload?.runs[0]?.targetDate ?? null;
+  const rivalRuns = payload?.competitorRuns ?? [];
+  const latestDate =
+    payload?.runs.find((run) => run.model === FORECAST_MODEL)?.targetDate ??
+    (payload?.displayRegion === 'N'
+      ? rivalRuns.filter((run) => run.targetDate >= londonDateOf(now)).at(-1)?.targetDate
+      : null) ??
+    null;
   const latestRuns = useMemo(
-    () => payload?.runs.filter((run) => run.targetDate === latestDate) ?? [],
-    [latestDate, payload?.runs],
+    () => [
+      ...(payload?.runs.filter((run) => run.targetDate === latestDate) ?? []),
+      ...(payload?.displayRegion === 'N'
+        ? (payload?.competitorRuns.filter((run) => run.targetDate === latestDate) ?? [])
+        : []),
+    ],
+    [latestDate, payload?.runs, payload?.competitorRuns, payload?.displayRegion],
   );
   const v1 = latestRuns.find((run) => run.model === FORECAST_MODEL);
   const v2 = latestRuns.find((run) => run.model === ANALOGUE_FORECAST_MODEL);
+  const rival = latestRuns.find((run) => run.model === AGILEPREDICT_MODEL);
   const actual = payload && latestDate ? asExperimentPeriods(payload.actual) : [];
   const curves: Curve[] = [
     ...(v1 ? [{ key: 'v1', label: 'Current v1', className: 'curve-v1', periods: v1.periods }] : []),
     ...(v2 ? [{ key: 'v2', label: 'New v2', className: 'curve-v2', periods: v2.periods }] : []),
+    ...(rival
+      ? [{ key: 'rival', label: 'AgilePredict', className: 'curve-rival', periods: rival.periods }]
+      : []),
     ...(actual.length > 0
       ? [{ key: 'actual', label: 'Official', className: 'curve-actual', periods: actual }]
       : []),
   ];
   const actualByStart = new Map(actual.map((period) => [period.validFrom, period.valueIncVat]));
+  const v1ByStart = new Map(v1?.periods.map((period) => [period.validFrom, period.valueIncVat]));
   const v2ByStart = new Map(v2?.periods.map((period) => [period.validFrom, period.valueIncVat]));
+  const rivalByStart = new Map(
+    rival?.periods.map((period) => [period.validFrom, period.valueIncVat]),
+  );
   const scored = payload?.runs.filter((run) => run.score !== null) ?? [];
   const currentEstimates = unconfirmedForecastPeriods(
     [...overview.today.periods, ...overview.tomorrow.periods],
@@ -221,6 +261,62 @@ export function ForecastView({
               ? 'Collecting recent prices for the first estimate.'
               : 'No upcoming estimates are available right now.'}
           </p>
+        )}
+      </div>
+
+      <div className="card">
+        <p className="eyebrow">Private competitor tracker</p>
+        <h2>AgilePredict comparison</h2>
+        <p className="muted small">
+          Southern Scotland forecast snapshots captured before the 2pm comparison cut-off. These are
+          another provider’s estimates, not official prices or charging advice. Scores appear after
+          Octopus publishes the actual rates. For personal, non-commercial comparison only.
+        </p>
+        {rivalRuns.length === 0 ? (
+          <p className="muted">
+            No snapshot yet. Collection starts automatically at the next 2pm cut-off.
+          </p>
+        ) : (
+          <div className="table-scroll">
+            <table className="price-table forecast-score-table">
+              <thead>
+                <tr>
+                  <th>Forecast day</th>
+                  <th>Provider issue / lead</th>
+                  <th className="numeric">Lowest slot</th>
+                  <th className="numeric">3-hour regret</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rivalRuns
+                  .filter(
+                    (run, index) =>
+                      rivalRuns.findIndex((other) => other.targetDate === run.targetDate) === index,
+                  )
+                  .slice(0, 8)
+                  .map((run) => (
+                    <tr key={run.id}>
+                      <td>{longDate(run.targetDate)}</td>
+                      <td>
+                        {new Date(run.inputVintages[0] ?? run.generatedAt).toLocaleString('en-GB', {
+                          timeZone: 'Europe/London',
+                          day: 'numeric',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                        {' · '}
+                        {daysAhead(run)}d ahead
+                      </td>
+                      <td className="numeric">{lowestLabel(run, display)}</td>
+                      <td className="numeric">
+                        {run.score ? pence(run.score.cheapest3hRegret) : 'Pending'}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
@@ -287,7 +383,7 @@ export function ForecastView({
           </p>
           <ForecastComparisonChart curves={curves} />
 
-          {v1 && (
+          {(v1 || rival) && (
             <details className="forecast-details">
               <summary>Half-hour comparison</summary>
               <div className="table-scroll">
@@ -297,17 +393,27 @@ export function ForecastView({
                       <th>Time</th>
                       <th className="numeric">v1</th>
                       <th className="numeric">v2</th>
+                      <th className="numeric">AgilePredict</th>
                       <th className="numeric">Official</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {v1.periods.map((period) => (
+                    {(v1 ?? rival)?.periods.map((period) => (
                       <tr key={period.validFrom}>
                         <td>{periodRange(period, display)}</td>
-                        <td className="numeric">{pence(period.valueIncVat)}</td>
+                        <td className="numeric">
+                          {v1ByStart.has(period.validFrom)
+                            ? pence(v1ByStart.get(period.validFrom) as number)
+                            : '—'}
+                        </td>
                         <td className="numeric">
                           {v2ByStart.has(period.validFrom)
                             ? pence(v2ByStart.get(period.validFrom) as number)
+                            : '—'}
+                        </td>
+                        <td className="numeric">
+                          {rivalByStart.has(period.validFrom)
+                            ? pence(rivalByStart.get(period.validFrom) as number)
                             : '—'}
                         </td>
                         <td className="numeric">

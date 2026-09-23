@@ -1058,3 +1058,29 @@ still needs live shadow evidence, an extended back-test through the 25 October
 2026 clock change, and calibrated v2-specific uncertainty. A 46- or 50-period
 target with too few same-length analogue days deliberately produces no v2;
 visible v1 fallback must remain labelled v1.
+
+### Private external benchmark (development only)
+
+The dev Worker collects [AgilePredict's documented Region N API](https://agilepredict.com/api_how_to)
+on its existing forecast Cron between 14:00 and 16:00 London time. It selects
+the newest provider issue published before the 14:00 cut-off, validates exact
+UTC settlement-period starts, and inserts complete London days for the next
+three dates under the Southern Scotland (N) tariff as immutable `agilepredict`
+rows in `forecast_runs`. Incomplete days are omitted; complete 46/50-period
+clock-change days are retained. A successful
+collection is recorded in `app_state`, preventing further requests that day;
+failures retry on the five-minute forecast Cron. The fetch is isolated from
+confirmed prices and only enabled by `COMPETITOR_TRACKING_ENABLED=true` in
+the dev Wrangler environment, and only while a Region N tariff is actively
+polled for official prices. Production does not collect this source. Scoring
+skips an incomplete official day so it cannot stall other forecast scores.
+
+The owner-only Forecast tab shows the provider's issue time, lowest half-hour,
+curve and eventual cheapest-three-hour regret against official Octopus prices.
+The source has [private, non-commercial terms](https://agilepredict.com/api_how_to),
+so its data is not exposed to guests, used for alerts or promoted into our
+public price API. Our v1/v2 runs use a 14:00 issue cut-off, while the provider's
+latest pre-cut-off issue may be earlier (for example 11:15); the recorded
+provider timestamp stays visible so comparisons are not mistaken for precisely
+simultaneous forecasts. Whole-day MAE is retained for context, but low-price
+slot detection and cheap-window timing are the product decision criteria.

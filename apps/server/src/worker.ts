@@ -14,6 +14,7 @@ import { PricePoller } from './scheduler/poller.ts';
 import { handleApiRequest } from './api/handler.ts';
 import { runArchive, runScheduledJobs } from './forecast/archive.ts';
 import { runForecastBackgroundJob } from './forecast/baseline.ts';
+import { collectAgilePredict } from './forecast/competitor.ts';
 import { scheduledJobForCron } from './scheduler/crons.ts';
 
 interface Env {
@@ -30,6 +31,7 @@ interface Env {
   VAPID_PRIVATE_KEY?: string;
   VAPID_SUBJECT?: string;
   FORECAST_BASELINE_ENABLED?: string;
+  COMPETITOR_TRACKING_ENABLED?: string;
   FORECAST_ARCHIVE_ENABLED?: string;
   FORECAST_ARCHIVE_INTERVAL_MINUTES?: string;
   FORECAST_ARCHIVE_RETENTION_DAYS?: string;
@@ -207,7 +209,14 @@ export default {
     const scheduledJob = scheduledJobForCron(controller.cron);
     if (scheduledJob === 'forecast') {
       if (config.forecastBaselineEnabled) {
-        context.waitUntil(runForecastBackgroundJob({ store, priceService, logger }));
+        context.waitUntil(
+          (async () => {
+            if (env.COMPETITOR_TRACKING_ENABLED === 'true') {
+              await collectAgilePredict({ store, priceService, logger, now: new Date() });
+            }
+            await runForecastBackgroundJob({ store, priceService, logger });
+          })(),
+        );
       }
       return;
     }

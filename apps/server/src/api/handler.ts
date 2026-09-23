@@ -13,6 +13,8 @@
  */
 
 import {
+  AGILEPREDICT_MODEL,
+  FORECAST_MODEL,
   FORECAST_REFERENCE_REGION,
   REGIONS,
   applyRegionalPriceTransform,
@@ -63,6 +65,7 @@ import {
   type BaselineForecast,
 } from '../forecast/baseline.ts';
 import { readAnalogueShadowStatus } from '../forecast/analogue.ts';
+import type { ForecastRunEvaluation } from '../db/store.ts';
 
 export interface ApiRequest {
   method: string;
@@ -268,7 +271,10 @@ export async function handleApiRequest(
     if (!user.isOwner) return fail(403, 'Only the owner can view forecast experiments.');
 
     const tariff = await priceService.tariff(userId);
-    const shadow = await readAnalogueShadowStatus(store, tariff.productCode);
+    const [shadow, rivalRows] = await Promise.all([
+      readAnalogueShadowStatus(store, tariff.productCode),
+      store.listForecastRuns(buildTariffCode(tariff.productCode, 'N'), 80),
+    ]);
     const today = londonDateOf(now);
     const historyFrom = startOfLondonDay(addDays(today, -28));
     const historyTo = endOfLondonDay(today);
@@ -309,22 +315,46 @@ export async function handleApiRequest(
         },
       ];
     });
-    const latestDate = runs[0]?.targetDate as PricingDate | undefined;
+    const competitorRuns = rivalRows
+      .filter((run) => run.model === AGILEPREDICT_MODEL)
+      .flatMap((run: ForecastRunEvaluation) => {
+        const targets = londonDayPeriodStarts(run.targetDate as PricingDate);
+        if (targets.length !== run.periods.length) return [];
+        return [
+          {
+            id: run.id,
+            model: run.model,
+            targetDate: run.targetDate,
+            generatedAt: run.generatedAt,
+            issueCutoff: run.issueCutoff,
+            inputVintages: run.inputVintages,
+            score: run.score,
+            periods: targets.map((target, index) => ({
+              validFrom: target.toISOString(),
+              validTo: new Date(target.getTime() + 30 * 60 * 1000).toISOString(),
+              valueIncVat: run.periods[index] as number,
+            })),
+          },
+        ];
+      });
+    const comparisonDate = runs.find((run) => run.model === FORECAST_MODEL)?.targetDate;
+    const latestDate = (comparisonDate ??
+      competitorRuns.filter((run) => run.targetDate >= today).at(-1)?.targetDate) as
+      PricingDate | undefined;
     const actual = latestDate
       ? await store.getPrices(
-          displayTariffCode,
+          comparisonDate ? displayTariffCode : buildTariffCode(tariff.productCode, 'N'),
           startOfLondonDay(latestDate),
           endOfLondonDay(latestDate),
         )
       : [];
-    const phase =
-      runs.length > 0
-        ? 'running'
-        : shadow.preparedDays >= shadow.requiredPreparedDays
-          ? 'waiting-for-forecast'
-          : shadow.preparedDays > 0
-            ? 'preparing-days'
-            : 'collecting-history';
+    const phase = runs.some((run) => run.model === FORECAST_MODEL)
+      ? 'running'
+      : shadow.preparedDays >= shadow.requiredPreparedDays
+        ? 'waiting-for-forecast'
+        : shadow.preparedDays > 0
+          ? 'preparing-days'
+          : 'collecting-history';
 
     return json({
       experimental: true,
@@ -338,6 +368,7 @@ export async function handleApiRequest(
       preparedDays: shadow.preparedDays,
       requiredPreparedDays: shadow.requiredPreparedDays,
       runs,
+      competitorRuns,
       actual,
     });
   }

@@ -14,6 +14,12 @@ Octopus publication cycles.
 
 ### Added
 
+- **Private rival forecast tracking in development.** The Forecast tab now
+  records AgilePredict's Southern Scotland pre-2pm estimate automatically and
+  shows its low slots alongside our experimental model. Once official prices
+  arrive, the same three-hour cheap-window score is available for comparison.
+  Rival estimates are owner-only and never drive alerts or advice.
+
 - **Current estimates in Forecast.** The owner-only Forecast tab now shows
   upcoming experimental half-hour estimates immediately, even while its
   separate model-comparison experiment is still preparing historical days.

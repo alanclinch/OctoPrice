@@ -758,7 +758,7 @@ export class D1Store implements Store {
                 periods, input_vintages
          FROM forecast_runs
          WHERE scored_at IS NULL AND target_date < ?
-         ORDER BY target_date ASC, generated_at ASC
+         ORDER BY target_date DESC, generated_at DESC
          LIMIT ?`,
       )
       .bind(beforeDate, limit)

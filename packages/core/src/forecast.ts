@@ -19,6 +19,7 @@ import {
 import { roundPence, sortPeriods } from './prices.ts';
 
 export const FORECAST_MODEL = 'seasonal-naive-v1';
+export const AGILEPREDICT_MODEL = 'agilepredict';
 export const FORECAST_REFERENCE_REGION = 'C';
 export const MIN_FORECAST_SAMPLES = 3;
 export const MAX_FORECAST_SAMPLES = 8;

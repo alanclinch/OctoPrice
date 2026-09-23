@@ -131,6 +131,7 @@ export interface ForecastExperimentPayload {
   preparedDays: number;
   requiredPreparedDays: number;
   runs: ForecastExperimentRun[];
+  competitorRuns: ForecastExperimentRun[];
   actual: PricePeriod[];
 }
 
