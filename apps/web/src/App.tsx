@@ -344,7 +344,9 @@ export function App(): JSX.Element {
       {error && <p className="error">{error}</p>}
 
       {activeTab === 'prices' && <PricesView overview={overview} now={now} display={display} />}
-      {activeTab === 'forecast' && user?.isOwner && <ForecastView display={display} />}
+      {activeTab === 'forecast' && user?.isOwner && (
+        <ForecastView overview={overview} now={now} display={display} />
+      )}
       {activeTab === 'settings' && (
         <SettingsView settings={overview.settings} onSettingsChange={onSettingsChange} />
       )}

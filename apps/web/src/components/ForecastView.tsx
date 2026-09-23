@@ -5,6 +5,7 @@ import {
   ANALOGUE_FORECAST_MODEL,
   FORECAST_MODEL,
   getRegion,
+  isRegionCode,
   type PricePeriod,
 } from '@octoprice/core';
 import {
@@ -12,8 +13,12 @@ import {
   type ForecastExperimentPayload,
   type ForecastExperimentPeriod,
   type ForecastExperimentRun,
+  type Overview,
 } from '../api.ts';
 import { longDate, pence, periodRange, type DisplayOptions } from '../format.ts';
+import { PriceChart } from './PriceChart.tsx';
+import { PriceTable } from './PriceTable.tsx';
+import { unconfirmedForecastPeriods } from './timeline.ts';
 import type { JSX } from 'react';
 
 const WIDTH = 360;
@@ -129,7 +134,15 @@ function asExperimentPeriods(periods: PricePeriod[]): ForecastExperimentPeriod[]
   }));
 }
 
-export function ForecastView({ display }: { display: DisplayOptions }): JSX.Element {
+export function ForecastView({
+  overview,
+  now,
+  display,
+}: {
+  overview: Overview;
+  now: Date;
+  display: DisplayOptions;
+}): JSX.Element {
   const [payload, setPayload] = useState<ForecastExperimentPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -170,11 +183,47 @@ export function ForecastView({ display }: { display: DisplayOptions }): JSX.Elem
   const actualByStart = new Map(actual.map((period) => [period.validFrom, period.valueIncVat]));
   const v2ByStart = new Map(v2?.periods.map((period) => [period.validFrom, period.valueIncVat]));
   const scored = payload?.runs.filter((run) => run.score !== null) ?? [];
-
-  if (loading && !payload) return <p className="centre">Loading forecast experiment…</p>;
+  const currentEstimates = unconfirmedForecastPeriods(
+    [...overview.today.periods, ...overview.tomorrow.periods],
+    overview.forecast.periods,
+  ).filter((period) => Date.parse(period.validTo) > now.getTime());
 
   return (
     <>
+      <div className="card">
+        <div className="card-heading-row">
+          <div>
+            <p className="eyebrow">Current model</p>
+            <h2>Upcoming estimates</h2>
+          </div>
+          <span className="pill">Experimental</span>
+        </div>
+        <p className="muted small">
+          {isRegionCode(overview.settings.region)
+            ? getRegion(overview.settings.region).area
+            : 'Your region'}{' '}
+          · estimates begin after confirmed prices end. These are not official Octopus prices and do
+          not drive alerts.
+        </p>
+        {currentEstimates.length > 0 ? (
+          <>
+            <PriceChart periods={currentEstimates} now={now} display={display} />
+            <details className="forecast-details">
+              <summary>Half-hour estimates</summary>
+              <div className="table-scroll">
+                <PriceTable periods={currentEstimates} now={now} display={display} />
+              </div>
+            </details>
+          </>
+        ) : (
+          <p className="muted">
+            {overview.forecast.unavailableReason === 'insufficient-history'
+              ? 'Collecting recent prices for the first estimate.'
+              : 'No upcoming estimates are available right now.'}
+          </p>
+        )}
+      </div>
+
       <div className="card forecast-intro">
         <div className="card-heading-row">
           <div>
@@ -183,7 +232,13 @@ export function ForecastView({ display }: { display: DisplayOptions }): JSX.Elem
           </div>
           <span className="pill">Experimental</span>
         </div>
-        <p>{payload ? phaseText(payload) : 'Forecast status is unavailable.'}</p>
+        <p>
+          {payload
+            ? phaseText(payload)
+            : loading
+              ? 'Loading model comparison…'
+              : 'Model comparison status is unavailable.'}
+        </p>
         {payload && (
           <>
             <div className="progress-track" aria-label="Prepared analogue days">

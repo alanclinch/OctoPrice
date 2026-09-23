@@ -65,7 +65,7 @@ normal-price periods are not important unless they change that decision.
   `https://github.com/alanclinch/OctoPrice`; application revision `1477c38`
   passed GitHub CI run `33376400101`.
 
-## Development phone preview — current turn
+## Development phone preview and estimate restoration
 
 - Alan wants to test `dev` on his phone without touching the production app.
   The production address, D1 ID, VAPID keys, session cookie and PWA origin must
@@ -89,10 +89,21 @@ normal-price periods are not important unless they change that decision.
   “OctoAgile Advisor Dev” while production says “OctoAgile Advisor”, dev
   private overview returns 401 unauthenticated, and authenticated dev status
   confirms both scheduling and push are configured. Production was not deployed.
-- Next: Alan should open the one-time dev link on his phone and test the
-  separate installed app and notifications. Keep iterating on `dev` only;
-  promote to `main` only after explicit approval and preserve the production
-  Worker name/URL, D1 ID, VAPID keys, cookie and PWA manifest identity.
+- Alan opened the dev app, but its estimates were absent because the new D1
+  started with no historical prices and the forecast cron backfilled one
+  tariff-day per invocation before preparing the visible cache. Production was
+  queried read-only; only its public `prices` table was exported. 9,598 rows
+  were copied with `INSERT OR IGNORE` to dev D1, and the two dev-only history
+  cursors were advanced after the import. Temporary SQL files were removed.
+  The live dev overview then returned 50 experimental forecast periods with
+  no unavailable reason. Production was neither written nor deployed.
+- Current development change: expose the existing upcoming v1 estimates on
+  the owner-only Forecast tab while the separate v2 comparison experiment
+  warms up. No model coefficients or alert/advice behaviour changed. Next,
+  validate, obtain Claude review, commit to `dev`, wait for CI and deploy only
+  the dev Worker. Then benchmark low-price slot detection and cheapest-window
+  regret before changing the forecasting model; ordinary-price MAE is not the
+  product priority.
 
 ## Current Architecture
 

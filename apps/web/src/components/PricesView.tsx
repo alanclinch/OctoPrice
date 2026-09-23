@@ -6,6 +6,7 @@ import type { Overview } from '../api.ts';
 import { bandClass, clock, duration, pence, type DisplayOptions } from '../format.ts';
 import { NowCard } from './NowCard.tsx';
 import { PriceChart } from './PriceChart.tsx';
+import { unconfirmedForecastPeriods } from './timeline.ts';
 import { PriceTable } from './PriceTable.tsx';
 import type { JSX } from 'react';
 
@@ -36,8 +37,7 @@ export function PricesView({ overview, now, display }: PricesViewProps): JSX.Ele
     [overview.today.periods, overview.tomorrow.periods],
   );
   const forecastPeriods = useMemo(() => {
-    const confirmedStarts = new Set(allPeriods.map((period) => period.validFrom));
-    return overview.forecast.periods.filter((period) => !confirmedStarts.has(period.validFrom));
+    return unconfirmedForecastPeriods(allPeriods, overview.forecast.periods);
   }, [allPeriods, overview.forecast.periods]);
   const timelinePeriods = useMemo(
     () =>

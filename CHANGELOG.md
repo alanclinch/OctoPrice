@@ -14,6 +14,10 @@ Octopus publication cycles.
 
 ### Added
 
+- **Current estimates in Forecast.** The owner-only Forecast tab now shows
+  upcoming experimental half-hour estimates immediately, even while its
+  separate model-comparison experiment is still preparing historical days.
+
 - **Separate development preview.** Alan can test changes on his phone at a
   dedicated development address without changing the public app or its users.
   The preview is labelled DEV and installs separately.
