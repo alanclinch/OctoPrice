@@ -86,6 +86,11 @@ npm run dev:web      # PWA dev server
 - Apply D1 migrations before deploying code that depends on them.
 - Deploy only committed `main` revisions after CI passes. Keep tunnel
   credentials and other secrets outside Git.
+- `dev` is the long-lived integration branch for ongoing development. Pushing
+  or merging work to `dev` must never trigger a production deployment.
+- Do not merge `dev` into `main`, push application work directly to `main`, or
+  deploy a development revision until Alan explicitly says he is happy with
+  the development version and authorises the release to `main`.
 - Alan has given standing authorisation to deploy after reviewed
   application-affecting work is pushed or merged to `main`. Treat the
   production deployment and live health check as part of completing that same
@@ -115,12 +120,19 @@ covered by tests that must keep passing.
 
 ## Git rules
 
-- `main` is always a working build.
-- Branch as `codex/<topic>`. Claude uses `claude/<topic>`.
+- `main` is always the reviewed production branch; `dev` is the ongoing
+  integration branch and the default base and merge target for new work.
+- Work directly on `dev` when appropriate, or branch from it as
+  `codex/<topic>`. Claude uses `claude/<topic>`. Merge completed feature work
+  back into `dev`, not `main`.
+- Only merge `dev` to `main` after Alan explicitly approves the development
+  version for release.
 - No unrelated changes on `main`.
 - Short imperative commit subject, blank line, then the reasoning.
-- Before merging: fetch, rebase or merge latest `main`, re-run `npm run
-  verify`, review the diff.
+- Before merging feature work: fetch, rebase or merge the latest `dev`, re-run
+  `npm run verify`, and review the diff. If `main` has diverged through an
+  exceptional production hotfix, bring it into `dev` before an approved
+  release merge and repeat those checks.
 
 ## Security requirements
 

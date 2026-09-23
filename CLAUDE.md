@@ -140,14 +140,20 @@ This is the most common source of bugs in this project. Read
 
 ## Git workflow
 
-- `main` must always be a working build.
-- Work on a branch named `claude/<topic>`, so it is obvious which agent owns
-  it. Codex uses `codex/<topic>`.
+- `main` is the reviewed production branch. `dev` is the long-lived
+  integration branch and the default base and merge target for ongoing work.
+- Work directly on `dev` when appropriate, or branch from it as
+  `claude/<topic>`, so it is obvious which agent owns the branch. Codex uses
+  `codex/<topic>`. Merge completed feature work back into `dev`, not `main`.
+- Never deploy `dev` or merge it to `main` until Alan explicitly says he is
+  happy with the development version and approves its release.
 - Do not make unrelated changes on `main`.
 - Commit messages: a short imperative subject, a blank line, then why the
   change was made. End with the `Co-Authored-By` trailer.
-- Rebase or merge the latest `main` before merging, and re-run `npm run
-  verify`.
+- Rebase or merge the latest `dev` before merging feature work, and re-run
+  `npm run verify`. If `main` has diverged through an exceptional production
+  hotfix, bring it into `dev` before an approved release merge and repeat the
+  checks.
 
 ## Security
 

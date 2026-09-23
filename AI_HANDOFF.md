@@ -47,10 +47,12 @@ normal-price periods are not important unless they change that decision.
 ## Current State
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
-- **Current branch:** `codex/record-forecast-miss`
-- **Source control:** `main` includes reviewed application revision `1477c38`.
+- **Current branch:** `dev`
+- **Source control:** `main` remains the reviewed production branch and `dev`
+  is the long-lived integration branch for ongoing work. Development must not
+  be merged to `main` or deployed until Alan explicitly approves a release.
   The mandatory Claude CLI workflow remains active.
-- **Build status:** passing on `main` — `npm run verify`
+- **Build status:** passing on `dev` — `npm run verify`
 - **Test status:** passing — 356 tests across 18 files
 - **Deployed:** `main` revision `1477c38`, Worker version
   `3f7385fc-a551-470f-9dcf-54214dd3f88e`, at
@@ -107,7 +109,15 @@ GitHub remote or a real device:
   repository and Cloudflare identifiers deliberately remain `octoprice` so
   the visual rename cannot invalidate sessions or production data.
 
-## Latest Agent Work — 2026-09-05
+## Latest Agent Work — 2026-09-23
+
+- **Development branch introduced:** Created `dev` from the current `main` tip
+  so ongoing work can be pushed and tested without changing production.
+  `AGENTS.md` and `CLAUDE.md` now make `dev` the default development
+  integration target and forbid merging it to `main` or deploying it until
+  Alan explicitly approves the development version for release. The existing
+  standing deployment authorisation applies only after that approved merge
+  reaches `main`.
 
 - **Live cheap-window miss recorded:** Alan reported that the visible v1
   projection was poor for 5 September and materially higher than other apps
@@ -1249,6 +1259,9 @@ throughout and cannot drive alerts or cheapest-window advice.
 
 ## Currently In Progress
 
+- Ongoing development now belongs on `dev` (or short-lived branches based on
+  and merged back into `dev`). Do not merge to `main` or deploy until Alan
+  explicitly approves the development version.
 - The visible `seasonal-naive-v1` baseline remains the deployed model and is
   unaffected by this branch.
 - Private v2 shadow collection, persistence, scoring and the owner-only
