@@ -58,7 +58,15 @@ error and a scoring-stall risk; both were fixed with tests. The third review
 returned `REVIEW: PASS` with no material findings. One minor follow-up remains:
 `getState` in the collector is outside its error boundary, so a D1 failure
 could skip one v1/v2 forecast Cron tick; the next tick retries. Production/main
-are untouched; commit/push and dev deployment are still pending.
+are untouched. Reviewed application commit `1e02821` was pushed to `dev`;
+GitHub CI run `35935367686` passed. The separate dev Worker was deployed as
+version `3817f037-2115-4ab9-a370-ef5ce5286772`. Live dev and production
+health both returned `ok`; the dev page returned 200, guest access to the
+forecast experiment returned 401, and the owner API returned the new
+`competitorRuns` field. It is empty until the first scheduled 14:00 London
+capture; no historical snapshot has been invented. Next: check the first
+captured rival vintage and compare its cheap-window call after official prices
+arrive. Existing phone-test link and production users are unchanged.
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
 - **Current branch:** `dev`
