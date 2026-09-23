@@ -216,10 +216,11 @@ npm run issue-link -- --env dev --url https://octoprice-dev.alanclinch.workers.d
 ```
 
 The link is written to the ignored `.octoprice-dev-link.txt`. Development push
-notifications require a **different** VAPID pair configured using
-`wrangler secret put <NAME> --env dev`; without that, confirmed prices and forecasts can
-still be tested but development push is unavailable. Do not rotate or reuse the
-production pair. Only deploy from a committed `dev` revision after verification
+notifications use their own VAPID pair in `octoprice-dev` secrets. If setting
+up a new dev installation, configure a **different** pair with
+`wrangler secret put <NAME> --env dev`; without that, confirmed prices and
+forecasts can still be tested but development push is unavailable. Do not
+rotate or reuse the production pair. Only deploy from a committed `dev` revision after verification
 and independent review. An ordinary `dev` push does not deploy automatically.
 Never run bare `wrangler deploy` for production after building the dev PWA:
 that would upload the DEV-labelled assets. Use `npm run deploy:cloudflare`,

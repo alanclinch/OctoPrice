@@ -55,7 +55,7 @@ normal-price periods are not important unless they change that decision.
   up for phone testing; `--env dev` is mandatory for that target.
   The mandatory Claude CLI workflow remains active.
 - **Build status:** passing on `dev` — `npm run verify`
-- **Test status:** passing — 356 tests across 18 files
+- **Test status:** passing — 357 tests across 19 files
 - **Deployed:** `main` revision `1477c38`, Worker version
   `3f7385fc-a551-470f-9dcf-54214dd3f88e`, at
   `https://octoprice.alanclinch.workers.dev`. D1 is in WEUR, migration 0008 is
@@ -73,17 +73,26 @@ normal-price periods are not important unless they change that decision.
   neither sign in again nor reinstall.
 - A new WEUR D1 database, `octoprice-dev`
   (`09a83ca4-1c45-4e3a-b713-b63aebb151e1`), has been created. The `dev`
-  Wrangler environment binds only this DB and will deploy to a distinct Worker
-  and origin. It deliberately has no production VAPID secrets. Dev push will
-  need its own separate key pair before it can be tested.
+  Wrangler environment binds only this DB and deploys to the distinct Worker
+  at `https://octoprice-dev.alanclinch.workers.dev`. All eight migrations are
+  applied to dev, and a one-time owner link is in ignored
+  `.octoprice-dev-link.txt`. Dev has its own VAPID keys; production keys and
+  subscriptions were not changed.
 - Dev build has a visible DEV badge and a separate PWA manifest name. Scripts
   for dev deployment, migration and safe dev owner-link issuance are added;
   deployment instructions and agent rules distinguish dev from production.
-- `npm run verify` passed (357 tests). The dev build and
-  `wrangler deploy --env dev --dry-run` confirmed the dev D1 binding and assets.
-  Claude's first review passed with minor non-blocking notes; the tautological
-  test assertion and bare-deploy documentation note were corrected. Migration,
-  commit/push, dev deploy and live checks are next. Production has not changed.
+- `npm run verify` passed (357 tests), as did GitHub CI run `35928679650` on
+  `dev` commit `76e01be`. Claude's two independent read-only reviews both
+  passed; minor comments led to a test assertion and documentation correction.
+  Dev Worker version `cdbc19f3-d406-48c9-9628-93c0b2fd8f82` is live.
+  Live checks: dev and production health both `ok`, dev manifest says
+  “OctoAgile Advisor Dev” while production says “OctoAgile Advisor”, dev
+  private overview returns 401 unauthenticated, and authenticated dev status
+  confirms both scheduling and push are configured. Production was not deployed.
+- Next: Alan should open the one-time dev link on his phone and test the
+  separate installed app and notifications. Keep iterating on `dev` only;
+  promote to `main` only after explicit approval and preserve the production
+  Worker name/URL, D1 ID, VAPID keys, cookie and PWA manifest identity.
 
 ## Current Architecture
 
