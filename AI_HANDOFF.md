@@ -117,7 +117,11 @@ GitHub remote or a real device:
   integration target and forbid merging it to `main` or deploying it until
   Alan explicitly approves the development version for release. The existing
   standing deployment authorisation applies only after that approved merge
-  reaches `main`.
+  reaches `main`. `npm run verify` passes with 356 tests across 18 files. The
+  final read-only Claude review verified local and remote branch state, found
+  no material issues and returned `REVIEW: PASS`. Commit `d8068cd` is on
+  `origin/dev`; `main` and production are unchanged. Continue new work from
+  `dev` and keep it there until Alan approves a release.
 
 - **Live cheap-window miss recorded:** Alan reported that the visible v1
   projection was poor for 5 September and materially higher than other apps
