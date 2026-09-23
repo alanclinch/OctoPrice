@@ -112,6 +112,19 @@ normal-price periods are not important unless they change that decision.
   regret before changing the forecasting model; ordinary-price MAE is not the
   product priority. Shadow v2 comparison still needs its own preparation and
   must not be presented as a visible prediction prematurely.
+- **Live forecast case, 24 September 2026 shortly after midnight BST:** Alan
+  reports Octopus Watch estimating 70p+ for Friday night and wants to know
+  whether Saturday may be free. Dev v1 has 96 experimental slots covering all
+  of Friday 25 and Saturday 26 September in London time; Friday official slots
+  are not yet published. Dev v1 estimates roughly 52–57p for Friday 17:00–19:00
+  and around -3p to 1p for Saturday 10:00–14:30. The latter is *not* a reliable
+  free-price signal: the historical 20th–80th-percentile band from eight recent
+  same-time weekend prices spans roughly -4p to above 30p for those slots. It
+  is descriptive, not a calibrated confidence interval. The Octopus Watch
+  figure is Alan's report, not an
+  independently verified reading. Score this case against official Friday and
+  Saturday prices when available, with priority on whether the low-price
+  window appeared and whether waiting to charge was actually beneficial.
 
 ## Current Architecture
 
