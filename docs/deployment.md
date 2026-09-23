@@ -194,7 +194,9 @@ Useful event names include `PRICE_CHECK_STARTED`, `PRICE_DATA_NOT_READY`,
 
 ## Updating
 
-Deploy only a committed `main` revision after CI passes:
+Development pushes to `dev` run CI without deploying. When Alan approves a
+release, merge the reviewed `dev` revision into `main`, wait for CI, then
+deploy that committed `main` revision:
 
 ```bash
 git checkout main

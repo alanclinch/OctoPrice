@@ -111,6 +111,16 @@ GitHub remote or a real device:
 
 ## Latest Agent Work — 2026-09-23
 
+- **Development CI gap closed:** A fresh review found that GitHub Actions ran
+  on pushes to `main` but not `dev`. The verification workflow now runs on
+  pushes to both branches and on pull requests. Its Wrangler step remains a
+  dry run; production deployment still requires Alan's approved release to
+  `main`. The deployment guide records this flow. `npm run verify` passes with
+  356 tests across 18 files. Claude Code was updated from 2.1.126 to 2.1.281
+  to support Opus 5.5; its read-only review found no material issues and
+  returned `REVIEW: PASS`. Next, continue forecasting evaluation on `dev`
+  using the low-price window measures below.
+
 - **Development branch introduced:** Created `dev` from the current `main` tip
   so ongoing work can be pushed and tested without changing production.
   `AGENTS.md` and `CLAUDE.md` now make `dev` the default development
