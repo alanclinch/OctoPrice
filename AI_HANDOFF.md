@@ -55,7 +55,7 @@ normal-price periods are not important unless they change that decision.
   up for phone testing; `--env dev` is mandatory for that target.
   The mandatory Claude CLI workflow remains active.
 - **Build status:** passing on `dev` — `npm run verify`
-- **Test status:** passing — 357 tests across 19 files
+- **Test status:** passing — 359 tests across 21 files
 - **Deployed:** `main` revision `1477c38`, Worker version
   `3f7385fc-a551-470f-9dcf-54214dd3f88e`, at
   `https://octoprice.alanclinch.workers.dev`. D1 is in WEUR, migration 0008 is
@@ -97,13 +97,21 @@ normal-price periods are not important unless they change that decision.
   cursors were advanced after the import. Temporary SQL files were removed.
   The live dev overview then returned 50 experimental forecast periods with
   no unavailable reason. Production was neither written nor deployed.
-- Current development change: expose the existing upcoming v1 estimates on
-  the owner-only Forecast tab while the separate v2 comparison experiment
-  warms up. No model coefficients or alert/advice behaviour changed. Next,
-  validate, obtain Claude review, commit to `dev`, wait for CI and deploy only
-  the dev Worker. Then benchmark low-price slot detection and cheapest-window
+- The owner-only Forecast tab now displays upcoming cached v1 estimates while
+  the separate v2 comparison experiment warms up; alerts and price advice are
+  unchanged. `npm run verify` passed (359 tests), Claude's read-only review
+  passed with no material findings, CI run `35931627510` passed, and dev commit
+  `e2104ba` was deployed as Worker version
+  `12320d80-bb44-48d6-97a8-c5d0eb227802`. Production was not deployed.
+  Just after the London-day rollover, the dev forecast cache was temporarily
+  stale while its cron backfilled the last day. The 23:12 UTC forecast run
+  refreshed it; authenticated live overview now returns 96 upcoming
+  experimental periods with no unavailable reason. The live dev bundle also
+  contains the new Forecast card, and both dev and production health are `ok`.
+- Next model work: benchmark low-price slot detection and cheapest-window
   regret before changing the forecasting model; ordinary-price MAE is not the
-  product priority.
+  product priority. Shadow v2 comparison still needs its own preparation and
+  must not be presented as a visible prediction prematurely.
 
 ## Current Architecture
 
