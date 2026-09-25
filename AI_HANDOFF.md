@@ -46,7 +46,7 @@ normal-price periods are not important unless they change that decision.
 
 ## Current State
 
-**2026-09-25 development update:** `codex/agilepredict-forecast` adds a
+**2026-09-25 development update:** commit `242d992` on `dev` adds a
 dev-only AgilePredict display source for each active user region, with
 three-hour regional cache refreshes on the forecast Cron, official-price
 precedence, v1 fallback, issue time, provider attribution and unmeasured-range
@@ -59,41 +59,25 @@ UI. `npm run verify` passes (376 tests across 24 files). Read-only Claude
 review initially identified weak alert coverage, over-strict provider ranges,
 changed flag-off UI and missing attribution in the existing rival tracker; all
 were fixed. A third review, justified by the licence-attribution defect,
-returned `REVIEW: PASS`. No main release is authorised. Next: merge and deploy
-the dev Worker, then monitor forecast vintages through publication cycles.
-
-**2026-09-24 development update:** automatic owner-only AgilePredict comparison
-snapshots for Southern Scotland are implemented on `dev`. The documented API
-returns timestamped half-hour estimates several days ahead; the dev forecast
-Cron selects the latest issue before 14:00 London and stores complete immutable
-days under the N tariff. The Forecast tab shows low slots, issue lead times and
-eventual three-hour window regret against official N prices. Rival data never
-drives alerts, public advice or guest screens. `npm run verify` passes (366
-tests across 22 files). Read-only Claude review found the initial region-key
-error and a scoring-stall risk; both were fixed with tests. The third review
-returned `REVIEW: PASS` with no material findings. One minor follow-up remains:
-`getState` in the collector is outside its error boundary, so a D1 failure
-could skip one v1/v2 forecast Cron tick; the next tick retries. Production/main
-are untouched. Reviewed application commit `1e02821` was pushed to `dev`;
-GitHub CI run `35935367686` passed. The separate dev Worker was deployed as
-version `3817f037-2115-4ab9-a370-ef5ce5286772`. Live dev and production
-health both returned `ok`; the dev page returned 200, guest access to the
-forecast experiment returned 401, and the owner API returned the new
-`competitorRuns` field. It is empty until the first scheduled 14:00 London
-capture; no historical snapshot has been invented. Next: check the first
-captured rival vintage and compare its cheap-window call after official prices
-arrive. Existing phone-test link and production users are unchanged.
+returned `REVIEW: PASS`. GitHub CI run `36124404986` passed. The separate dev
+Worker was deployed as version `161b31ab-b829-4679-8807-76ce83a18f98` at
+`https://octoprice-dev.alanclinch.workers.dev`; the dev page returned 200,
+and live dev and production health both returned `ok`. Production/main and
+existing user accounts are untouched. The owner-only pre-2pm rival comparison
+tracker remains available. Next: monitor live forecast vintages and compare
+cheap-slot calls through several publication cycles. Do not release to main
+without Alan's approval.
 
 - **Current version:** 0.1.0 (MVP feature-complete, not yet released)
 - **Current branch:** `dev`
 - **Source control:** `main` remains the reviewed production branch and `dev`
   is the long-lived integration branch for ongoing work. Development must not
   be merged to `main` or deployed to production until Alan explicitly approves
-  a release. A separate `octoprice-dev` Worker and D1 database are being set
-  up for phone testing; `--env dev` is mandatory for that target.
+  a release. The separate `octoprice-dev` Worker and D1 database support phone
+  testing; `--env dev` is mandatory for that target.
   The mandatory Claude CLI workflow remains active.
 - **Build status:** passing on `dev` — `npm run verify`
-- **Test status:** passing — 366 tests across 22 files
+- **Test status:** passing — 376 tests across 24 files
 - **Deployed:** `main` revision `1477c38`, Worker version
   `3f7385fc-a551-470f-9dcf-54214dd3f88e`, at
   `https://octoprice.alanclinch.workers.dev`. D1 is in WEUR, migration 0008 is
