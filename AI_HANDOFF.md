@@ -46,7 +46,7 @@ normal-price periods are not important unless they change that decision.
 
 ## Current State
 
-**2026-09-25 UI refinement in progress:** The Prices table's experimental
+**2026-09-25 UI refinement:** The Prices table's experimental
 boundary now reads “Experimental prices below” with an accessible, collapsed
 information button. The button reveals the existing forecast source, issue
 time, range explanation and upstream credits in place; the redundant source
@@ -57,8 +57,12 @@ credits remain visible. `apps/web/src/components/PriceTable.tsx`,
 with `docs/forecasting.md` and `CHANGELOG.md` updated. `npm run verify`
 passes (377 tests across 24 files). Claude's read-only review passed; its
 suggestion to restore a source-neutral chart outline key was accepted, checked
-and passed a second review. The change is ready for dev integration; main and
-production remain untouched.
+and passed a second review. Commit `82c81b6` passed GitHub CI run
+`36126529853` and is live on the separate dev Worker as version
+`73a93278-b15a-42c0-96f6-d154a33bf3a5`. The dev page and new JS bundle
+returned 200, the bundle contains the new marker and info-button label, and
+dev and production health both returned `ok`. Main and production were not
+deployed. Next: Alan can check the disclosure on his phone.
 
 **2026-09-25 development update:** commit `242d992` on `dev` adds a
 dev-only AgilePredict display source for each active user region, with
