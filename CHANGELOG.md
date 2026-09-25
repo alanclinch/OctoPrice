@@ -14,7 +14,7 @@ Octopus publication cycles.
 
 ### Added
 
-- **Fresher AgilePredict checks in development.** Each active region is now
+- **Fresher AgilePredict checks.** Each active region is now
   checked hourly instead of every three hours. The app still displays only the
   provider's latest issued forecast and falls back to its own estimate when
   provider data is unavailable.
