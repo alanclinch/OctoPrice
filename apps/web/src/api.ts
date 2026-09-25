@@ -59,6 +59,8 @@ export interface Overview {
   tomorrow: DayPayload;
   forecast: {
     model: string;
+    source?: string;
+    issuedAt?: string;
     referenceRegion: string;
     historyDays: number;
     periods: ForecastPricePeriod[];

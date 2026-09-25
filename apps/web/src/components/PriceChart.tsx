@@ -9,6 +9,7 @@
  */
 
 import { useMemo, useState } from 'react';
+import { AGILEPREDICT_MODEL } from '@octoprice/core';
 import { bandClass, clock, pence, periodRange, type DisplayOptions } from '../format.ts';
 import { isForecastPeriod, type TimelinePricePeriod } from './timeline.ts';
 import type { JSX } from 'react';
@@ -107,7 +108,9 @@ export function PriceChart({ periods, now, display }: PriceChartProps): JSX.Elem
               <title>
                 {periodRange(period, display)}: {pence(value)}
                 {isForecastPeriod(period)
-                  ? ` estimate (${pence(period.lowerIncVat)}–${pence(period.upperIncVat)} middle of recent prices)`
+                  ? period.model === AGILEPREDICT_MODEL
+                    ? ` AgilePredict estimate (${pence(period.lowerIncVat)}–${pence(period.upperIncVat)} provider range)`
+                    : ` estimate (${pence(period.lowerIncVat)}–${pence(period.upperIncVat)} middle of recent prices)`
                   : ''}
               </title>
             </rect>

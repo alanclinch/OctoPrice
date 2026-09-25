@@ -15,6 +15,7 @@ import { handleApiRequest } from './api/handler.ts';
 import { runArchive, runScheduledJobs } from './forecast/archive.ts';
 import { runForecastBackgroundJob } from './forecast/baseline.ts';
 import { collectAgilePredict } from './forecast/competitor.ts';
+import { refreshOneAgilePredictForecast } from './forecast/provider.ts';
 import { scheduledJobForCron } from './scheduler/crons.ts';
 
 interface Env {
@@ -31,6 +32,7 @@ interface Env {
   VAPID_PRIVATE_KEY?: string;
   VAPID_SUBJECT?: string;
   FORECAST_BASELINE_ENABLED?: string;
+  AGILEPREDICT_FORECAST_ENABLED?: string;
   COMPETITOR_TRACKING_ENABLED?: string;
   FORECAST_ARCHIVE_ENABLED?: string;
   FORECAST_ARCHIVE_INTERVAL_MINUTES?: string;
@@ -68,6 +70,8 @@ function configFor(env: Env): AppConfig {
     POLL_INTERVAL_MINUTES: env.POLL_INTERVAL_MINUTES ?? '5',
     POLL_CUTOFF: env.POLL_CUTOFF ?? '22:15',
     FORECAST_BASELINE_ENABLED: env.FORECAST_BASELINE_ENABLED ?? 'false',
+    AGILEPREDICT_FORECAST_ENABLED: env.AGILEPREDICT_FORECAST_ENABLED ?? 'false',
+    COMPETITOR_TRACKING_ENABLED: env.COMPETITOR_TRACKING_ENABLED ?? 'false',
     FORECAST_ARCHIVE_ENABLED: env.FORECAST_ARCHIVE_ENABLED ?? 'true',
   };
 
@@ -208,13 +212,27 @@ export default {
     // price/alert invocation below or run on an HTTP request.
     const scheduledJob = scheduledJobForCron(controller.cron);
     if (scheduledJob === 'forecast') {
-      if (config.forecastBaselineEnabled) {
+      if (
+        config.forecastBaselineEnabled ||
+        config.agilePredictForecastEnabled ||
+        config.competitorTrackingEnabled
+      ) {
         context.waitUntil(
           (async () => {
-            if (env.COMPETITOR_TRACKING_ENABLED === 'true') {
+            if (config.competitorTrackingEnabled) {
               await collectAgilePredict({ store, priceService, logger, now: new Date() });
             }
-            await runForecastBackgroundJob({ store, priceService, logger });
+            if (config.agilePredictForecastEnabled) {
+              await refreshOneAgilePredictForecast({
+                store,
+                priceService,
+                logger,
+                now: new Date(),
+              });
+            }
+            if (config.forecastBaselineEnabled) {
+              await runForecastBackgroundJob({ store, priceService, logger });
+            }
           })(),
         );
       }

@@ -65,6 +65,7 @@ import {
   type BaselineForecast,
 } from '../forecast/baseline.ts';
 import { readAnalogueShadowStatus } from '../forecast/analogue.ts';
+import { readAgilePredictForecastCache } from '../forecast/provider.ts';
 import type { ForecastRunEvaluation } from '../db/store.ts';
 
 export interface ApiRequest {
@@ -165,6 +166,25 @@ async function safeBaselineForecast(options: {
   } catch (error) {
     options.logger.warn('Forecast unavailable; returning confirmed prices', describeError(error));
     return unavailableBaselineForecast('failed');
+  }
+}
+
+async function safeAgilePredictForecast(options: {
+  enabled: boolean;
+  store: Store;
+  region: Awaited<ReturnType<PriceService['tariff']>>['region'];
+  now: Date;
+  logger: Logger;
+}) {
+  if (!options.enabled) return null;
+  try {
+    return await readAgilePredictForecastCache(options);
+  } catch (error) {
+    options.logger.warn(
+      'Provider forecast unavailable; using local estimate',
+      describeError(error),
+    );
+    return null;
   }
 }
 
@@ -424,7 +444,7 @@ export async function handleApiRequest(
     const today = londonDateOf(now);
     const tomorrow = addDays(today, 1);
     const tariff = await priceService.tariff(userId);
-    const [todayDay, tomorrowDay, settings, cachedForecast] = await Promise.all([
+    const [todayDay, tomorrowDay, settings, cachedBaseline, cachedProvider] = await Promise.all([
       describeDay(priceService, today, tariff.tariffCode),
       describeDay(priceService, tomorrow, tariff.tariffCode),
       store.getSettings(userId),
@@ -435,12 +455,26 @@ export async function handleApiRequest(
         now,
         logger,
       }),
+      safeAgilePredictForecast({
+        enabled: config.agilePredictForecastEnabled,
+        store,
+        region: tariff.region,
+        now,
+        logger,
+      }),
     ]);
     const known = [...todayDay.periods, ...tomorrowDay.periods];
     const confirmedStarts = new Set(known.map((period) => period.validFrom));
+    const providerAvailable = cachedProvider?.periods.some(
+      (period) => !confirmedStarts.has(period.validFrom),
+    );
+    const selectedForecast = providerAvailable && cachedProvider ? cachedProvider : cachedBaseline;
     const forecast = {
-      ...cachedForecast,
-      periods: cachedForecast.periods.filter((period) => !confirmedStarts.has(period.validFrom)),
+      ...selectedForecast,
+      ...(config.agilePredictForecastEnabled && !providerAvailable
+        ? { source: FORECAST_MODEL }
+        : {}),
+      periods: selectedForecast.periods.filter((period) => !confirmedStarts.has(period.validFrom)),
     };
 
     return json({

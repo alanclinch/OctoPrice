@@ -1084,3 +1084,26 @@ latest pre-cut-off issue may be earlier (for example 11:15); the recorded
 provider timestamp stays visible so comparisons are not mistaken for precisely
 simultaneous forecasts. Whole-day MAE is retained for context, but low-price
 slot detection and cheap-window timing are the product decision criteria.
+
+### Development display source
+
+The dev Worker can additionally show AgilePredict estimates in the ordinary
+Prices and Forecast views when `AGILEPREDICT_FORECAST_ENABLED=true`. The isolated
+forecast Cron refreshes one distinct active user region per turn, no more often
+than every three hours per region, and stores the result in `app_state`. Normal
+API requests only read this cache. A failed refresh waits for the next regional
+turn, so the four-hour cache lifetime can briefly put the UI on v1. The local
+Node scheduler does not fill this cache; this flag is intended for the dev
+Worker. Production does not enable the flag.
+
+The API keeps the same `forecast` field and adds `source` and the provider's
+`issuedAt` time. Provider pence are already VAT-inclusive and are not converted.
+Cached values are rejected if the fetch or issue is stale, malformed, missing
+provider ranges, or incomplete. During the afternoon publication window, a new
+provider issue is not cached while tomorrow's official prices are incomplete:
+the provider may already be substituting actuals. The existing cached seasonal v1 estimate is
+then shown under its own source label. Official Octopus periods are excluded
+both at refresh and when an overview is served, so newly confirmed prices take
+priority. Neither source enters alert rules, notifications or cheapest-window
+calculations. The provider's high/low values are labelled as its own range,
+not as a measured confidence interval. Attribution appears alongside estimates.

@@ -46,6 +46,22 @@ normal-price periods are not important unless they change that decision.
 
 ## Current State
 
+**2026-09-25 development update:** `codex/agilepredict-forecast` adds a
+dev-only AgilePredict display source for each active user region, with
+three-hour regional cache refreshes on the forecast Cron, official-price
+precedence, v1 fallback, issue time, provider attribution and unmeasured-range
+labelling. The existing benchmark collector now uses the identifying User-Agent
+and a zod-validated config flag. Unit and API integration tests cover VAT basis,
+region isolation, stale fallback, confirmed-price precedence, alerts and
+cheapest-window isolation, and 46/50-period days. The source discriminator is
+included only when the new display flag is on, preserving the flag-off API and
+UI. `npm run verify` passes (376 tests across 24 files). Read-only Claude
+review initially identified weak alert coverage, over-strict provider ranges,
+changed flag-off UI and missing attribution in the existing rival tracker; all
+were fixed. A third review, justified by the licence-attribution defect,
+returned `REVIEW: PASS`. No main release is authorised. Next: merge and deploy
+the dev Worker, then monitor forecast vintages through publication cycles.
+
 **2026-09-24 development update:** automatic owner-only AgilePredict comparison
 snapshots for Southern Scotland are implemented on `dev`. The documented API
 returns timestamped half-hour estimates several days ahead; the dev forecast

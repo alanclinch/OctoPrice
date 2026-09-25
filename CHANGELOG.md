@@ -14,6 +14,13 @@ Octopus publication cycles.
 
 ### Added
 
+- **AgilePredict estimates in the development preview.** The Prices and
+  Forecast views can now show estimates for each user's own region, with the
+  provider and issue time clearly labelled. Confirmed Octopus prices always
+  take priority; if the provider cache is unavailable, the existing v1 estimate
+  remains the fallback. Alerts and cheapest-window advice still use only
+  confirmed prices. Production is unchanged.
+
 - **Private rival forecast tracking in development.** The Forecast tab now
   records AgilePredict's Southern Scotland pre-2pm estimate automatically and
   shows its low slots alongside our experimental model. Once official prices

@@ -11,13 +11,15 @@ import {
 import type { Store } from '../db/store.ts';
 import { describeError, type Logger } from '../logger.ts';
 import type { PriceService } from '../prices/service.ts';
+import { COLLECTOR_USER_AGENT } from './collectors.ts';
 
 const API_URL = 'https://agilepredict.com/api/N/?days=4&forecast_count=3&high_low=False';
 const STATE_PREFIX = 'competitor:agilepredict:';
 
-interface ProviderForecast {
+export interface ProviderForecast {
   createdAt: string;
   values: Map<string, number>;
+  ranges: Map<string, { low: number; high: number }>;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -34,6 +36,7 @@ export function parseAgilePredict(value: unknown): ProviderForecast[] {
     const issued = Date.parse(item.created_at);
     if (!Number.isFinite(issued)) return [];
     const values = new Map<string, number>();
+    const ranges = new Map<string, { low: number; high: number }>();
     for (const price of item.prices) {
       if (!isRecord(price) || typeof price.date_time !== 'string') continue;
       const at = Date.parse(price.date_time);
@@ -42,8 +45,19 @@ export function parseAgilePredict(value: unknown): ProviderForecast[] {
       const key = new Date(at).toISOString();
       if (values.has(key)) return [];
       values.set(key, pence);
+      const low = price.agile_low;
+      const high = price.agile_high;
+      if (
+        typeof low === 'number' &&
+        Number.isFinite(low) &&
+        typeof high === 'number' &&
+        Number.isFinite(high) &&
+        low <= high
+      ) {
+        ranges.set(key, { low, high });
+      }
     }
-    return [{ createdAt: new Date(issued).toISOString(), values }];
+    return [{ createdAt: new Date(issued).toISOString(), values, ranges }];
   });
 }
 
@@ -60,20 +74,20 @@ export async function collectAgilePredict(options: {
   // provider is briefly down. Never issue after official prices may arrive.
   if (local.minutes < 14 * 60 || local.minutes >= 16 * 60) return 0;
   const stateKey = `${STATE_PREFIX}${local.date}`;
-  if (await options.store.getState(stateKey)) return 0;
   const target = addDays(local.date, 1);
   const cutoff = londonDayPeriodStarts(local.date).find(
     (at) => londonDateAndMinutes(at).minutes === 14 * 60,
   );
   if (!cutoff) return 0;
   try {
+    if (await options.store.getState(stateKey)) return 0;
     // Only record a benchmark for a tariff whose official Region N prices the
     // regular poller is already collecting. Never guess a product code here.
     const tariffs = await options.priceService.distinctTariffs();
     const southern = tariffs.find((tariff) => tariff.region === 'N');
     if (!southern) return 0;
     const response = await (options.fetchFn ?? fetch)(API_URL, {
-      headers: { Accept: 'application/json' },
+      headers: { Accept: 'application/json', 'User-Agent': COLLECTOR_USER_AGENT },
       signal: AbortSignal.timeout(8_000),
     });
     if (!response.ok) throw new Error(`AgilePredict returned HTTP ${response.status}`);

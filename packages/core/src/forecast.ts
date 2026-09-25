@@ -34,7 +34,7 @@ export interface ForecastPricePeriod {
   lowerIncVat: number;
   upperIncVat: number;
   sampleCount: number;
-  model: typeof FORECAST_MODEL;
+  model: typeof FORECAST_MODEL | typeof AGILEPREDICT_MODEL;
 }
 
 export interface LinearTransform {

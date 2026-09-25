@@ -21,6 +21,7 @@ import { longDate, pence, periodRange, type DisplayOptions } from '../format.ts'
 import { PriceChart } from './PriceChart.tsx';
 import { PriceTable } from './PriceTable.tsx';
 import { unconfirmedForecastPeriods } from './timeline.ts';
+import { AgilePredictCredit, ForecastSourceNote } from './ForecastSourceNote.tsx';
 import type { JSX } from 'react';
 
 const WIDTH = 360;
@@ -245,6 +246,12 @@ export function ForecastView({
           · estimates begin after confirmed prices end. These are not official Octopus prices and do
           not drive alerts.
         </p>
+        {currentEstimates.length > 0 && overview.forecast.source && (
+          <ForecastSourceNote
+            source={overview.forecast.source}
+            issuedAt={overview.forecast.issuedAt}
+          />
+        )}
         {currentEstimates.length > 0 ? (
           <>
             <PriceChart periods={currentEstimates} now={now} display={display} />
@@ -318,6 +325,11 @@ export function ForecastView({
             </table>
           </div>
         )}
+        {rivalRuns.length > 0 && (
+          <p className="forecast-note muted small">
+            <AgilePredictCredit />
+          </p>
+        )}
       </div>
 
       <div className="card forecast-intro">
@@ -382,6 +394,11 @@ export function ForecastView({
             the common reference-region comparison.
           </p>
           <ForecastComparisonChart curves={curves} />
+          {rival && (
+            <p className="forecast-note muted small">
+              <AgilePredictCredit />
+            </p>
+          )}
 
           {(v1 || rival) && (
             <details className="forecast-details">

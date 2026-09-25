@@ -89,7 +89,12 @@ export async function createTestApp(
   rates: number[] = tomorrowPrices(),
   // Building the poller does not start it, so this is safe in tests and lets
   // them exercise the real dispatch gate rather than calling past it.
-  options: { scheduler?: boolean; forecastBaseline?: boolean; allowInsecureCookie?: boolean } = {},
+  options: {
+    scheduler?: boolean;
+    forecastBaseline?: boolean;
+    agilePredictForecast?: boolean;
+    allowInsecureCookie?: boolean;
+  } = {},
 ): Promise<TestContext> {
   const config = loadConfig({
     NODE_ENV: 'test',
@@ -98,6 +103,7 @@ export async function createTestApp(
     DEFAULT_REGION: 'C',
     ENABLE_SCHEDULER: options.scheduler ? 'true' : 'false',
     FORECAST_BASELINE_ENABLED: options.forecastBaseline ? 'true' : 'false',
+    AGILEPREDICT_FORECAST_ENABLED: options.agilePredictForecast ? 'true' : 'false',
     WEB_DIST_PATH: 'does-not-exist',
     VAPID_PUBLIC_KEY: 'test-public',
     VAPID_PRIVATE_KEY: 'test-private',
