@@ -33,6 +33,7 @@
     "POLL_INTERVAL_MINUTES": "5",
     "POLL_CUTOFF": "22:15",
     "FORECAST_BASELINE_ENABLED": "true",
+    "AGILEPREDICT_FORECAST_ENABLED": "true",
   },
   "env": {
     // Phone-testable preview. This is a different Worker, database and origin;

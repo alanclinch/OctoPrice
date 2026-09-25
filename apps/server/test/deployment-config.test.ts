@@ -10,6 +10,7 @@ interface D1Binding {
 interface DeploymentConfig {
   name: string;
   d1_databases: D1Binding[];
+  vars: { AGILEPREDICT_FORECAST_ENABLED: string; COMPETITOR_TRACKING_ENABLED?: string };
   env: {
     dev: {
       name?: string;
@@ -26,6 +27,8 @@ it('keeps the phone preview on a different Worker and D1 database', () => {
   ) as DeploymentConfig;
 
   expect(config.name).toBe('octoprice');
+  expect(config.vars.AGILEPREDICT_FORECAST_ENABLED).toBe('true');
+  expect(config.vars.COMPETITOR_TRACKING_ENABLED).toBeUndefined();
   expect(config.env.dev.name).not.toBe(config.name);
   expect(config.d1_databases).toHaveLength(1);
   expect(config.env.dev.d1_databases).toHaveLength(1);

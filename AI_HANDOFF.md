@@ -46,6 +46,16 @@ normal-price periods are not important unless they change that decision.
 
 ## Current State
 
+**2026-09-25 approved production release in progress:** Alan explicitly
+approved merging `dev` into `main` and enabling AgilePredict for his private,
+non-commercial three-person installation. The production Wrangler vars now
+enable `AGILEPREDICT_FORECAST_ENABLED`; competitor tracking remains disabled.
+The production Worker name, URL, D1 binding, session cookie, VAPID secrets and
+PWA identity must remain unchanged so existing users keep their sessions and
+subscriptions. No new migrations are in the `main..dev` diff. Complete
+verification, independent read-only Claude review, CI, deployment and live
+health checks before marking this release complete.
+
 **2026-09-25 UI refinement:** The Prices table's experimental
 boundary now reads “Experimental prices below” with an accessible, collapsed
 information button. The button reveals the existing forecast source, issue

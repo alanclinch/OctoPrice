@@ -110,6 +110,10 @@ Non-secret production values live under `vars` in `wrangler.jsonc`:
 - `FORECAST_BASELINE_ENABLED` — independent switch for the experimental
   estimate and its history backfill; the application default is `false`, while
   production is explicitly enabled after the staged trigger check
+- `AGILEPREDICT_FORECAST_ENABLED` — enables the attributed AgilePredict display
+  source for this private, non-commercial installation. The existing seasonal
+  estimate remains the fallback if provider data is unavailable. It does not
+  change alerts or cheapest-window advice, which use confirmed prices only.
 
 The core Cron Trigger runs every five minutes, all day. Each invocation does
 two things of very different cost:
