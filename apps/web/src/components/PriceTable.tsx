@@ -6,10 +6,11 @@
  * noticing a small numeric difference.
  */
 
-import { Fragment } from 'react';
+import { Fragment, useId, useState } from 'react';
 import { londonDateOf } from '@octoprice/core';
 import { bandClass, longDate, pence, periodRange, type DisplayOptions } from '../format.ts';
 import { isForecastPeriod, type TimelinePricePeriod } from './timeline.ts';
+import { ForecastSourceNote } from './ForecastSourceNote.tsx';
 import type { JSX } from 'react';
 
 export interface PriceTableProps {
@@ -18,6 +19,8 @@ export interface PriceTableProps {
   display: DisplayOptions;
   /** Hide periods that have already finished. */
   hidePast?: boolean;
+  /** Show source details inside the experimental-price boundary, collapsed by default. */
+  forecastInfo?: { source: string | undefined; issuedAt: string | undefined };
 }
 
 export function PriceTable({
@@ -25,7 +28,10 @@ export function PriceTable({
   now,
   display,
   hidePast = false,
+  forecastInfo,
 }: PriceTableProps): JSX.Element {
+  const [infoOpen, setInfoOpen] = useState(false);
+  const infoId = useId();
   const at = now.getTime();
   const visible = hidePast ? periods.filter((period) => Date.parse(period.validTo) > at) : periods;
   const firstForecastIndex = visible.findIndex(isForecastPeriod);
@@ -68,7 +74,31 @@ export function PriceTable({
               {beginsForecast && (
                 <tr className="forecast-separator">
                   <th colSpan={2} scope="rowgroup">
-                    Experimental estimates from here
+                    {forecastInfo ? (
+                      <>
+                        <span className="forecast-boundary-label">Experimental prices below</span>
+                        <button
+                          type="button"
+                          className="forecast-info-toggle"
+                          aria-label={
+                            infoOpen ? 'Hide forecast information' : 'Show forecast information'
+                          }
+                          aria-expanded={infoOpen}
+                          aria-controls={infoId}
+                          onClick={() => setInfoOpen((open) => !open)}
+                        >
+                          i
+                        </button>
+                        <div id={infoId} className="forecast-boundary-info" hidden={!infoOpen}>
+                          <ForecastSourceNote
+                            source={forecastInfo.source}
+                            issuedAt={forecastInfo.issuedAt}
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      'Experimental estimates from here'
+                    )}
                   </th>
                 </tr>
               )}

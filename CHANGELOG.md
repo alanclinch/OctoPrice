@@ -14,6 +14,10 @@ Octopus publication cycles.
 
 ### Added
 
+- **Quieter experimental-price marker.** The half-hour table now marks where
+  “Experimental prices below” begins and keeps the AgilePredict source, issue
+  time and credits behind an information button at that point.
+
 - **AgilePredict estimates in the development preview.** The Prices and
   Forecast views can now show estimates for each user's own region, with the
   provider and issue time clearly labelled. Confirmed Octopus prices always

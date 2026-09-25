@@ -1106,4 +1106,6 @@ then shown under its own source label. Official Octopus periods are excluded
 both at refresh and when an overview is served, so newly confirmed prices take
 priority. Neither source enters alert rules, notifications or cheapest-window
 calculations. The provider's high/low values are labelled as its own range,
-not as a measured confidence interval. Attribution appears alongside estimates.
+not as a measured confidence interval. On the Prices page the source, issue
+time and attribution are in the information disclosure at the experimental-price
+boundary; the Forecast tab keeps its separate source and comparison credits.

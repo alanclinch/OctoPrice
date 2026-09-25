@@ -8,7 +8,6 @@ import { NowCard } from './NowCard.tsx';
 import { PriceChart } from './PriceChart.tsx';
 import { unconfirmedForecastPeriods } from './timeline.ts';
 import { PriceTable } from './PriceTable.tsx';
-import { ForecastSourceNote } from './ForecastSourceNote.tsx';
 import type { JSX } from 'react';
 
 const WINDOW_CHOICES = [60, 120, 180, 240] as const;
@@ -160,17 +159,9 @@ export function PricesView({ overview, now, display }: PricesViewProps): JSX.Ele
         {openTool === 'timeline' && visibleTimelinePeriods.length > 0 && (
           <div className="price-tool-content">
             <PriceChart periods={visibleTimelinePeriods} now={now} display={display} />
-            {forecastPeriods.length > 0 &&
-              (overview.forecast.source ? (
-                <ForecastSourceNote
-                  source={overview.forecast.source}
-                  issuedAt={overview.forecast.issuedAt}
-                />
-              ) : (
-                <p className="forecast-note muted small">
-                  Outlined bars are experimental estimates from recent confirmed Agile prices.
-                </p>
-              ))}
+            {forecastPeriods.length > 0 && (
+              <p className="forecast-note muted small">Outlined bars are experimental estimates.</p>
+            )}
           </div>
         )}
       </div>
@@ -187,17 +178,12 @@ export function PricesView({ overview, now, display }: PricesViewProps): JSX.Ele
             Remaining only
           </label>
         </div>
-        {forecastPeriods.length > 0 && overview.forecast.source && openTool !== 'timeline' && (
-          <ForecastSourceNote
-            source={overview.forecast.source}
-            issuedAt={overview.forecast.issuedAt}
-          />
-        )}
         <PriceTable
           periods={timelinePeriods}
           now={now}
           display={display}
           hidePast={remainingOnly}
+          forecastInfo={{ source: overview.forecast.source, issuedAt: overview.forecast.issuedAt }}
         />
         {forecastPeriods.length === 0 && overview.forecast.unavailableReason && (
           <p className="forecast-note muted small">
