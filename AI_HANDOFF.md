@@ -56,9 +56,12 @@ forecast Cron, four-hour cache lifetime, 18-hour issue limit, official-price
 precedence and publication safety gate remain unchanged. A regression test
 asserts no refetch at 55 minutes and a refetch at 60 minutes. `npm run verify`
 passes with 378 tests across 24 files. Independent read-only Claude review
-returned `REVIEW: PASS` with no material findings; dev CI is pending. Do not
-merge this change to `main` or deploy it to production
-without Alan's explicit release approval.
+returned `REVIEW: PASS` with no material findings, and dev CI run
+`36131271349` passed. Commit `77bbf4c` is live on the separate dev Worker as
+version `8dfa35dd-ba8a-4448-be64-77781c9f10f1`; dev and production health
+both returned `ok`, and the dev manifest retains its separate identity. Main
+and production code were not changed. Do not merge this change to `main` or
+deploy it to production without Alan's explicit release approval.
 
 **2026-09-25 production release:** Alan approved the private, non-commercial
 three-person release with AgilePredict enabled. `dev` was fast-forwarded into
