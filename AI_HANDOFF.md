@@ -46,7 +46,7 @@ normal-price periods are not important unless they change that decision.
 
 ## Current State
 
-**2026-09-25 hourly AgilePredict check on `dev` (not released):** Alan asked
+**2026-09-25 hourly AgilePredict production release:** Alan asked
 whether one-region polling could be hourly or half-hourly instead of every
 three hours. A read-only request to the documented Region N API returned recent
 forecast issue times near 06:15, 11:15, 16:15 and 22:15 London time, so hourly
@@ -58,10 +58,16 @@ asserts no refetch at 55 minutes and a refetch at 60 minutes. `npm run verify`
 passes with 378 tests across 24 files. Independent read-only Claude review
 returned `REVIEW: PASS` with no material findings, and dev CI run
 `36131271349` passed. Commit `77bbf4c` is live on the separate dev Worker as
-version `8dfa35dd-ba8a-4448-be64-77781c9f10f1`; dev and production health
-both returned `ok`, and the dev manifest retains its separate identity. Main
-and production code were not changed. Do not merge this change to `main` or
-deploy it to production without Alan's explicit release approval.
+version `8dfa35dd-ba8a-4448-be64-77781c9f10f1`. Alan then explicitly
+approved the `main` release. Claude's read-only release review also returned
+`REVIEW: PASS`; its changelog wording correction was accepted. The verified
+`dev` tip `65cdb93` passed dev CI run `36132035123`, was fast-forwarded to
+`main`, and main CI run `36132221524` passed. Production Worker version
+`90e11649-2176-4ab1-a56d-ae78574fbc5b` is live; the page returned 200,
+health is `ok`, the production manifest identity is unchanged, and an
+unauthenticated overview still returns 401. No migration, secret, session,
+PWA identity or production database change was required. Next: compare how
+quickly new provider issues appear in the app and continue scoring cheap slots.
 
 **2026-09-25 production release:** Alan approved the private, non-commercial
 three-person release with AgilePredict enabled. `dev` was fast-forwarded into
@@ -126,15 +132,15 @@ vintages and compare cheap-slot calls through several publication cycles.
   testing; `--env dev` is mandatory for that target.
   The mandatory Claude CLI workflow remains active.
 - **Build status:** passing on `main` — `npm run verify` and GitHub CI
-- **Test status:** passing — 377 tests across 24 files
-- **Deployed:** `main` revision `5af8de3`, Worker version
-  `53d1f10a-87b6-4e26-8caa-4f22d70ac2e2`, at
+- **Test status:** passing — 378 tests across 24 files
+- **Deployed:** `main` application revision `65cdb93`, Worker version
+  `90e11649-2176-4ab1-a56d-ae78574fbc5b`, at
   `https://octoprice.alanclinch.workers.dev`. D1 is in WEUR, migration 0008 is
   applied, both five-minute triggers are active and
   `FORECAST_BASELINE_ENABLED=true` and `AGILEPREDICT_FORECAST_ENABLED=true`.
 - **Git remote:** public GitHub repository at
-  `https://github.com/alanclinch/OctoPrice`; application revision `5af8de3`
-  passed GitHub CI run `36128452426`.
+  `https://github.com/alanclinch/OctoPrice`; application revision `65cdb93`
+  passed GitHub CI run `36132221524`.
 
 ## Development phone preview and estimate restoration
 
