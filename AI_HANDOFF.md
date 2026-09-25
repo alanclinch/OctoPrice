@@ -46,15 +46,19 @@ normal-price periods are not important unless they change that decision.
 
 ## Current State
 
-**2026-09-25 approved production release in progress:** Alan explicitly
-approved merging `dev` into `main` and enabling AgilePredict for his private,
-non-commercial three-person installation. The production Wrangler vars now
-enable `AGILEPREDICT_FORECAST_ENABLED`; competitor tracking remains disabled.
-The production Worker name, URL, D1 binding, session cookie, VAPID secrets and
-PWA identity must remain unchanged so existing users keep their sessions and
-subscriptions. No new migrations are in the `main..dev` diff. Complete
-verification, independent read-only Claude review, CI, deployment and live
-health checks before marking this release complete.
+**2026-09-25 production release:** Alan approved the private, non-commercial
+three-person release with AgilePredict enabled. `dev` was fast-forwarded into
+`main` at `5af8de3` with no new migration. `npm run verify` passed (377 tests
+across 24 files), Claude's read-only release review returned `REVIEW: PASS`,
+and dev/main CI runs `36128277400`/`36128452426` passed. Production Worker
+version `53d1f10a-87b6-4e26-8caa-4f22d70ac2e2` is live with
+`AGILEPREDICT_FORECAST_ENABLED=true` and competitor tracking off. The page
+returns 200, health is `ok`, manifest name/start/scope are unchanged, and
+unauthenticated overview still returns 401. Worker name, URL, D1, session
+cookie, VAPID secrets and PWA identity are unchanged; no existing links need
+reissuing. The first forecast Cron cached 168 Region N AgilePredict periods,
+fetched at 11:22 UTC from a 10:15 UTC issue. Next: compare cheap-slot forecasts
+with official outcomes.
 
 **2026-09-25 UI refinement:** The Prices table's experimental
 boundary now reads “Experimental prices below” with an accessible, collapsed
@@ -92,28 +96,28 @@ Worker was deployed as version `161b31ab-b829-4679-8807-76ce83a18f98` at
 `https://octoprice-dev.alanclinch.workers.dev`; the dev page returned 200,
 and live dev and production health both returned `ok`. Production/main and
 existing user accounts are untouched. The owner-only pre-2pm rival comparison
-tracker remains available. Next: monitor live forecast vintages and compare
-cheap-slot calls through several publication cycles. Do not release to main
-without Alan's approval.
+tracker remains available. This was the pre-release state; Alan approved and
+deployed the production release recorded above. Next: monitor live forecast
+vintages and compare cheap-slot calls through several publication cycles.
 
-- **Current version:** 0.1.0 (MVP feature-complete, not yet released)
-- **Current branch:** `dev`
+- **Current version:** 0.1.0 (private production release)
+- **Current branch:** `dev` for ongoing development.
 - **Source control:** `main` remains the reviewed production branch and `dev`
   is the long-lived integration branch for ongoing work. Development must not
   be merged to `main` or deployed to production until Alan explicitly approves
   a release. The separate `octoprice-dev` Worker and D1 database support phone
   testing; `--env dev` is mandatory for that target.
   The mandatory Claude CLI workflow remains active.
-- **Build status:** passing on `dev` — `npm run verify`
-- **Test status:** passing — 376 tests across 24 files
-- **Deployed:** `main` revision `1477c38`, Worker version
-  `3f7385fc-a551-470f-9dcf-54214dd3f88e`, at
+- **Build status:** passing on `main` — `npm run verify` and GitHub CI
+- **Test status:** passing — 377 tests across 24 files
+- **Deployed:** `main` revision `5af8de3`, Worker version
+  `53d1f10a-87b6-4e26-8caa-4f22d70ac2e2`, at
   `https://octoprice.alanclinch.workers.dev`. D1 is in WEUR, migration 0008 is
   applied, both five-minute triggers are active and
-  `FORECAST_BASELINE_ENABLED=true`.
+  `FORECAST_BASELINE_ENABLED=true` and `AGILEPREDICT_FORECAST_ENABLED=true`.
 - **Git remote:** public GitHub repository at
-  `https://github.com/alanclinch/OctoPrice`; application revision `1477c38`
-  passed GitHub CI run `33376400101`.
+  `https://github.com/alanclinch/OctoPrice`; application revision `5af8de3`
+  passed GitHub CI run `36128452426`.
 
 ## Development phone preview and estimate restoration
 
@@ -1389,8 +1393,9 @@ throughout and cannot drive alerts or cheapest-window advice.
 - Ongoing development now belongs on `dev` (or short-lived branches based on
   and merged back into `dev`). Do not merge to `main` or deploy until Alan
   explicitly approves the development version.
-- The visible `seasonal-naive-v1` baseline remains the deployed model and is
-  unaffected by this branch.
+- AgilePredict is now the production display source when its cache is fresh;
+  visible `seasonal-naive-v1` remains the fallback. Neither drives alerts or
+  cheapest-window advice.
 - Private v2 shadow collection, persistence, scoring and the owner-only
   observation tab were merged to `main` at `42d63a3` after Claude found no
   merge blockers. GitHub CI passed, migration 0008 was applied and verified,
