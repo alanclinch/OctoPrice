@@ -1090,9 +1090,9 @@ slot detection and cheap-window timing are the product decision criteria.
 The Worker can additionally show AgilePredict estimates in the ordinary
 Prices and Forecast views when `AGILEPREDICT_FORECAST_ENABLED=true`. The isolated
 forecast Cron refreshes one distinct active user region per turn, no more often
-than every three hours per region, and stores the result in `app_state`. Normal
-API requests only read this cache. A failed refresh waits for the next regional
-turn, so the four-hour cache lifetime can briefly put the UI on v1. The local
+than hourly per region, and stores the result in `app_state`. Normal API
+requests only read this cache. A failed refresh waits until the next hourly
+attempt; the four-hour cache lifetime can still put the UI on v1. The local
 Node scheduler does not fill this cache. The flag is enabled for the private,
 non-commercial production installation and the separate dev Worker.
 

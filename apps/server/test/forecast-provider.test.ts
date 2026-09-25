@@ -112,6 +112,26 @@ describe('AgilePredict display cache', () => {
     expect(f.fetchFn).toHaveBeenCalledTimes(1);
   });
 
+  it('checks the latest issue hourly, but not before the hourly interval', async () => {
+    const now = new Date('2026-09-24T15:42:00Z');
+    const confirmed = londonDayPeriodStarts('2026-09-25').map((at) => at.toISOString());
+    const f = fixture(responseFor('2026-09-24', '2026-09-24T16:15:00+01:00'), confirmed);
+    expect(await refreshOneAgilePredictForecast({ ...f, now })).toBe('N');
+    expect(
+      await refreshOneAgilePredictForecast({
+        ...f,
+        now: new Date(now.getTime() + 55 * 60_000),
+      }),
+    ).toBeNull();
+    expect(
+      await refreshOneAgilePredictForecast({
+        ...f,
+        now: new Date(now.getTime() + 60 * 60_000),
+      }),
+    ).toBe('N');
+    expect(f.fetchFn).toHaveBeenCalledTimes(2);
+  });
+
   it.each([
     ['2026-03-29', '2026-03-28T11:15:00Z', 46],
     ['2026-10-25', '2026-10-24T11:15:00+01:00', 50],

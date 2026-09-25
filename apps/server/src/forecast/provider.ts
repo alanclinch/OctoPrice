@@ -19,7 +19,7 @@ import { parseAgilePredict } from './competitor.ts';
 
 const CACHE_PREFIX = 'forecast_agilepredict_cache:';
 const ATTEMPT_PREFIX = 'forecast_agilepredict_attempt:';
-export const AGILEPREDICT_REFRESH_MS = 3 * 60 * 60 * 1000;
+export const AGILEPREDICT_REFRESH_MS = 60 * 60 * 1000;
 export const AGILEPREDICT_CACHE_MAX_AGE_MS = 4 * 60 * 60 * 1000;
 const ISSUE_MAX_AGE_MS = 18 * 60 * 60 * 1000;
 const HALF_HOUR_MS = 30 * 60 * 1000;

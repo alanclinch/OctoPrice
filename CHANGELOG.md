@@ -14,6 +14,11 @@ Octopus publication cycles.
 
 ### Added
 
+- **Fresher AgilePredict checks in development.** Each active region is now
+  checked hourly instead of every three hours. The app still displays only the
+  provider's latest issued forecast and falls back to its own estimate when
+  provider data is unavailable.
+
 - **Quieter experimental-price marker.** The half-hour table now marks where
   “Experimental prices below” begins and keeps the AgilePredict source, issue
   time and credits behind an information button at that point.

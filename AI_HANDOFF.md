@@ -46,6 +46,20 @@ normal-price periods are not important unless they change that decision.
 
 ## Current State
 
+**2026-09-25 hourly AgilePredict check on `dev` (not released):** Alan asked
+whether one-region polling could be hourly or half-hourly instead of every
+three hours. A read-only request to the documented Region N API returned recent
+forecast issue times near 06:15, 11:15, 16:15 and 22:15 London time, so hourly
+checks are sufficient to reduce pickup delay without 48 daily requests. The
+provider's per-active-region attempt interval is now one hour; its five-minute
+forecast Cron, four-hour cache lifetime, 18-hour issue limit, official-price
+precedence and publication safety gate remain unchanged. A regression test
+asserts no refetch at 55 minutes and a refetch at 60 minutes. `npm run verify`
+passes with 378 tests across 24 files. Independent read-only Claude review
+returned `REVIEW: PASS` with no material findings; dev CI is pending. Do not
+merge this change to `main` or deploy it to production
+without Alan's explicit release approval.
+
 **2026-09-25 production release:** Alan approved the private, non-commercial
 three-person release with AgilePredict enabled. `dev` was fast-forwarded into
 `main` at `5af8de3` with no new migration. `npm run verify` passed (377 tests
