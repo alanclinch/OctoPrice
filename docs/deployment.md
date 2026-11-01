@@ -248,9 +248,11 @@ npm run verify
 npm run deploy:cloudflare
 ```
 
-D1 migrations are forward-only. Apply a new migration before code that needs
-the new schema. Existing prices, settings, subscriptions and notification
-deduplication records remain in D1 across Worker deployments. For a seamless
+D1 migrations are forward-only. If a release adds a migration, test it on dev
+and run `npm run d1:migrate:remote` against the verified production database
+before deploying code that needs the new schema. Existing prices, settings,
+subscriptions and notification deduplication records remain in D1 across
+Worker deployments. For a seamless
 release, keep the production Worker name and URL, production D1 binding/ID,
 VAPID keys, host-only session cookie, PWA origin and manifest identity unchanged.
 Do not reissue existing users' links. Test any new migration on the development

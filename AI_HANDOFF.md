@@ -59,11 +59,13 @@ deployment, notifications, Octopus API and forecasting docs were reconciled
 or marked as historical. A separate-model hostile reviewer identified the
 cron reactivation and original-VAPID-key risks; both were documented and its
 final re-review found no additional material gap. `npm run verify` passed with
-378 tests after using a workspace-local temporary directory. The mandatory Claude CLI was
-attempted but its OAuth session had expired; a Claude review remains pending.
+378 tests after using a workspace-local temporary directory. Claude was
+re-authenticated and its review identified stale in-progress handoff text;
+the finding was corrected and Claude's read-only re-review returned
+`REVIEW: PASS`.
 No shutdown, migration, secret change or production deployment was performed.
-Next: re-authenticate Claude and complete its required review, then decide and
-authorise the desired dormancy, data retention and notification policy.
+Next: decide and authorise the desired dormancy, data retention and
+notification policy.
 
 **2026-09-25 hourly AgilePredict production release:** Alan asked
 whether one-region polling could be hourly or half-hourly instead of every
@@ -1432,19 +1434,12 @@ throughout and cannot drive alerts or cheapest-window advice.
 
 ## Currently In Progress
 
-- Ongoing development now belongs on `dev` (or short-lived branches based on
-  and merged back into `dev`). Do not merge to `main` or deploy until Alan
-  explicitly approves the development version.
-- AgilePredict is now the production display source when its cache is fresh;
-  visible `seasonal-naive-v1` remains the fallback. Neither drives alerts or
-  cheapest-window advice.
-- Private v2 shadow collection, persistence, scoring and the owner-only
-  observation tab were merged to `main` at `42d63a3` after Claude found no
-  merge blockers. GitHub CI passed, migration 0008 was applied and verified,
-  and Cloudflare deployment `10458603-b186-481d-8fad-f2e0230cef4c` went live
-  on 2026-08-28. `/api/health` returned `ok` after deployment.
-- After deployment, allow roughly 35 hours for deliberately incremental
-  catch-up before expecting the first paired v1/v2 tomorrow run.
+- Dormancy is being planned, not yet carried out. Alan needs to decide the
+  desired service, schedules, user notifications, data retention and recovery
+  arrangements; see `docs/dormancy.md`. No shutdown has been recorded.
+- Documentation changes are on `dev`. Claude's read-only re-review passed
+  after the stale-handoff correction. Any production release remains subject
+  to Alan's explicit approval.
 
 ## Forecasting
 
