@@ -2,7 +2,8 @@
 
 Alan is preparing to move away from the Agile tariff and leave this project
 dormant. As of 1 November 2026, no shutdown is recorded by this documentation
-change. Verify the actual Cloudflare state before assuming either environment is
+change. The agreed approach is a reversible freeze, planned below for a later
+date. Verify the actual Cloudflare state before assuming either environment is
 running or disabled. Do not disable, delete, migrate or export live services or
 personal data without an explicit decision on scope and retention.
 
@@ -50,6 +51,77 @@ the actual decisions, date, verified resource state and restoration procedure
 here after authorised changes. Do not imply that disabling a Worker deletes data
 or that removing a schedule preserves every other service setting: verify the
 provider's current behaviour before acting.
+
+## Agreed plan: freeze, keep everything (1 November 2026)
+
+Alan chose to **freeze** both environments rather than disable or delete them,
+so the whole service can be brought back quickly. This is a plan only: the
+freeze will be carried out at a later date that Alan chooses, and nothing below
+had been done when it was written.
+
+Frozen means the Cron Triggers are removed from both Workers and nothing else
+changes. Kept as they are: both Workers and their `workers.dev` addresses, the
+deployed production version, both D1 databases with all users, sessions,
+rules, push subscriptions and history, every Worker secret (including the VAPID
+keys), and the GitHub repository. Because the Worker and its secrets survive,
+existing logins, installed apps and push subscriptions can work again on
+resumption without anyone re-registering.
+
+While frozen, no Octopus or AgilePredict polling runs and no notifications are
+sent. The site and API stay reachable, so anyone who opens the app sees prices
+stop at the freeze. A user who changes their area can still trigger a one-off
+Octopus fetch from the API. Cloudflare's Free plan is believed to make this
+cost nothing; confirm the plan and billing when freezing.
+
+### Before freezing
+
+1. Alan signs Wrangler in to the Cloudflare account that owns the
+   `alanclinch.workers.dev` Workers. On the second computer, checked on
+   1 November 2026, Wrangler was signed in to a different account with
+   read-only scopes.
+2. Record, read-only, the current state of each Worker: deployed version,
+   cron triggers, secret *names* (never values), D1 migration level and plan.
+   This becomes the restoration target.
+3. Decide whether and how to tell the two other users. A last push
+   notification has to be sent before the schedules are removed.
+4. Optionally, find or securely store a copy of the production VAPID key pair.
+   It is not needed while the Worker is kept, only if it is ever rebuilt.
+
+### Freezing
+
+Freeze `octoprice-dev` first, check it, then production. Remove both cron
+expressions (`*/5 * * * *` and `2-59/5 * * * *`) from each Worker in the
+Cloudflare dashboard under the Worker's trigger settings. Do not delete the
+Worker, the database or any secret, and do not change `wrangler.jsonc`: it
+keeps the schedules so that resumption can reapply them. Confirm in the
+dashboard and the Worker logs that no scheduled invocation runs after the
+change. Then record the date, versions and verified state in this file.
+
+Warning: while frozen, any `wrangler deploy` (including
+`npm run deploy:cloudflare:dev`) reapplies the schedules from `wrangler.jsonc`
+and silently ends the freeze. Do not deploy unless resumption is intended.
+
+### Resuming from the freeze
+
+1. Sign in to the owning Cloudflare account and check that both Workers,
+   databases and secrets are still present.
+2. Restore the schedules without uploading new code, from a checkout of the
+   committed `main` revision that matches the deployed version:
+   `npx wrangler triggers deploy --dry-run`, then without `--dry-run`, and the
+   same with `--env dev` for the dev Worker. The command is marked experimental
+   in Wrangler 4, so check its current behaviour first; the fallback is to
+   re-add the two cron expressions in the dashboard.
+3. The next price run backfills today's prices automatically; tomorrow's
+   arrive in the normal 16:05-22:15 London publication polling window.
+   The baseline forecast refills its history one tariff-day per forecast run,
+   so estimates may take a while to appear; AgilePredict estimates are
+   separate. Confirm prices, the status page and one test notification.
+
+Sessions last one year from when each invite link was claimed and are not
+renewed. If a user's cookie has expired, opening their original invite link
+again still signs them in, because the token is kept. Issue a new link only
+if they no longer have it. Browser push subscriptions can lapse on their own
+after a long gap; affected users can turn notifications on again.
 
 ## Resuming
 

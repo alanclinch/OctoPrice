@@ -54,6 +54,12 @@ commit it, and use a normal Cloudflare login on the new computer instead.
 C:\Users\alanc\AppData\Roaming\xdg.config\.wrangler\config\default.toml
 ```
 
+The project has since been copied to a second computer, also at
+`C:\Projects\OctoPrice` (Windows user `Alan`). On 1 November 2026 Wrangler
+there was signed in to a different Cloudflare account from the one that owns
+the Workers. Run `npx wrangler whoami` and sign in to the owning account before
+any Cloudflare operation.
+
 Existing notification subscriptions depend on the original VAPID keys. Their
 recoverable location has not been established: check secure records without
 exposing or committing the keys. Do not assume Cloudflare Worker secrets can be

@@ -34,6 +34,18 @@ normal-price periods are not important unless they change that decision.
 
 ## Current State
 
+**2026-11-01 freeze decision (second computer):** a new maintainer took over
+on a copied folder (`C:\Projects\OctoPrice` on a second Windows computer).
+`dev` was clean and matched `origin/dev`, four documentation-only commits
+ahead of `main`; `npm run verify` passed with 378 tests. Both health endpoints
+returned `ok` at 19:38 UTC. Wrangler on this computer is signed in to a
+different Cloudflare account from the one owning the Workers, so live
+schedules, secrets and D1 were not inspected. Alan decided to **freeze and
+keep everything**: remove the Cron Triggers from both Workers at a later date
+he chooses, keeping the Workers, databases, secrets and repository so the
+service can be resumed quickly. The procedure, warnings and resumption steps
+are in `docs/dormancy.md` under "Agreed plan". Nothing has been frozen yet.
+
 The new-maintainer reading order and Markdown/source file map are in
 `AI_START_HERE.md`. On 1 November 2026 it was added and linked from the README
 and both agent guides; Claude's read-only review passed and its useful source
@@ -1435,12 +1447,12 @@ throughout and cannot drive alerts or cheapest-window advice.
 
 ## Currently In Progress
 
-- Dormancy is being planned, not yet carried out. Alan needs to decide the
-  desired service, schedules, user notifications, data retention and recovery
-  arrangements; see `docs/dormancy.md`. No shutdown has been recorded.
-- Documentation changes are on `dev`. Claude's read-only re-review passed
-  after the stale-handoff correction. Any production release remains subject
-  to Alan's explicit approval.
+- The freeze is agreed but not carried out; Alan will choose the date. Still
+  open for that day: signing in to the owning Cloudflare account, whether and
+  how to tell the two other users, and optionally securing a VAPID key copy.
+  See `docs/dormancy.md`.
+- Documentation changes are on `dev` only. Merging them to `main` is a
+  release and needs Alan's explicit approval.
 
 ## Forecasting
 
