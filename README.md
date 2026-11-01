@@ -12,6 +12,9 @@ screen as an app, and works in any browser.
 OctoAgile Advisor is an independent app and is not affiliated with Octopus
 Energy.
 
+New AI maintainers should start with [AI_START_HERE.md](AI_START_HERE.md) for
+the documentation and source map.
+
 > Status: MVP feature-complete. Cloudflare deployment is supported; see
 > `AI_HANDOFF.md` for the current live-deployment state.
 

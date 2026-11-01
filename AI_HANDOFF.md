@@ -46,6 +46,11 @@ normal-price periods are not important unless they change that decision.
 
 ## Current State
 
+The new-maintainer reading order and Markdown/source file map are in
+`AI_START_HERE.md`. On 1 November 2026 it was added and linked from the README
+and both agent guides; Claude's read-only review passed and its useful source
+map suggestions were incorporated. `npm run verify` passed with 378 tests.
+
 Entries below record observations on their stated dates, not verified live
 state on 1 November 2026. See `docs/dormancy.md` and inspect Cloudflare before
 acting; the owner is preparing for dormancy and shutdown has not been recorded.

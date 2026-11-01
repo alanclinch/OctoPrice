@@ -1,5 +1,8 @@
 # CLAUDE.md — instructions for Claude Code
 
+New to the project? `AI_START_HERE.md` maps the documentation and source for
+a new maintainer, including dormancy and resumption.
+
 > **Do not assume previous Claude context is current. Git and `AI_HANDOFF.md`
 > are the source of truth.**
 >

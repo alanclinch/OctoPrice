@@ -1,5 +1,8 @@
 # AGENTS.md — instructions for Codex and other coding agents
 
+New to this repository or taking over after dormancy? Read `AI_START_HERE.md`
+for the documentation and source navigation map, then follow this file.
+
 > **Do not rely on conversation history as the current state of the project.
 > Inspect the repository and `AI_HANDOFF.md` first.**
 >
