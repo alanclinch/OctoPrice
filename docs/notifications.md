@@ -25,8 +25,8 @@ Average: 27.9p/kWh
 4 periods match Cheap electricity
 ```
 
-Opening it deep-links to `/?date=<tomorrow>`, which the app opens on the
-Tomorrow tab.
+The payload links to `/?date=<tomorrow>`. The current app uses one continuous
+price timeline rather than a separate Tomorrow tab.
 
 ### A rule matched
 
@@ -174,8 +174,7 @@ so it is treated as a secret:
 
 ## Current status
 
-Web push is implemented and unit tested with a recording sender, but has
-**not yet been verified against a real device**. The embedded browser used
-during development refuses service worker registration, so the end-to-end
-path — real service worker, real push service, real phone — is the main thing
-still to confirm.
+Web push is implemented and unit tested with a recording sender. The handoff
+records a successful real Android notification during earlier development;
+that historical observation does not establish present delivery. Re-test on
+the intended devices after any dormancy or push-key change.

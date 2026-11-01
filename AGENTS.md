@@ -47,8 +47,11 @@ deploy/cloudflare/   Example named-tunnel configuration; never credentials
 
 ## Forecasting
 
-Predicted prices are a *proposed* enhancement, designed in
-`docs/forecasting.md` and not implemented. Two findings from that research
+Experimental predicted prices are implemented: AgilePredict is the configured
+production display source, with a seasonal baseline fallback and a separate
+private analogue experiment. See `docs/forecasting.md` and the current code.
+Confirmed prices take precedence and forecasts never drive alerts or cheapest
+window advice. Two findings from earlier research
 bind any future work:
 
 - Agile regions are exact linear transforms of one another once peak

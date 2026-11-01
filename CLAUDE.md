@@ -41,8 +41,8 @@ packages/core     Pure domain logic. No network, no database, no clock reads.
                   cheapest-window calculator, notification text and dedupe keys.
 
 apps/server       Fastify HTTP API, the Octopus client, the polling scheduler,
-                  persistence and notification delivery. Serves the built PWA
-                  in production.
+                  persistence and notification delivery. The Worker serves
+                  the built PWA in production; Fastify is the local adapter.
 
 apps/web          Vite + React PWA. Mobile-first.
 
@@ -60,9 +60,10 @@ needs as an argument.
 
 ## Forecasting
 
-Predicted prices are a *proposed* enhancement, designed in
-`docs/forecasting.md` and not implemented. Two things from that research bind
-any future work:
+Experimental forecasts are implemented: AgilePredict is the configured
+production display source, with a seasonal baseline fallback and a separate
+private analogue experiment. See `docs/forecasting.md` and the code. Two
+findings from earlier research inform future work:
 
 - Agile regions are exact linear transforms of one another once peak
   (16:00-19:00 local) and off-peak are separated - R^2 of 1.000000 over 1441

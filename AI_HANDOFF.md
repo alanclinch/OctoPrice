@@ -46,6 +46,25 @@ normal-price periods are not important unless they change that decision.
 
 ## Current State
 
+Entries below record observations on their stated dates, not verified live
+state on 1 November 2026. See `docs/dormancy.md` and inspect Cloudflare before
+acting; the owner is preparing for dormancy and shutdown has not been recorded.
+
+**2026-11-01 dormancy handoff:** Alan is preparing to move away from Agile.
+`docs/dormancy.md` records the inventory, data and secret considerations,
+decisions needed before shutdown, resumption checks and documentation map.
+Both public health endpoints returned `ok` on 1 November; this does not verify
+cron or push status. The agent guides, historical specification, architecture,
+deployment, notifications, Octopus API and forecasting docs were reconciled
+or marked as historical. A separate-model hostile reviewer identified the
+cron reactivation and original-VAPID-key risks; both were documented and its
+final re-review found no additional material gap. `npm run verify` passed with
+378 tests after using a workspace-local temporary directory. The mandatory Claude CLI was
+attempted but its OAuth session had expired; a Claude review remains pending.
+No shutdown, migration, secret change or production deployment was performed.
+Next: re-authenticate Claude and complete its required review, then decide and
+authorise the desired dormancy, data retention and notification policy.
+
 **2026-09-25 hourly AgilePredict production release:** Alan asked
 whether one-region polling could be hourly or half-hourly instead of every
 three hours. A read-only request to the documented Region N API returned recent

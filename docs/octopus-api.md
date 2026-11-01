@@ -20,7 +20,7 @@ The current Agile import product is the most recently available product whose
 code starts with `AGILE-` and whose direction is `IMPORT`. The export tariff
 (`AGILE-OUTGOING-…`) is excluded by the direction check.
 
-At the time of writing the current product is **`AGILE-24-10-01`**. It is
+The historically observed product was **`AGILE-24-10-01`**. It is
 discovered at startup rather than hard-coded, with a fallback constant if the
 products endpoint cannot be reached.
 
@@ -78,11 +78,10 @@ is enough.
 
 Observed directly against the live API: at 17:46 on 26 August 2026, the
 following day held **46 of its 48 periods**, with the last hour still to come.
-Treating that as "published" would have produced a daily summary with a
-missing evening, and a cheapest-window answer computed from incomplete data.
-
-This is why `isDayComplete` requires the full expected count, contiguity, and
-local-midnight-to-local-midnight coverage before a day counts.
+The app distinguishes a full day from a publishable contiguous run: strict
+`isDayComplete` requires the full expected count and midnight-to-midnight
+coverage, while notification readiness uses the separate coverage rule. See
+`docs/architecture.md` and the current implementation before changing either.
 
 ### Duplicates and corrections
 

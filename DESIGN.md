@@ -1,5 +1,9 @@
 # Octopus Agile Price Notifier
 
+> Historical product specification: implementation and deployment have
+> evolved. Read `README.md`, `AI_HANDOFF.md` and `docs/dormancy.md`, then
+> verify current behaviour in code before acting on this document.
+
 > This is the original project specification. It is the reference for *what*
 > the application should do and why. Where the implementation has since made a
 > more specific decision, that decision is recorded in `AI_HANDOFF.md` under

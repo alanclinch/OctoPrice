@@ -15,6 +15,10 @@ Energy.
 > Status: MVP feature-complete. Cloudflare deployment is supported; see
 > `AI_HANDOFF.md` for the current live-deployment state.
 
+> Alan is preparing the project for dormancy. See [Dormancy and resumption](docs/dormancy.md)
+> before changing live infrastructure or taking over maintenance. The repository
+> alone does not prove whether the hosted service is currently running.
+
 ## What it does
 
 - **Current price, front and centre.** What you are paying right now and what
@@ -25,8 +29,9 @@ Energy.
 - **Guided setup and installation.** The first visit asks for your electricity
   area, and the header always offers an install action for the PWA.
 - **Publication alerts.** Octopus usually publishes next-day prices around
-  16:00 but is entitled to take until 22:00. OctoAgile Advisor polls until the full
-  day has actually arrived, then tells you.
+  16:00. OctoAgile Advisor checks for a publishable contiguous run and can
+  notify before the final periods are available; full-day completeness is a
+  separate, stricter condition.
 - **Your own alert rules.** "Below 7p", "negative", "below 5p for at least two
   hours between 22:00 and 06:00" — all the same rules engine, no hard-coded
   special cases.
@@ -130,7 +135,8 @@ runtime remains available for local development.
 
 | Document                | Contents                                     |
 | ----------------------- | -------------------------------------------- |
-| `DESIGN.md`             | The full specification                       |
+| `DESIGN.md`             | Historical product specification; verify against code |
+| `docs/dormancy.md`      | Dormancy decisions and resumption checklist   |
 | `docs/architecture.md`  | How the pieces fit together                  |
 | `docs/octopus-api.md`   | Octopus API behaviour and edge cases         |
 | `docs/notifications.md` | Push, providers and duplicate prevention     |

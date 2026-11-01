@@ -1,7 +1,9 @@
 # Agile price forecasting — research and proposed architecture
 
-**Status: research and design, plus an implemented input archive (section 8)
-and experimental seasonal-naive baseline (section 9).**
+**Status:** This is a research history with later implementation notes. The
+current configured production display uses AgilePredict with a seasonal-naive
+fallback; the analogue model is a private experiment. Read the display-source
+section near the end and verify current code and deployment configuration.
 
 This document covers stages 1–4 of the staged plan in the feature request:
 review prior art, investigate data sources, propose an architecture, and
@@ -1052,8 +1054,9 @@ The normal price API has no read path for these tables. The owner-only Forecast
 tab displays the current visible v1 estimates from the existing overview API,
 even while shadow preparation is unfinished. It may also display prepared
 shadow curves, progress and scores, but cannot use them for alerts or advice.
-The visible estimate remains `seasonal-naive-v1`,
-including the following-day horizon. Before promotion, v2
+At the time of this shadow implementation the visible estimate was
+`seasonal-naive-v1`; the later AgilePredict display source is described below.
+Before promotion, v2
 still needs live shadow evidence, an extended back-test through the 25 October
 2026 clock change, and calibrated v2-specific uncertainty. A 46- or 50-period
 target with too few same-length analogue days deliberately produces no v2;
@@ -1077,9 +1080,10 @@ skips an incomplete official day so it cannot stall other forecast scores.
 
 The owner-only Forecast tab shows the provider's issue time, lowest half-hour,
 curve and eventual cheapest-three-hour regret against official Octopus prices.
-The source has [private, non-commercial terms](https://agilepredict.com/api_how_to),
-so its data is not exposed to guests, used for alerts or promoted into our
-public price API. Our v1/v2 runs use a 14:00 issue cut-off, while the provider's
+The benchmark data is owner-only and is not used for alerts or advice. A
+separate attributed provider display source is described below; provider data
+has [private, non-commercial terms](https://agilepredict.com/api_how_to).
+Our v1/v2 runs use a 14:00 issue cut-off, while the provider's
 latest pre-cut-off issue may be earlier (for example 11:15); the recorded
 provider timestamp stays visible so comparisons are not mistaken for precisely
 simultaneous forecasts. Whole-day MAE is retained for context, but low-price

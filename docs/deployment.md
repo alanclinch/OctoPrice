@@ -1,5 +1,10 @@
 # Cloudflare deployment
 
+For the planned dormancy, read `docs/dormancy.md` first. Existing resource
+identifiers below describe the repository configuration; verify actual live
+state before performing any operation. First-deployment and migration commands
+are not routine shutdown or restart steps.
+
 Production runs entirely on Cloudflare:
 
 ```text
@@ -203,15 +208,17 @@ committed, verified `dev` revision on a phone, use the separate
 `https://octoprice-dev.alanclinch.workers.dev` address:
 
 ```bash
-npm run d1:migrate:dev
 npm run verify
 npm run deploy:cloudflare:dev
 ```
 
+Apply a dev migration only when the code needs one, after checking the target
+and testing the migration. Do not run migrations merely to resume a service.
+
 The `dev` Wrangler environment has its own Worker and D1 database. Its
 `workers.dev` origin also gives it separate cookies, service worker, PWA
 installation and push subscriptions. The app displays a DEV badge and installs
-as “Agile Dev”. Do not copy production user rows, access tokens, push
+as “OctoAgile Advisor Dev”. Do not copy production user rows, access tokens, push
 subscriptions or VAPID secrets to it. The development database starts with an
 unclaimed owner; issue a one-time owner link with:
 
@@ -237,7 +244,6 @@ deploy that committed `main` revision:
 git checkout main
 git pull --ff-only
 npm ci
-npm run d1:migrate:remote
 npm run verify
 npm run deploy:cloudflare
 ```

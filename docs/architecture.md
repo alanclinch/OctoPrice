@@ -1,5 +1,11 @@
 # Architecture
 
+This document includes historical design rationale. For current operational
+state and dormancy planning, start with `AI_HANDOFF.md` and `docs/dormancy.md`,
+then verify behaviour in code. In particular, the current configured production
+forecast source is AgilePredict with a seasonal fallback; the baseline-only
+discussion below describes the earlier architecture.
+
 ## Shape of the system
 
 ```text
@@ -59,8 +65,8 @@ Two separate questions are asked, and conflating them caused a production
 outage in which no notification was ever sent:
 
 - **`complete`** — every expected period present, contiguous, spanning local
-  midnight to local midnight. This governs what the interface claims: the
-  "46 of 48" label, the chart, the cheapest-window calculation.
+  midnight to local midnight. This is stricter than the readiness/coverage
+  status shown in the interface.
 - **`publishable`** — an unbroken run from local midnight covering at least
   22 hours. This governs notification.
 
