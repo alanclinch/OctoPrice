@@ -8,29 +8,17 @@ If this file and the code disagree, **the code is right** — fix this file.
 
 ## Shared Review Protocol
 
-This file is also the durable review queue between Claude and Codex. Chat
-messages are not a handoff: when either agent is asked to review the project,
-it must record every unresolved actionable finding under **Open Review
-Findings** before finishing. Both agents must read that section before making
-changes, update it as work progresses, and remove a finding only after the fix
-and its relevant tests have been verified. Include severity, file/area and the
-reason the behaviour is wrong so the other agent can act without needing the
-original conversation.
+Use this file to record current work and unresolved review findings so the
+next maintainer has context without needing chat history. The older **Open
+Review Findings** section contains dated historical reviews: verify whether
+each finding is still relevant before acting on it.
 
 ## Active Agent Roles
 
-Alan should never have to carry findings or instructions between agents.
-For forecasting work, the standing roles are:
-
-- **Codex owns development:** design decisions within the agreed scope,
-  implementation, tests, documentation, deployment preparation and fixes.
-- **Claude owns review:** inspect Codex's completed forecasting changes and
-  record actionable findings directly in this file. Claude does not take over
-  implementation unless Alan explicitly changes the roles.
-- **`AI_HANDOFF.md` is the conversation between agents.** Codex records the
-  branch, review-ready commit, verification and assumptions here. Claude
-  records its verdict and findings here. Alan only needs to say “continue” or
-  “review”; no copying and pasting between agents.
+Alan wants the next AI maintainer to use its own development and review
+methods and choice of models. The previous Codex/Claude role assignments are
+historical, not binding. Keep `AI_HANDOFF.md` current so a future maintainer
+does not need this conversation or Alan as a messenger between agents.
 
 The forecasting implementation target is deliberately modest: an
 **experimental, educated data-based estimate**, not a precision claim or a
@@ -50,6 +38,14 @@ The new-maintainer reading order and Markdown/source file map are in
 `AI_START_HERE.md`. On 1 November 2026 it was added and linked from the README
 and both agent guides; Claude's read-only review passed and its useful source
 map suggestions were incorporated. `npm run verify` passed with 378 tests.
+
+Alan subsequently requested a computer-specific copying guide and a portable
+workflow. `COPYING_TO_NEW_COMPUTER.md` records the original project path,
+sensitive-copy warnings, external Cloudflare state and unknown VAPID recovery
+location. Future AIs choose their own development and review methods; the old
+machine-specific mandatory Claude CLI rule has been removed. An independent
+read-only review found no material issues and its copy-safety wording suggestion
+was incorporated; `npm run verify` passed with 378 tests.
 
 Entries below record observations on their stated dates, not verified live
 state on 1 November 2026. See `docs/dormancy.md` and inspect Cloudflare before
@@ -156,7 +152,7 @@ vintages and compare cheap-slot calls through several publication cycles.
   be merged to `main` or deployed to production until Alan explicitly approves
   a release. The separate `octoprice-dev` Worker and D1 database support phone
   testing; `--env dev` is mandatory for that target.
-  The mandatory Claude CLI workflow remains active.
+  The next AI may choose its own development and review workflow.
 - **Build status:** passing on `main` — `npm run verify` and GitHub CI
 - **Test status:** passing — 378 tests across 24 files
 - **Deployed:** `main` application revision `65cdb93`, Worker version

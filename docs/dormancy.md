@@ -8,7 +8,8 @@ personal data without an explicit decision on scope and retention.
 
 ## Start here
 
-- Read `AGENTS.md` for the agent workflow and mandatory read-only Claude review.
+- Read `AGENTS.md` for project constraints and release rules. The next AI may
+  choose its own development and review methods and models.
 - Read `AI_HANDOFF.md`, checking dates and Git history: historical deployment
   statements are evidence of past state, not proof of current state.
 - Read `docs/deployment.md`, `docs/architecture.md`, `docs/notifications.md`

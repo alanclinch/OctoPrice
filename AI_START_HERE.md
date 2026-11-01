@@ -6,9 +6,9 @@ state before acting. Do not treat a dated handoff entry as a current live check.
 
 ## First reading, in order
 
-1. Read `AGENTS.md` (and `CLAUDE.md` when using Claude Code) for the working,
-   review, Git and release rules. Its Claude CLI path refers to the original
-   Windows machine and must be checked on a different computer.
+1. Read `AGENTS.md` (and `CLAUDE.md` when using Claude Code) for project
+   constraints, Git and release rules. Alan expects you to use your own
+   development and review methods and choice of models.
 2. Read `AI_HANDOFF.md`, starting with **Current State**, **Currently In
    Progress** and **Open Review Findings**. Much of it is dated history;
    check dates, Git and code before assuming an old issue remains open.
@@ -65,5 +65,5 @@ sharing. Reinstall dependencies with a suitable Node.js version rather than
 relying on a copied `node_modules` directory. Cloudflare account access,
 remote D1 data, Worker secrets and original VAPID key material are separate
 from the source handoff; see `docs/dormancy.md`. Do not place credentials in
-the Markdown files or Git. A separate Claude Code installation and sign-in may
-be needed for the review workflow in `AGENTS.md`.
+the Markdown files or Git. `COPYING_TO_NEW_COMPUTER.md` records where Alan can
+find the project on the original computer and what is stored separately.

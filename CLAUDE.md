@@ -3,6 +3,10 @@
 New to the project? `AI_START_HERE.md` maps the documentation and source for
 a new maintainer, including dormancy and resumption.
 
+Alan expects a future AI to choose its own development and review methods and
+models. Historical Codex/Claude role assignments and mandatory calls to a
+specific local CLI do not bind the next maintainer.
+
 > **Do not assume previous Claude context is current. Git and `AI_HANDOFF.md`
 > are the source of truth.**
 >

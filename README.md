@@ -14,6 +14,7 @@ Energy.
 
 New AI maintainers should start with [AI_START_HERE.md](AI_START_HERE.md) for
 the documentation and source map.
+To move the project, Alan can use [COPYING_TO_NEW_COMPUTER.md](COPYING_TO_NEW_COMPUTER.md).
 
 > Status: MVP feature-complete. Cloudflare deployment is supported; see
 > `AI_HANDOFF.md` for the current live-deployment state.
